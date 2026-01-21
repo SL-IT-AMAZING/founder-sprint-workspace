@@ -1,0 +1,539 @@
+IX2 Report
+
+Trigger types: DROPDOWN_CLOSE, DROPDOWN_OPEN, MOUSE_CLICK, MOUSE_OUT, MOUSE_OVER, MOUSE_SECOND_CLICK, NAVBAR_CLOSE, NAVBAR_OPEN, PAGE_START, SCROLL_INTO_VIEW
+
+Event definitions (grouped by type):
+[DROPDOWN_CLOSE]
+- e-12: actionListId=a-10, autoStop=e-11, target=.nav-dropdown.show-screen
+- e-14: actionListId=a-12, autoStop=e-13, target=.nav-dropdown
+
+[DROPDOWN_OPEN]
+- e-11: actionListId=a-9, autoStop=e-12, target=.nav-dropdown.show-screen
+- e-13: actionListId=a-11, autoStop=e-14, target=.nav-dropdown
+
+[MOUSE_CLICK]
+- e: actionListId=a, autoStop=e-2, target=.trigger-search
+- e-109: actionListId=a-24, autoStop=e-110, target=.accordion-title
+- e-3: actionListId=a-2, autoStop=e-4, target=.search-modal-screen
+
+[MOUSE_OUT]
+- e-10: actionListId=a-8, autoStop=e-9, target=.arrow-link
+- e-160: actionListId=a-28, autoStop=e-159, target=.blog-post-image-wrap
+- e-26: actionListId=a-17, autoStop=e-25, target=.group.logo-section
+- e-42: actionListId=a-19, autoStop=e-41, target=.customer-video-section.first
+- e-44: actionListId=a-19, autoStop=e-43, target=.customer-video-section.third
+- e-52: actionListId=a-23, autoStop=e-51, target=.circle-button
+- e-8: actionListId=a-6, autoStop=e-7, target=.button
+
+[MOUSE_OVER]
+- e-159: actionListId=a-27, autoStop=e-160, target=.blog-post-image-wrap
+- e-25: actionListId=a-16, autoStop=e-26, target=.group.logo-section
+- e-41: actionListId=a-20, autoStop=e-42, target=.customer-video-section.first
+- e-43: actionListId=a-21, autoStop=e-44, target=.customer-video-section.third
+- e-51: actionListId=a-22, autoStop=e-52, target=.circle-button
+- e-7: actionListId=a-5, autoStop=e-8, target=.button
+- e-9: actionListId=a-7, autoStop=e-10, target=.arrow-link
+
+[MOUSE_SECOND_CLICK]
+- e-110: actionListId=a-25, autoStop=e-109, target=.accordion-title
+
+[NAVBAR_CLOSE]
+- e-6: actionListId=a-4, autoStop=e-5, target=.navbar
+
+[NAVBAR_OPEN]
+- e-5: actionListId=a-3, autoStop=e-6, target=.navbar
+
+[PAGE_START]
+- e-501: actionListId=a-37, autoStop=e-502, target=691b2d7c12f67ca15b75a14f
+- e-503: actionListId=a-38, autoStop=e-504, target=691b2d7c12f67ca15b75a14f
+- e-505: actionListId=a-40, autoStop=e-506, target=691b2d7c12f67ca15b75a14f
+
+[SCROLL_INTO_VIEW]
+- e-101: actionListId=a-14, autoStop=e-102, target=691b2d7c12f67ca15b75a158|554f4c33-983b-7594-518c-e82a955260c4
+- e-103: actionListId=a-14, autoStop=e-104, target=691b2d7c12f67ca15b75a158|b99a4367-0642-ded3-042b-94dbd024d2b2
+- e-105: actionListId=a-14, autoStop=e-106, target=691b2d7c12f67ca15b75a158|fe6e57de-e5c6-1df7-01cc-b92bfb40de4b
+- e-107: actionListId=a-15, autoStop=e-108, target=691b2d7c12f67ca15b75a158|fe6e57de-e5c6-1df7-01cc-b92bfb40de4b
+- e-111: actionListId=a-14, autoStop=e-112, target=043df0e7-4e49-e441-5db3-b0410ac484d8
+- e-113: actionListId=a-14, autoStop=e-114, target=691b2d7c12f67ca15b75a158|e7fd8d43-8553-1c04-39a0-2a2dcb548a71
+- e-117: actionListId=a-14, autoStop=e-118, target=691b2d7c12f67ca15b75a15a|7a2c95ed-dab1-0dd9-7547-cc29ab23b6ec
+- e-119: actionListId=a-14, autoStop=e-120, target=691b2d7c12f67ca15b75a15a|ebe17f43-5d18-eb45-f9ae-6f37097b4743
+- e-121: actionListId=a-14, autoStop=e-122, target=691b2d7c12f67ca15b75a15a|369d1da7-70d7-9870-ba4c-4a37bb39743b
+- e-123: actionListId=a-15, autoStop=e-124, target=691b2d7c12f67ca15b75a15a|35eea105-577a-cca7-1de5-53aec4f2f21c
+- e-133: actionListId=a-14, autoStop=e-134, target=691b2d7c12f67ca15b75a15a|eccd9148-df5d-cca7-c89f-d5dfb57d7b5b
+- e-135: actionListId=a-14, autoStop=e-136, target=691b2d7c12f67ca15b75a15a|554f4c33-983b-7594-518c-e82a955260c4
+- e-143: actionListId=a-14, autoStop=e-144, target=691b2d7c12f67ca15b75a15a|5a1944e8-48e7-8ee1-5566-b7ee2942982d
+- e-147: actionListId=a-14, autoStop=e-148, target=691b2d7c12f67ca15b75a15a|7aeec85b-122b-1136-ce72-0fe4f1c46a9a
+- e-149: actionListId=a-14, autoStop=e-150, target=691b2d7c12f67ca15b75a15a|9e8c5dd0-07a7-dce6-38cb-2288b3dac973
+- e-15: actionListId=a-13, autoStop=e-16, target=.marquee
+- e-151: actionListId=a-15, autoStop=e-152, target=691b2d7c12f67ca15b75a15a|7aeec85b-122b-1136-ce72-0fe4f1c46a9b
+- e-153: actionListId=a-26, autoStop=e-154, target=691b2d7c12f67ca15b75a15a|7aeec85b-122b-1136-ce72-0fe4f1c46aa6
+- e-155: actionListId=a-14, autoStop=e-156, target=691b2d7c12f67ca15b75a15a|2eef886a-2359-1733-d876-a32aaaace3f6
+- e-157: actionListId=a-14, autoStop=e-158, target=691b2d7c12f67ca15b75a15a|5ba53e1e-cd07-e514-7669-15ef30a730eb
+- e-161: actionListId=a-14, autoStop=e-162, target=691b2d7c12f67ca15b75a15e|fdf70fc3-1e3f-4a61-4bdf-9620e7f0405d
+- e-163: actionListId=a-14, autoStop=e-164, target=691b2d7c12f67ca15b75a15a|98e50603-51e9-9e67-1031-bd4b14c0dd02
+- e-165: actionListId=a-15, autoStop=e-166, target=691b2d7c12f67ca15b75a15c|765b06f9-7415-d7d9-be1c-eaf270059998
+- e-169: actionListId=a-14, autoStop=e-170, target=691b2d7c12f67ca15b75a15b|2f6482e9-9dbc-1afe-bde0-ff991ab305b5
+- e-17: actionListId=a-14, autoStop=e-18, target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4
+- e-171: actionListId=a-15, autoStop=e-172, target=691b2d7c12f67ca15b75a15b|74938026-1f87-a0a8-7f4c-80f032de2d4f
+- e-173: actionListId=a-14, autoStop=e-174, target=691b2d7c12f67ca15b75a15c|7ee135de-4ab2-6daf-1be2-437fbe3847b3
+- e-175: actionListId=a-14, autoStop=e-176, target=691b2d7c12f67ca15b75a15c|765b06f9-7415-d7d9-be1c-eaf270059998
+- e-177: actionListId=a-14, autoStop=e-178, target=691b2d7c12f67ca15b75a15d|9c7ca00f-0bbe-88db-d1c7-a4dcf2789269
+- e-179: actionListId=a-15, autoStop=e-180, target=691b2d7c12f67ca15b75a15d|9c7ca00f-0bbe-88db-d1c7-a4dcf2789269
+- e-181: actionListId=a-14, autoStop=e-182, target=691b2d7c12f67ca15b75a15d|ccb961f7-a2a9-cd30-d97a-b38dfee7ac62
+- e-183: actionListId=a-14, autoStop=e-184, target=691b2d7c12f67ca15b75a15b|cb71deff-8519-764e-2034-af9e17835846
+- e-185: actionListId=a-14, autoStop=e-186, target=691b2d7c12f67ca15b75a15b|cb71deff-8519-764e-2034-af9e17835849
+- e-187: actionListId=a-14, autoStop=e-188, target=691b2d7c12f67ca15b75a15b|2b40c569-1ac4-2054-6cbe-22c2b4f91520
+- e-19: actionListId=a-15, autoStop=e-20, target=691b2d7c12f67ca15b75a14f|ffe863cd-4972-e8b0-3d07-e96a91ae55f5
+- e-211: actionListId=a-14, autoStop=e-212, target=691b2d7c12f67ca15b75a160|2eef886a-2359-1733-d876-a32aaaace3f6
+- e-217: actionListId=a-14, autoStop=e-218, target=691b2d7c12f67ca15b75a160|33e3494d-3da8-9c19-003a-12b139647689
+- e-227: actionListId=a-14, autoStop=e-228, target=691b2d7c12f67ca15b75a160|773a9c3f-7302-3b70-d4eb-59a0b322cdff
+- e-229: actionListId=a-15, autoStop=e-230, target=691b2d7c12f67ca15b75a160|677f1242-ee06-417d-d6fd-5575a3172149
+- e-231: actionListId=a-14, autoStop=e-232, target=691b2d7c12f67ca15b75a160|677f1242-ee06-417d-d6fd-5575a3172149
+- e-233: actionListId=a-14, autoStop=e-234, target=691b2d7c12f67ca15b75a160|f2d84ace-732d-1926-d5eb-6f7beb05158a
+- e-235: actionListId=a-14, autoStop=e-236, target=691b2d7c12f67ca15b75a160|f2d84ace-732d-1926-d5eb-6f7beb0515ce
+- e-237: actionListId=a-15, autoStop=e-238, target=691b2d7c12f67ca15b75a160|f2d84ace-732d-1926-d5eb-6f7beb0515ce
+- e-239: actionListId=a-14, autoStop=e-240, target=691b2d7c12f67ca15b75a160|0bf4c931-c8e4-20cb-50c0-0a62fd4fd923
+- e-241: actionListId=a-14, autoStop=e-242, target=691b2d7c12f67ca15b75a160|0bf4c931-c8e4-20cb-50c0-0a62fd4fd949
+- e-243: actionListId=a-15, autoStop=e-244, target=691b2d7c12f67ca15b75a160|0bf4c931-c8e4-20cb-50c0-0a62fd4fd949
+- e-245: actionListId=a-14, autoStop=e-246, target=691b2d7c12f67ca15b75a160|782daf98-7328-d98e-2cc7-fb23eefc0e0f
+- e-247: actionListId=a-15, autoStop=e-248, target=691b2d7c12f67ca15b75a160|782daf98-7328-d98e-2cc7-fb23eefc0e28
+- e-249: actionListId=a-14, autoStop=e-250, target=691b2d7c12f67ca15b75a160|782daf98-7328-d98e-2cc7-fb23eefc0e28
+- e-251: actionListId=a-14, autoStop=e-252, target=691b2d7c12f67ca15b75a160|92848f02-d049-396e-d25e-6dab8cfaff4a
+- e-253: actionListId=a-14, autoStop=e-254, target=691b2d7c12f67ca15b75a162|7a2c95ed-dab1-0dd9-7547-cc29ab23b6ec
+- e-267: actionListId=a-14, autoStop=e-268, target=691b2d7c12f67ca15b75a162|7aeec85b-122b-1136-ce72-0fe4f1c46a9a
+- e-27: actionListId=a-14, autoStop=e-28, target=691b2d7c12f67ca15b75a14f|29aa6a5d-20ec-f260-1e64-fb56e9412380
+- e-271: actionListId=a-15, autoStop=e-272, target=691b2d7c12f67ca15b75a162|7aeec85b-122b-1136-ce72-0fe4f1c46a9b
+- e-275: actionListId=a-14, autoStop=e-276, target=691b2d7c12f67ca15b75a162|2eef886a-2359-1733-d876-a32aaaace3f6
+- e-281: actionListId=a-14, autoStop=e-282, target=691b2d7c12f67ca15b75a162|459a9a65-e33e-9f90-e1a9-9233839e3b21
+- e-283: actionListId=a-26, autoStop=e-284, target=691b2d7c12f67ca15b75a162|5a24ce1b-3985-c329-44de-8259ec73a9cd
+- e-285: actionListId=a-14, autoStop=e-286, target=691b2d7c12f67ca15b75a162|ae582e32-9967-1b98-91b4-a354878baa78
+- e-287: actionListId=a-14, autoStop=e-288, target=691b2d7c12f67ca15b75a162|ae582e32-9967-1b98-91b4-a354878baa7d
+- e-289: actionListId=a-14, autoStop=e-290, target=691b2d7c12f67ca15b75a162|ae582e32-9967-1b98-91b4-a354878baa96
+- e-29: actionListId=a-15, autoStop=e-30, target=691b2d7c12f67ca15b75a14f|bc25d256-97b5-29e6-38a6-879829120332
+- e-291: actionListId=a-15, autoStop=e-292, target=691b2d7c12f67ca15b75a162|ae582e32-9967-1b98-91b4-a354878baa96
+- e-293: actionListId=a-14, autoStop=e-294, target=691b2d7c12f67ca15b75a162|1f74f339-df9f-64eb-3c8c-e11f0fe2d06a
+- e-295: actionListId=a-14, autoStop=e-296, target=691b2d7c12f67ca15b75a162|0d27337e-63f6-f6e5-be8b-fc6e0747c2d4
+- e-297: actionListId=a-14, autoStop=e-298, target=691b2d7c12f67ca15b75a164|b9262a1a-f1c8-74c6-e05e-5fe049c99af0
+- e-299: actionListId=a-15, autoStop=e-300, target=691b2d7c12f67ca15b75a164|6fe62d64-9926-e510-4251-d629636a77a0
+- e-301: actionListId=a-14, autoStop=e-302, target=691b2d7c12f67ca15b75a165|b0a515fa-0328-4c31-f0ef-7fe22e218ba4
+- e-303: actionListId=a-15, autoStop=e-304, target=691b2d7c12f67ca15b75a165|b0a515fa-0328-4c31-f0ef-7fe22e218bb0
+- e-307: actionListId=a-14, autoStop=e-308, target=691b2d7c12f67ca15b75a167|b9262a1a-f1c8-74c6-e05e-5fe049c99af0
+- e-309: actionListId=a-15, autoStop=e-310, target=691b2d7c12f67ca15b75a167|9c862cfe-e1b1-0568-3ff7-5423f5e5e376
+- e-31: actionListId=a-15, autoStop=e-32, target=691b2d7c12f67ca15b75a14f|918156d2-eb45-559e-e11b-04733b77ffba
+- e-311: actionListId=a-14, autoStop=e-312, target=691b2d7c12f67ca15b75a167|285a0215-785c-8cfc-ad45-001a3e37e592
+- e-313: actionListId=a-14, autoStop=e-314, target=691b2d7c12f67ca15b75a167|2821270a-c24c-4d74-6fbb-df92b5f5dc8c
+- e-315: actionListId=a-15, autoStop=e-316, target=691b2d7c12f67ca15b75a167|e93e52e3-44a1-a523-dae5-f3672b579779
+- e-317: actionListId=a-14, autoStop=e-318, target=691b2d7c12f67ca15b75a167|e93e52e3-44a1-a523-dae5-f3672b579779
+- e-319: actionListId=a-14, autoStop=e-320, target=691b2d7c12f67ca15b75a167|2edf92fa-c397-276d-6725-19e0e7ac5c95
+- e-321: actionListId=a-14, autoStop=e-322, target=691b2d7c12f67ca15b75a167|b47b6e6a-d2a1-fc69-5e6b-cd3637ac414e
+- e-323: actionListId=a-14, autoStop=e-324, target=691b2d7c12f67ca15b75a167|b47b6e6a-d2a1-fc69-5e6b-cd3637ac4151
+- e-325: actionListId=a-14, autoStop=e-326, target=691b2d7c12f67ca15b75a167|ae47bed6-4885-bf25-349c-caabd9c7c35b
+- e-327: actionListId=a-14, autoStop=e-328, target=691b2d7c12f67ca15b75a168|b9262a1a-f1c8-74c6-e05e-5fe049c99af0
+- e-33: actionListId=a-14, autoStop=e-34, target=691b2d7c12f67ca15b75a14f|918156d2-eb45-559e-e11b-04733b77ffba
+- e-333: actionListId=a-14, autoStop=e-334, target=691b2d7c12f67ca15b75a168|2821270a-c24c-4d74-6fbb-df92b5f5dc8c
+- e-347: actionListId=a-15, autoStop=e-348, target=691b2d7c12f67ca15b75a168|935a4ac2-a524-1481-c5ae-68f68a098400
+- e-349: actionListId=a-26, autoStop=e-350, target=691b2d7c12f67ca15b75a168|fb875696-f823-d8d4-6746-7c0f2def15e2
+- e-35: actionListId=a-14, autoStop=e-36, target=691b2d7c12f67ca15b75a14f|4da5dc9b-010b-ada8-a68e-7d40a9674e4e
+- e-351: actionListId=a-29, autoStop=e-352, target=691b2d7c12f67ca15b75a168|5e0e3205-d15e-dbe4-f596-f68f47c22798
+- e-353: actionListId=a-30, autoStop=e-354, target=691b2d7c12f67ca15b75a168|5e0e3205-d15e-dbe4-f596-f68f47c22797
+- e-355: actionListId=a-14, autoStop=e-356, target=691b2d7c12f67ca15b75a168|ee2c3ad7-681e-87ee-8bcc-c8d35603a47d
+- e-357: actionListId=a-14, autoStop=e-358, target=691b2d7c12f67ca15b75a168|51fa2775-d5da-6941-b033-c0329a292333
+- e-359: actionListId=a-14, autoStop=e-360, target=691b2d7c12f67ca15b75a168|6df652d5-ffae-90fc-a56b-f7a629170e87
+- e-37: actionListId=a-14, autoStop=e-38, target=691b2d7c12f67ca15b75a14f|725ce376-148c-ef96-9fca-95cedcf9abb9
+- e-39: actionListId=a-14, autoStop=e-40, target=691b2d7c12f67ca15b75a14f|e0a6b1c0-ef61-f6d4-fc13-7476d8c50c98
+- e-393: actionListId=a-14, autoStop=e-394, target=691b2d7c12f67ca15b75a16a|0783aa76-53e0-c443-b8af-b7c4533c2e1d
+- e-395: actionListId=a-14, autoStop=e-396, target=691b2d7c12f67ca15b75a16a|f3a4db63-dcbe-e1df-7b57-67c32dc77d98
+- e-397: actionListId=a-14, autoStop=e-398, target=691b2d7c12f67ca15b75a16a|64f4881c-4f6f-fc4b-8fb4-3d8bc73d266c
+- e-399: actionListId=a-15, autoStop=e-400, target=691b2d7c12f67ca15b75a16a|3e7ce893-a105-481f-7a8f-e0a4361eea77
+- e-401: actionListId=a-14, autoStop=e-402, target=691b2d7c12f67ca15b75a16a|3e7ce893-a105-481f-7a8f-e0a4361eea77
+- e-403: actionListId=a-26, autoStop=e-404, target=691b2d7c12f67ca15b75a16a|c1edfa00-ab85-b91e-5bfb-2dae604e00c3
+- e-405: actionListId=a-14, autoStop=e-406, target=691b2d7c12f67ca15b75a16a|c1edfa00-ab85-b91e-5bfb-2dae604e00c3
+- e-407: actionListId=a-14, autoStop=e-408, target=691b2d7c12f67ca15b75a16a|b9262a1a-f1c8-74c6-e05e-5fe049c99aed
+- e-409: actionListId=a-15, autoStop=e-410, target=691b2d7c12f67ca15b75a16a|49658be8-8517-122e-ae14-8e8dc894150d
+- e-411: actionListId=a-14, autoStop=e-412, target=691b2d7c12f67ca15b75a16a|49658be8-8517-122e-ae14-8e8dc8941523
+- e-413: actionListId=a-14, autoStop=e-414, target=691b2d7c12f67ca15b75a16a|49658be8-8517-122e-ae14-8e8dc894150d
+- e-417: actionListId=a-14, autoStop=e-418, target=691b2d7c12f67ca15b75a16a|e3ca3f3b-2d70-da1e-98d9-b9121b3ca931
+- e-419: actionListId=a-14, autoStop=e-420, target=691b2d7c12f67ca15b75a16a|1c03963b-4da0-f610-9160-dc606d77207f
+- e-421: actionListId=a-14, autoStop=e-422, target=691b2d7c12f67ca15b75a16a|1c03963b-4da0-f610-9160-dc606d77207f
+- e-423: actionListId=a-14, autoStop=e-424, target=691b2d7c12f67ca15b75a16a|420745c4-c25a-0a51-a86c-ed4b1a4f4866
+- e-425: actionListId=a-14, autoStop=e-426, target=691b2d7c12f67ca15b75a161|a663b164-a23a-faff-efff-623416a1cae0
+- e-427: actionListId=a-14, autoStop=e-428, target=518ed0e3-8b45-4998-59e2-031e78c72191
+- e-429: actionListId=a-14, autoStop=e-430, target=e74035ef-b85e-d078-66fe-0a07283c55a0
+- e-431: actionListId=a-14, autoStop=e-432, target=691b2d7c12f67ca15b75a16b|397a8fca-5165-be9c-c538-ee689209255f
+- e-433: actionListId=a-14, autoStop=e-434, target=691b2d7c12f67ca15b75a16b|d2014877-c950-9c92-64ea-303a784b070c
+- e-435: actionListId=a-14, autoStop=e-436, target=691b2d7c12f67ca15b75a16b|aad6513d-b962-3bc4-9d89-789201fd0824
+- e-437: actionListId=a-14, autoStop=e-438, target=691b2d7c12f67ca15b75a16b|dd37199b-f2a4-26d0-4d3e-00007d8dba09
+- e-439: actionListId=a-14, autoStop=e-440, target=691b2d7c12f67ca15b75a16b|64d495c1-d4ef-41bf-00d3-a02089177528
+- e-441: actionListId=a-14, autoStop=e-442, target=691b2d7c12f67ca15b75a16c|a663b164-a23a-faff-efff-623416a1cae0
+- e-443: actionListId=a-15, autoStop=e-444, target=691b2d7c12f67ca15b75a16c|c1968837-de45-2aa1-a187-2ce77016b7e9
+- e-445: actionListId=a-14, autoStop=e-446, target=691b2d7c12f67ca15b75a16c|c1968837-de45-2aa1-a187-2ce77016b7e9
+- e-447: actionListId=a-14, autoStop=e-448, target=691b2d7c12f67ca15b75a16c|b0482e83-1bcc-3342-0e87-1055fa3fc96e
+- e-449: actionListId=a-14, autoStop=e-450, target=691b2d7c12f67ca15b75a16c|b0482e83-1bcc-3342-0e87-1055fa3fc96b
+- e-45: actionListId=a-14, autoStop=e-46, target=691b2d7c12f67ca15b75a14f|451c5615-262c-e0ec-efc4-6eb889c828bc
+- e-451: actionListId=a-14, autoStop=e-452, target=691b2d7c12f67ca15b75a159|8941c200-2dfb-a596-a123-0f65400a6731
+- e-453: actionListId=a-15, autoStop=e-454, target=691b2d7c12f67ca15b75a159|eec4a2ae-a337-33ec-ebf0-88730189c55a
+- e-455: actionListId=a-14, autoStop=e-456, target=691b2d7c12f67ca15b75a159|c20c4882-cb17-7ffc-6372-1558d522f171
+- e-457: actionListId=a-14, autoStop=e-458, target=691b2d7c12f67ca15b75a159|c20c4882-cb17-7ffc-6372-1558d522f172
+- e-459: actionListId=a-15, autoStop=e-460, target=691b2d7c12f67ca15b75a159|c20c4882-cb17-7ffc-6372-1558d522f184
+- e-461: actionListId=a-14, autoStop=e-462, target=691b2d7c12f67ca15b75a163|8a4be2fc-a49f-02ad-aa3a-fa289ae31e6a
+- e-463: actionListId=a-15, autoStop=e-464, target=691b2d7c12f67ca15b75a163|78df4757-7893-bf18-407b-26a89ce48726
+- e-465: actionListId=a-14, autoStop=e-466, target=691b2d7c12f67ca15b75a163|78df4757-7893-bf18-407b-26a89ce48726
+- e-467: actionListId=a-14, autoStop=e-468, target=691b2d7c12f67ca15b75a154|97db26cc-caf0-6ead-1484-47ddf2cbc6d3
+- e-469: actionListId=a-15, autoStop=e-470, target=691b2d7c12f67ca15b75a154|d4ac04d8-f227-55b6-fcfb-25a5471affec
+- e-47: actionListId=a-14, autoStop=e-48, target=691b2d7c12f67ca15b75a14f|7a2c95ed-dab1-0dd9-7547-cc29ab23b6ec
+- e-471: actionListId=a-14, autoStop=e-472, target=691b2d7c12f67ca15b75a152|c9854382-2be5-5e8a-8c84-20a6f0085fd9
+- e-473: actionListId=a-15, autoStop=e-474, target=691b2d7c12f67ca15b75a152|c9854382-2be5-5e8a-8c84-20a6f0085fe0
+- e-475: actionListId=a-14, autoStop=e-476, target=691b2d7c12f67ca15b75a153|1ac5d52c-47a9-b06c-77bd-e6e4ede4fea2
+- e-477: actionListId=a-15, autoStop=e-478, target=691b2d7c12f67ca15b75a153|1ac5d52c-47a9-b06c-77bd-e6e4ede4fea9
+- e-483: actionListId=a-37, autoStop=e-484, target=1b04de82-f2d6-5a31-7c22-c54a54f00ef5
+- e-49: actionListId=a-14, autoStop=e-50, target=691b2d7c12f67ca15b75a14f|c0178bb0-b762-facb-fe81-d7d4deea0da9
+- e-493: actionListId=a-38, autoStop=e-494, target=798d321f-2b21-c40c-5bf9-4937c900d95f
+- e-495: actionListId=a-39, autoStop=e-496, target=1b04de82-f2d6-5a31-7c22-c54a54f00ef1
+- e-509: actionListId=a-43, autoStop=e-510, target=691b2d7c12f67ca15b75a14f|a4a7eafe-727c-eff1-318f-9cfbe0497241
+- e-515: actionListId=a-41, autoStop=e-516, target=691b2d7c12f67ca15b75a14f|df482fa9-88c0-f6ca-c347-56bbc4cf8839
+- e-517: actionListId=a-42, autoStop=e-518, target=691b2d7c12f67ca15b75a14f|e18bfc30-4bf6-030a-49bb-15845cafa3dc
+- e-525: actionListId=a-41, autoStop=e-526, target=691b2d7c12f67ca15b75a14f|7c957a8f-32bb-e2e1-c55c-9cec37c28570
+- e-527: actionListId=a-43, autoStop=e-528, target=691b2d7c12f67ca15b75a14f|7c957a8f-32bb-e2e1-c55c-9cec37c28581
+- e-529: actionListId=a-42, autoStop=e-530, target=691b2d7c12f67ca15b75a14f|7c957a8f-32bb-e2e1-c55c-9cec37c28592
+- e-53: actionListId=a-14, autoStop=e-54, target=691b2d7c12f67ca15b75a14f|ebe17f43-5d18-eb45-f9ae-6f37097b4743
+- e-59: actionListId=a-14, autoStop=e-60, target=dcb6d104-8409-6c60-882a-330dbb149a1e
+- e-71: actionListId=a-14, autoStop=e-72, target=691b2d7c12f67ca15b75a158|725ce376-148c-ef96-9fca-95cedcf9abb9
+- e-77: actionListId=a-14, autoStop=e-78, target=691b2d7c12f67ca15b75a158|7a2c95ed-dab1-0dd9-7547-cc29ab23b6ec
+- e-81: actionListId=a-14, autoStop=e-82, target=691b2d7c12f67ca15b75a158|ebe17f43-5d18-eb45-f9ae-6f37097b4743
+- e-87: actionListId=a-14, autoStop=e-88, target=691b2d7c12f67ca15b75a158|369d1da7-70d7-9870-ba4c-4a37bb39743b
+- e-89: actionListId=a-15, autoStop=e-90, target=691b2d7c12f67ca15b75a158|35eea105-577a-cca7-1de5-53aec4f2f21c
+- e-91: actionListId=a-14, autoStop=e-92, target=691b2d7c12f67ca15b75a158|7d95a8f4-263b-1f4d-a755-9701e6a12a4d
+- e-93: actionListId=a-14, autoStop=e-94, target=691b2d7c12f67ca15b75a158|45533d9d-b01c-6b58-baf1-6356450509ac
+- e-95: actionListId=a-14, autoStop=e-96, target=691b2d7c12f67ca15b75a158|98ae8d7c-6f59-a18d-b389-29e60721ac17
+- e-97: actionListId=a-15, autoStop=e-98, target=691b2d7c12f67ca15b75a158|98ae8d7c-6f59-a18d-b389-29e60721ac17
+- e-99: actionListId=a-14, autoStop=e-100, target=691b2d7c12f67ca15b75a158|eccd9148-df5d-cca7-c89f-d5dfb57d7b5b
+
+Action lists and timelines:
+[a] Search Modal - Open
+  Group 1
+    - STYLE_OPACITY: target=.search-modal-screen; delay=0, duration=500, value=0, unit=
+    - STYLE_OPACITY: target=.search-modal-content; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_MOVE: target=.search-modal-content; delay=0, duration=500, yValue=-48, xUnit=PX, yUnit=px, zUnit=PX
+  Group 2
+    - GENERAL_DISPLAY: target=.search-modal-wrap; delay=0, duration=0, value=block
+  Group 3
+    - STYLE_OPACITY: target=.search-modal-screen; delay=0, duration=200, value=1, unit=
+  Group 4
+    - STYLE_OPACITY: target=.search-modal-content; delay=0, duration=200, value=1, unit=
+    - TRANSFORM_MOVE: target=.search-modal-content; delay=0, duration=200, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+
+[a-10] Dropdown - Hide Screen
+  Group 1
+    - STYLE_OPACITY: target=.dropdown-screen; delay=0, duration=150, value=0, unit=
+  Group 2
+    - GENERAL_DISPLAY: target=.dropdown-screen; delay=0, duration=0, value=none
+
+[a-11] Dropdown - Show Content
+  Group 1
+    - STYLE_OPACITY: target=.dropdown-content; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_OPACITY: target=.dropdown-content; delay=0, duration=200, value=1, unit=
+
+[a-12] Dropdown - Hide Content
+  Group 1
+    - STYLE_OPACITY: target=.dropdown-content; delay=0, duration=200, value=0, unit=
+
+[a-13] Marquee - Scroll Left - Slow
+  Group 1
+    - TRANSFORM_MOVE: target=.marquee-group; delay=0, duration=0, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+  Group 2
+    - TRANSFORM_MOVE: target=.marquee-group; delay=0, duration=60000, xValue=-100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-14] Fade in on scroll - First
+  Group 1
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, yValue=48, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, value=0, unit=
+  Group 2
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=750, easing=inOutQuart, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=750, easing=inOutQuart, value=1, unit=
+
+[a-15] Fade in on scroll - Second
+  Group 1
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, yValue=72, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=200, duration=750, easing=inOutQuart, value=1, unit=
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=200, duration=750, easing=inOutQuart, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+
+[a-16] Logo Row Interaction - Hover In
+  Group 1
+    - STYLE_OPACITY: target=.logo-interaction-button; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_MOVE: target=.logo-interaction-button; delay=0, duration=500, yValue=12, xUnit=PX, yUnit=px, zUnit=PX
+  Group 2
+    - STYLE_FILTER: target=.logos; delay=0, duration=150
+    - TRANSFORM_MOVE: target=.logo-interaction-button; delay=0, duration=150, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=.logo-interaction-button; delay=0, duration=150, value=1, unit=
+
+[a-17] Logo Row Interaction - Hover Out
+  Group 1
+    - STYLE_FILTER: target=.logos; delay=0, duration=150
+    - TRANSFORM_MOVE: target=.logo-interaction-button; delay=0, duration=150, yValue=12, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=.logo-interaction-button; delay=0, duration=150, value=0, unit=
+
+[a-19] Customer Video - Hover Out
+  Group 1
+    - STYLE_SIZE: target=.customer-video-section.first; delay=0, duration=750, easing=inOutQuart, widthValue=144, widthUnit=px, heightUnit=PX
+    - STYLE_SIZE: target=.customer-video-section.second; delay=0, duration=750, easing=inOutQuart, widthValue=920, widthUnit=px, heightUnit=PX
+    - STYLE_SIZE: target=691b2d7c12f67ca15b75a14f|e7753071-e13e-3c94-c369-a569a5bc91f1; delay=0, duration=750, easing=inOutQuart, widthValue=144, widthUnit=px, heightUnit=PX
+    - STYLE_OPACITY: target=.customer-video-content.third; delay=0, duration=150, value=0, unit=
+    - STYLE_OPACITY: target=.customer-video-content.first; delay=0, duration=150, value=0, unit=
+    - STYLE_OPACITY: target=.customer-video-content.second; delay=500, duration=250, value=1, unit=
+
+[a-2] Search Modal - Close
+  Group 1
+    - STYLE_OPACITY: target=.search-modal-screen; delay=0, duration=200, value=0, unit=
+    - STYLE_OPACITY: target=.search-modal-content; delay=0, duration=200, value=0, unit=
+    - TRANSFORM_MOVE: target=.search-modal-content; delay=0, duration=200, yValue=-48, xUnit=PX, yUnit=px, zUnit=PX
+  Group 2
+    - GENERAL_DISPLAY: target=.search-modal-wrap; delay=0, duration=0, value=none
+
+[a-20] Customer Video First - Hover In
+  Group 1
+    - STYLE_OPACITY: target=.customer-video-content.first; delay=0, duration=500, value=0, unit=
+    - STYLE_OPACITY: target=.customer-video-content.third; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_SIZE: target=691b2d7c12f67ca15b75a14f|fb63a06c-ad0f-f06f-da37-120b8e053ca7; delay=0, duration=500, easing=inOutQuart, widthValue=920, widthUnit=px, heightUnit=PX
+    - STYLE_SIZE: target=.customer-video-section.second; delay=0, duration=500, easing=inOutQuart, widthValue=144, widthUnit=px, heightUnit=PX
+    - STYLE_OPACITY: target=.customer-video-content.second; delay=0, duration=150, value=0, unit=
+    - STYLE_OPACITY: target=.customer-video-content.first; delay=250, duration=250, value=1, unit=
+
+[a-21] Customer Video Third - Hover In
+  Group 1
+    - STYLE_SIZE: target=691b2d7c12f67ca15b75a14f|fb63a06c-ad0f-f06f-da37-120b8e053ca7; delay=0, duration=500, easing=inOutQuart, widthValue=920, widthUnit=px, heightUnit=PX
+    - STYLE_SIZE: target=.customer-video-section.second; delay=0, duration=500, easing=inOutQuart, widthValue=144, widthUnit=px, heightUnit=PX
+    - STYLE_OPACITY: target=.customer-video-content.second; delay=0, duration=150, value=0, unit=
+    - STYLE_OPACITY: target=.customer-video-content.third; delay=250, duration=250, value=1, unit=
+
+[a-22] Circle Button - Hover In
+  Group 1
+    - TRANSFORM_MOVE: target=.circle-button-icon-initial; delay=0, duration=150, xValue=150, xUnit=%, yUnit=PX, zUnit=PX
+    - TRANSFORM_MOVE: target=.circle-button-icon-reveal; delay=0, duration=250, easing=easeOut, xValue=100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-23] Circle Button - Hover Out
+  Group 1
+    - TRANSFORM_MOVE: target=.circle-button-icon-initial; delay=0, duration=250, easing=easeOut, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+    - TRANSFORM_MOVE: target=.circle-button-icon-reveal; delay=0, duration=150, xValue=-50, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-24] Accordion - Open
+  Group 1
+    - STYLE_SIZE: target=.accordion-content-wrap; delay=0, duration=500, heightValue=0, widthUnit=PX, heightUnit=px
+    - STYLE_OPACITY: target=.accordion-content-wrap; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_SIZE: target=.accordion-content-wrap; delay=0, duration=250, widthUnit=PX, heightUnit=AUTO
+    - TRANSFORM_ROTATE: target=.accordion-icon; delay=0, duration=150, zValue=180, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - STYLE_OPACITY: target=.accordion-content-wrap; delay=200, duration=150, value=1, unit=
+
+[a-25] Accordion - Close
+  Group 1
+    - STYLE_OPACITY: target=.accordion-content-wrap; delay=0, duration=150, value=0, unit=
+    - STYLE_SIZE: target=.accordion-content-wrap; delay=0, duration=250, heightValue=0, widthUnit=PX, heightUnit=px
+    - TRANSFORM_ROTATE: target=.accordion-icon; delay=0, duration=150, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+
+[a-26] Fade in on scroll - Third
+  Group 1
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, yValue=72, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=400, duration=750, easing=inOutQuart, value=1, unit=
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=400, duration=750, easing=inOutQuart, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+
+[a-27] Zoom on Hover - In
+  Group 1
+    - TRANSFORM_SCALE: target=.hover-image; delay=0, duration=150, easing=ease, xValue=1.05, yValue=1.05
+
+[a-28] Zoom on Hover - Out
+  Group 1
+    - TRANSFORM_SCALE: target=.hover-image; delay=0, duration=150, easing=easeIn, xValue=1, yValue=1
+
+[a-29] Fade in on scroll - Fourth
+  Group 1
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, yValue=72, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=600, duration=750, easing=inOutQuart, value=1, unit=
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=600, duration=750, easing=inOutQuart, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+
+[a-3] Navbar - Show Menu Cross
+  Group 1
+    - TRANSFORM_MOVE: target=.menu-button-icon; delay=0, duration=150, xValue=-100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-30] Fade in on scroll - Fifth
+  Group 1
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, yValue=72, xUnit=PX, yUnit=px, zUnit=PX
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=0, duration=500, value=0, unit=
+  Group 2
+    - STYLE_OPACITY: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=800, duration=750, easing=inOutQuart, value=1, unit=
+    - TRANSFORM_MOVE: target=691b2d7c12f67ca15b75a14f|af0afb71-e113-8615-839b-7a86a6c362b4; delay=800, duration=750, easing=inOutQuart, yValue=0, xUnit=PX, yUnit=px, zUnit=PX
+
+[a-37] Emblem Logo Spin Up
+  Group 1
+    - TRANSFORM_SCALE: target=.emblem-logo; delay=0, duration=500, xValue=0.05, yValue=0.05
+  Group 2
+    - TRANSFORM_SCALE: target=.emblem-logo; delay=0, duration=3500, easing=[0.515, 0.498, 0.421, 0.948], xValue=1, yValue=1
+    - TRANSFORM_ROTATE: target=.emblem-logo; delay=0, duration=3500, easing=outCubic, xValue=None, zValue=900, xUnit=deg, yUnit=DEG, zUnit=deg
+
+[a-38] Emblem Logo Continual Spin
+  Group 1
+    - TRANSFORM_ROTATE: target=.emblem-logo-wrap; delay=0, duration=15000, zValue=360, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 2
+    - TRANSFORM_ROTATE: target=.emblem-logo-wrap; delay=0, duration=0, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+
+[a-39] Emblem Background Dance
+  Group 1
+    - STYLE_OPACITY: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_ROTATE: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=500, xValue=180, yValue=180, xUnit=deg, yUnit=deg, zUnit=DEG
+    - STYLE_OPACITY: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_ROTATE: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=500, xValue=180, yValue=180, xUnit=deg, yUnit=deg, zUnit=DEG
+    - TRANSFORM_ROTATE: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=1000, easing=bouncePast, zValue=-45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=1000, easing=bouncePast, zValue=-45, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 2
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=1500, easing=bounce, xValue=1.6, yValue=1.6
+  Group 3
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=inOutQuad, zValue=-40, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=2500, easing=inOutQuad, zValue=-40, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=bounce, xValue=1.25, yValue=1.25
+  Group 4
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=bounce, xValue=1.6, yValue=1.6
+  Group 5
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=bounce, xValue=1.2, yValue=1.2
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=inOutQuad, zValue=10, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=2500, easing=inOutQuad, zValue=10, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 6
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=bounce, xValue=1.6, yValue=1.6
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=2500, easing=inOutQuad, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=2500, easing=inOutQuad, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 7
+    - STYLE_OPACITY: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=1200, value=0, unit=
+    - STYLE_OPACITY: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=1200, value=0, unit=
+    - TRANSFORM_SCALE: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=1500, easing=bounce, xValue=1.6, yValue=1.6
+    - TRANSFORM_SCALE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=1500, easing=bounce, xValue=1.35, yValue=1.35
+  Group 8
+    - TRANSFORM_ROTATE: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=3000, easing=easeInOut, zValue=45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=3000, easing=easeInOut, zValue=45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=3000, easing=inOutQuad, zValue=62, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=3000, easing=inOutQuad, zValue=62, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_SCALE: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=1000, easing=swingTo, xValue=1.25, yValue=1.25
+  Group 9
+    - STYLE_OPACITY: target=e7417b5c-3d00-dfbd-01a0-4354e6728398; delay=0, duration=1000, value=0, unit=
+    - STYLE_OPACITY: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef2; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=1b04de82-f2d6-5a31-7c22-c54a54f00ef4; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=dc75608f-767c-02f9-c420-11e03bd14517; delay=0, duration=1000, value=0, unit=
+
+[a-4] Navbar - Hide Menu Cross
+  Group 1
+    - TRANSFORM_MOVE: target=.menu-button-icon; delay=0, duration=150, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-40] Emblem Background Dance Class
+  Group 1
+    - STYLE_OPACITY: target=.outer-emblem-bg-2; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg-2; delay=0, duration=500, xValue=180, yValue=180, xUnit=deg, yUnit=deg, zUnit=DEG
+    - STYLE_OPACITY: target=.inner-emblem-bg-2; delay=0, duration=500, value=0, unit=
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg-2; delay=0, duration=500, xValue=180, yValue=180, xUnit=deg, yUnit=deg, zUnit=DEG
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg-2; delay=0, duration=1000, easing=bouncePast, zValue=-45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg-2; delay=0, duration=1000, easing=bouncePast, zValue=-45, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 2
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=1500, easing=bounce, xValue=1.6, yValue=1.6
+  Group 3
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=-40, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=-40, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=2500, easing=bounce, xValue=1.25, yValue=1.25
+  Group 4
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=2500, easing=bounce, xValue=1.6, yValue=1.6
+  Group 5
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=2500, easing=bounce, xValue=1.2, yValue=1.2
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=10, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=10, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 6
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=2500, easing=bounce, xValue=1.6, yValue=1.6
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg; delay=0, duration=2500, easing=inOutQuad, zValue=0, xUnit=DEG, yUnit=DEG, zUnit=deg
+  Group 7
+    - STYLE_OPACITY: target=.outer-emblem-bg-2; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=.inner-emblem-bg-2; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=.inner-emblem-bg; delay=0, duration=1200, value=0, unit=
+    - STYLE_OPACITY: target=.outer-emblem-bg; delay=0, duration=1200, value=0, unit=
+    - TRANSFORM_SCALE: target=.inner-emblem-bg-2; delay=0, duration=1500, easing=bounce, xValue=1.6, yValue=1.6
+    - TRANSFORM_SCALE: target=.inner-emblem-bg; delay=0, duration=1500, easing=bounce, xValue=1.35, yValue=1.35
+  Group 8
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg-2; delay=0, duration=3000, easing=easeInOut, zValue=45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg-2; delay=0, duration=3000, easing=easeInOut, zValue=45, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.outer-emblem-bg; delay=0, duration=3000, easing=inOutQuad, zValue=62, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_ROTATE: target=.inner-emblem-bg; delay=0, duration=3000, easing=inOutQuad, zValue=62, xUnit=DEG, yUnit=DEG, zUnit=deg
+    - TRANSFORM_SCALE: target=.inner-emblem-bg-2; delay=0, duration=1000, easing=swingTo, xValue=1.25, yValue=1.25
+  Group 9
+    - STYLE_OPACITY: target=.outer-emblem-bg-2; delay=0, duration=1000, value=0, unit=
+    - STYLE_OPACITY: target=.outer-emblem-bg; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=.inner-emblem-bg; delay=0, duration=1200, value=1, unit=
+    - STYLE_OPACITY: target=.inner-emblem-bg-2; delay=0, duration=1000, value=0, unit=
+
+[a-41] Emblem Marquee - Fast
+  Group 1
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=0, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+  Group 2
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=15000, xValue=-100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-42] Emblem Marquee - Slow
+  Group 1
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=0, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+  Group 2
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=30000, xValue=-100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-43] Emblem Marquee - Medium
+  Group 1
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=0, xValue=0, xUnit=%, yUnit=PX, zUnit=PX
+  Group 2
+    - TRANSFORM_MOVE: target=.emblem-marquee-group; delay=0, duration=22000, xValue=-100, xUnit=%, yUnit=PX, zUnit=PX
+
+[a-5] Button - Hover In
+  Group 1
+    - TRANSFORM_SCALE: target=.button-text-reveal; delay=0, duration=500, xValue=1.1, yValue=1.1
+    - STYLE_OPACITY: target=.button-text-reveal; delay=0, duration=500, value=0, unit=
+  Group 2
+    - TRANSFORM_MOVE: target=.button-text-initial; delay=0, duration=200, yValue=-170, xUnit=PX, yUnit=%, zUnit=PX
+    - TRANSFORM_SCALE: target=.button-text-initial; delay=0, duration=150, xValue=0.9, yValue=0.9
+    - TRANSFORM_MOVE: target=.button-text-reveal; delay=0, duration=200, easing=easeOut, yValue=-100, xUnit=PX, yUnit=%, zUnit=PX
+    - TRANSFORM_SCALE: target=.button-text-reveal; delay=0, duration=150, xValue=1, yValue=1
+    - STYLE_OPACITY: target=.button-text-reveal; delay=0, duration=150, value=1, unit=
+
+[a-6] Button - Hover Out
+  Group 1
+    - TRANSFORM_MOVE: target=.button-text-initial; delay=0, duration=200, easing=easeOut, yValue=0, xUnit=PX, yUnit=%, zUnit=PX
+    - TRANSFORM_SCALE: target=.button-text-initial; delay=0, duration=150, xValue=1, yValue=1
+    - TRANSFORM_MOVE: target=.button-text-reveal; delay=0, duration=200, yValue=80, xUnit=PX, yUnit=%, zUnit=PX
+    - TRANSFORM_SCALE: target=.button-text-reveal; delay=0, duration=150, xValue=1.1, yValue=1.1
+    - STYLE_OPACITY: target=.button-text-reveal; delay=0, duration=200, value=0, unit=
+
+[a-7] Arrow Link - Hover In
+  Group 1
+    - TRANSFORM_SCALE: target=.arrow-link-reveal; delay=0, duration=500, xValue=0.8, yValue=0.8
+  Group 2
+    - TRANSFORM_MOVE: target=.arrow-link-initial; delay=0, duration=250, xValue=18, yValue=-18, xUnit=px, yUnit=px, zUnit=PX
+    - TRANSFORM_SCALE: target=.arrow-link-initial; delay=0, duration=250, xValue=0.8, yValue=0.8
+    - TRANSFORM_SCALE: target=.arrow-link-reveal; delay=100, duration=250, xValue=1, yValue=1
+    - TRANSFORM_MOVE: target=.arrow-link-reveal; delay=100, duration=250, xValue=18, yValue=-18, xUnit=px, yUnit=px, zUnit=PX
+
+[a-8] Arrow Link - Hover Out
+  Group 1
+    - TRANSFORM_MOVE: target=.arrow-link-initial; delay=0, duration=150, xValue=0, yValue=0, xUnit=px, yUnit=px, zUnit=PX
+    - TRANSFORM_SCALE: target=.arrow-link-initial; delay=0, duration=150, xValue=1, yValue=1
+    - TRANSFORM_MOVE: target=.arrow-link-reveal; delay=0, duration=150, xValue=0, yValue=0, xUnit=px, yUnit=px, zUnit=PX
+    - TRANSFORM_SCALE: target=.arrow-link-reveal; delay=0, duration=150, xValue=0.8, yValue=0.8
+
+[a-9] Dropdown - Show Screen
+  Group 1
+    - STYLE_OPACITY: target=.dropdown-screen; delay=0, duration=500, value=0, unit=
+  Group 2
+    - GENERAL_DISPLAY: target=.dropdown-screen; delay=0, duration=0, value=block
+  Group 3
+    - STYLE_OPACITY: target=.dropdown-screen; delay=0, duration=300, value=1, unit=
+
+Unique easings: [0.515, 0.498, 0.421, 0.948], bounce, bouncePast, ease, easeIn, easeInOut, easeOut, inOutQuad, inOutQuart, outCubic, swingTo
+Unique durations: 0, 1000, 1200, 150, 1500, 15000, 200, 22000, 250, 2500, 300, 3000, 30000, 3500, 500, 60000, 750
+Unique delays: 0, 100, 200, 250, 400, 500, 600, 800

@@ -1,0 +1,194 @@
+/* Global styles and animation overrides */
+body {
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Marquee animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.marquee-group {
+  animation: marquee 40s linear infinite;
+}
+
+.marquee-reverse .marquee-group {
+  animation: marquee-reverse 40s linear infinite;
+}
+
+/* Emblem marquee animations */
+@keyframes emblem-marquee-1 {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes emblem-marquee-2 {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.emblem-marquee-1 .emblem-marquee-group {
+  animation: emblem-marquee-1 20s linear infinite;
+}
+
+.emblem-marquee-2 .emblem-marquee-group {
+  animation: emblem-marquee-2 25s linear infinite;
+}
+
+.emblem-marquee-3 .emblem-marquee-group {
+  animation: emblem-marquee-1 22s linear infinite;
+}
+
+/* Emblem rotation */
+@keyframes emblem-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.emblem-logo-wrap {
+  animation: emblem-rotate 20s linear infinite;
+}
+
+/* Inner emblem bg rotation */
+.inner-emblem-bg {
+  animation: emblem-rotate 30s linear infinite;
+}
+
+.inner-emblem-bg-2 {
+  animation: emblem-rotate 30s linear infinite reverse;
+}
+
+.outer-emblem-bg {
+  animation: emblem-rotate 40s linear infinite;
+}
+
+.outer-emblem-bg-2 {
+  animation: emblem-rotate 40s linear infinite reverse;
+}
+
+/* Button text wrap - flexbox layout for stacked text animation */
+.button .button-text-wrap {
+  display: flex;
+  flex-direction: column;
+  height: var(--_typography---type-body-line-height, 1.4em);
+  overflow: visible;
+}
+
+/* Circle button hover */
+.circle-button:hover .circle-button-icon-wrapper {
+  transform: translateX(-18px);
+}
+
+.circle-button .circle-button-icon-wrapper {
+  transition: transform 0.3s ease;
+}
+
+/* Scroll reveal animation base - visible by default, GSAP will handle animations */
+.scroll-reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Logo interaction */
+.logo-interaction-wrap .logos {
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.logo-interaction-wrap:hover .logos {
+  filter: blur(4px);
+  opacity: 0.5;
+}
+
+.logo-interaction-button {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.logo-interaction-wrap:hover .logo-interaction-button {
+  opacity: 1;
+}
+
+/* Customer video section hover */
+.customer-video-section.first,
+.customer-video-section.third {
+  transition: width 0.5s ease;
+}
+
+.customer-cluster:hover .customer-video-section.first,
+.customer-cluster:hover .customer-video-section.third {
+  width: 144px;
+}
+
+.customer-cluster:hover .customer-video-section.second {
+  width: 920px;
+}
+
+.customer-video-section:hover {
+  width: 920px !important;
+}
+
+.customer-video-section:hover ~ .customer-video-section,
+.customer-video-section:has(~ .customer-video-section:hover) {
+  width: 144px !important;
+}
+
+/* Customer video content visibility */
+.customer-video-content.first,
+.customer-video-content.third {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.customer-video-section:hover .customer-video-content {
+  opacity: 1 !important;
+}
+
+/* Dropdown hover */
+.nav-dropdown:hover .dropdown-wrap {
+  display: block;
+}
+
+/* Search modal */
+.search-modal-wrap.active {
+  display: flex;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+  .scroll-reveal {
+    transform: translateY(48px);
+  }
+}
+
+@media (max-width: 767px) {
+  .scroll-reveal {
+    transform: translateY(48px);
+  }
+}
