@@ -1,0 +1,65 @@
+:root {
+  --bf-primary: #555AB9;
+  --bf-primary-light: #6b70c7;
+  --bf-primary-dark: #454a9a;
+  --bf-header-bg: #2F2C26;
+  --bf-header-text: #ffffff;
+  --bf-page-bg: #fefaf3;
+  --bf-card-bg: #ffffff;
+  --bf-text-primary: #2F2C26;
+  --bf-text-secondary: #666666;
+  --bf-text-muted: #999999;
+  --bf-link-blue: #555AB9;
+  --bf-link-hover: #454a9a;
+  --bf-border-color: #e0e0e0;
+  --bf-border-light: #f1eadd;
+  --bf-tag-gray: #f1eadd;
+  --bf-tag-text: #555555;
+  --bf-success: #a9ee81;
+  --bf-error: #f5aaaa;
+
+  --bf-font-family: "BDO Grotesk", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bf-font-family-headings: "Libre Caslon Condensed", "Times New Roman", serif;
+  --bf-font-family-mono: "Roboto Mono", monospace;
+  --bf-font-size-xs: 11px;
+  --bf-font-size-sm: 12px;
+  --bf-font-size-base: 14px;
+  --bf-font-size-lg: 16px;
+  --bf-font-size-xl: 18px;
+  --bf-font-size-2xl: 24px;
+  --bf-font-weight-normal: 400;
+  --bf-font-weight-medium: 500;
+  --bf-font-weight-semibold: 600;
+  --bf-font-weight-bold: 700;
+
+  --bf-spacing-xs: 4px;
+  --bf-spacing-sm: 8px;
+  --bf-spacing-md: 12px;
+  --bf-spacing-lg: 16px;
+  --bf-spacing-xl: 24px;
+  --bf-spacing-2xl: 32px;
+
+  --bf-radius-sm: 4px;
+  --bf-radius-md: 6px;
+  --bf-radius-lg: 9px;
+  --bf-radius-full: 9999px;
+
+  --bf-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --bf-shadow-md: 0 2px 4px rgba(0,0,0,0.1);
+  --bf-shadow-lg: 0 4px 12px rgba(0,0,0,0.15);
+
+  --bf-button-height: 48px;
+  --bf-button-height-small: 42px;
+  --bf-button-padding: 24px;
+  --bf-button-padding-small: 18px;
+}
+
+.bookface-root {
+  font-family: var(--bf-font-family);
+  background-color: var(--bf-page-bg);
+  color: var(--bf-text-primary);
+  font-size: var(--bf-font-size-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

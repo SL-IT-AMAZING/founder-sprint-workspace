@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "BDO Grotesk";
+  src: url("/fonts/BDOGrotesk-VF.ttf") format("truetype");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Libre Caslon Condensed";
+  src: url("/fonts/LibreCaslonCondensed-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  src: url("/fonts/RobotoMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --color-cream: #fefaf3;
+  --color-beige: #f1eadd;
+  --color-dark: #000000;
+  --color-white: #ffffff;
+  --color-dark-7: #2f2c250f;
+  --color-dark-12: #2f2c251f;
+  --color-success: #a9ee81;
+  --color-error: #f5aaaa;
+
+  --font-body: "BDO Grotesk", Arial, sans-serif;
+  --font-heading: "Libre Caslon Condensed", "Times New Roman", serif;
+  --font-mono: "Roboto Mono", monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+
+  --spacing-base: 24px;
+  --navbar-height: 72px;
+  --button-height: 48px;
+  --input-height: 48px;
+}
+
+body {
+  background-color: var(--color-cream);
+  font-family: var(--font-body);
+  color: var(--color-dark);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.main-container {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-base);
+  padding-right: var(--spacing-base);
+}
+
+.btn {
+  height: var(--button-height);
+  padding-left: var(--spacing-base);
+  padding-right: var(--spacing-base);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background-color: var(--color-dark);
+  color: var(--color-cream);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background-color: var(--color-beige);
+  color: var(--color-dark);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-cream);
+}
+
+.form-input {
+  height: var(--input-height);
+  padding-left: 18px;
+  padding-right: 18px;
+  background-color: var(--color-dark-7);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-dark);
+}
+
+.card {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-dark-12);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-base);
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: var(--color-beige);
+}
+
+.badge-success {
+  background-color: var(--color-success);
+}
+
+.badge-error {
+  background-color: var(--color-error);
+}
+
+.navbar {
+  height: var(--navbar-height);
+  background-color: var(--color-cream);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--color-dark-12);
+}

@@ -14,6 +14,7 @@ import RequestDemoPage from './pages/RequestDemoPage'
 import BlogPage from './pages/BlogPage'
 import CustomersPage from './pages/CustomersPage'
 import LegalPage from './pages/LegalPage'
+import { BookfaceApp } from './components/bookface'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/customers" element={<CustomersPage />} />
       <Route path="/legal" element={<LegalPage />} />
+      <Route path="/community/*" element={<BookfaceApp />} />
     </Routes>
   )
 }

@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+
+const hoverStyle = {
+  transition: 'opacity 0.2s ease',
+}
 
 interface AnimatedArrowLinkProps {
   to: string
@@ -13,24 +16,21 @@ export function AnimatedArrowLink({
   className = '',
 }: AnimatedArrowLinkProps) {
   return (
-    <Link to={to} className={`arrow-link w-inline-block ${className}`}>
+    <Link
+      to={to}
+      className={`arrow-link w-inline-block ${className}`}
+      style={hoverStyle}
+      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
+      onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+    >
       <div>{children}</div>
-      <motion.div
-        className="arrow-link-icon-wrapper"
-        whileHover={{ x: -18 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div className="arrow-link-icon-wrapper">
         <img
           src="/images/icon-interface-arrow-up-right.svg"
-          alt="Arrow up right icon"
+          alt=""
           className="arrow-link-initial"
         />
-        <img
-          src="/images/icon-interface-arrow-up-right.svg"
-          alt="Arrow up right icon"
-          className="arrow-link-reveal"
-        />
-      </motion.div>
+      </div>
     </Link>
   )
 }
@@ -41,24 +41,21 @@ export function AnimatedArrowLinkExternal({
   className = '',
 }: Omit<AnimatedArrowLinkProps, 'to'> & { href: string }) {
   return (
-    <a href={href} className={`arrow-link w-inline-block ${className}`}>
+    <a
+      href={href}
+      className={`arrow-link w-inline-block ${className}`}
+      style={hoverStyle}
+      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
+      onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+    >
       <div>{children}</div>
-      <motion.div
-        className="arrow-link-icon-wrapper"
-        whileHover={{ x: -18 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div className="arrow-link-icon-wrapper">
         <img
           src="/images/icon-interface-arrow-up-right.svg"
-          alt="Arrow up right icon"
+          alt=""
           className="arrow-link-initial"
         />
-        <img
-          src="/images/icon-interface-arrow-up-right.svg"
-          alt="Arrow up right icon"
-          className="arrow-link-reveal"
-        />
-      </motion.div>
+      </div>
     </a>
   )
 }
