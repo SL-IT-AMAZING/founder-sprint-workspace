@@ -1,0 +1,261 @@
+@font-face {
+  font-family: "BDO Grotesk";
+  src: url("/fonts/BDOGrotesk-VF.ttf") format("truetype");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Libre Caslon Condensed";
+  src: url("/fonts/LibreCaslonCondensed-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Libre Caslon Condensed";
+  src: url("/fonts/LibreCaslonCondensed-Italic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  src: url("/fonts/RobotoMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@import "tailwindcss";
+
+@theme inline {
+  /* Bookface Design System Colors */
+  --color-background: #fefaf3;
+  --color-background-secondary: #f1eadd;
+  --color-foreground: #2F2C26;
+  --color-foreground-secondary: #666666;
+  --color-foreground-muted: #999999;
+  --color-white: #FFFFFF;
+  --color-accent: #555AB9;
+  --color-accent-hover: #454a9a;
+  --color-card-bg: #FFFFFF;
+  --color-card-border: #e0e0e0;
+  --color-card-hover: #f5f5f5;
+  --color-input-bg: #2f2c250f;
+  --color-input-border: #2f2c251f;
+  --color-glass-surface: #FAF8F599;
+  --color-glass-border: #fff6;
+  --color-success: #2E7D32;
+  --color-success-bg: #E8F5E9;
+  --color-warning: #F57C00;
+  --color-warning-bg: #FFF3E0;
+  --color-error: #C62828;
+  --color-error-bg: #FFEBEE;
+  --color-linkedin: #0077B5;
+  --color-sidebar-bg: #FFFFFF;
+  --color-topbar-bg: #FFFFFF;
+  --color-badge-closed: #9CA3AF;
+  --color-primary: #555AB9;
+  --color-primary-hover: #454a9a;
+  --color-primary-light: #6b70c7;
+  --color-header-bg: #2F2C26;
+  --color-header-text: #ffffff;
+  --color-link-blue: #555AB9;
+  --color-border-light: #f1eadd;
+  --color-tag-gray: #f0f2f5;
+  --color-tag-text: #555555;
+  --color-tag-border: #e1e4e8;
+
+  /* Typography */
+  --font-sans: "BDO Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Libre Caslon Condensed", "Times New Roman", serif;
+  --font-mono: "Roboto Mono", monospace;
+  --font-h1: 24px;
+  --font-h2: 18px;
+  --font-h3: 16px;
+  --font-h4: 14px;
+  --font-body: 14px;
+  --font-small: 12px;
+  --font-xs: 11px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  /* Layout */
+  --navbar-height: 48px;
+  --button-height: 48px;
+  --input-height: 48px;
+}
+
+body {
+  background-color: var(--color-background);
+  font-family: var(--font-sans);
+  color: var(--color-foreground);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.main-container {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+}
+
+.btn {
+  height: var(--button-height);
+  padding-left: 24px;
+  padding-right: 24px;
+  border-radius: 9px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background-color: #555AB9;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #454a9a;
+}
+
+.btn-secondary {
+  background-color: var(--color-background-secondary);
+  color: var(--color-foreground);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-card-hover);
+}
+
+.btn-linkedin {
+  background-color: var(--color-linkedin);
+  color: #FFFFFF;
+}
+
+.btn-linkedin:hover {
+  opacity: 0.9;
+}
+
+.form-input {
+  height: var(--input-height);
+  padding-left: 18px;
+  padding-right: 18px;
+  background-color: var(--color-input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #555AB9;
+}
+
+.form-error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.card {
+  background: var(--color-card-bg);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background-color: #555AB9;
+  color: white;
+}
+
+.badge-success {
+  background-color: #E8F5E9;
+  color: var(--color-success);
+  border-radius: 3px;
+}
+
+.badge-error {
+  background-color: #FFEBEE;
+  color: var(--color-error);
+  border-radius: 3px;
+}
+
+.badge-warning {
+  background-color: #FFF3E0;
+  color: var(--color-warning);
+  border-radius: 3px;
+}
+
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+.form-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  transition: opacity 0.2s ease;
+}
+
+.navbar {
+  height: 48px;
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--color-card-border);
+}
