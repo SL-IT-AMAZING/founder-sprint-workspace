@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isFounder, canCreateAssignment } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -29,9 +29,8 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  // Only Admin and Super Admin can create assignments (NOT Mentor)
-  if (user.role !== "super_admin" && user.role !== "admin") {
-    return { success: false, error: "Unauthorized: admin only" };
+  if (!canCreateAssignment(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
   }
 
   const parsed = CreateAssignmentSchema.safeParse({

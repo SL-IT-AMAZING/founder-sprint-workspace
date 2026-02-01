@@ -48,6 +48,7 @@ export default async function LoginPage({
             alt="Outsome"
             width={180}
             height={48}
+            style={{ width: 180, height: "auto" }}
             priority
           />
           
@@ -101,7 +102,7 @@ export default async function LoginPage({
               alt="LinkedIn"
               width={20}
               height={20}
-              style={{ filter: "brightness(0) invert(1)" }}
+              style={{ width: 20, height: 20, filter: "brightness(0) invert(1)" }}
             />
             Sign in with LinkedIn
           </AnimatedButton>

@@ -33,6 +33,7 @@ export default function NoBatchPage() {
             alt="Outsome"
             width={180}
             height={48}
+            style={{ width: 180, height: "auto" }}
             priority
           />
 
