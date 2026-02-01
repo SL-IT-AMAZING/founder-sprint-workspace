@@ -8,8 +8,8 @@
 ```css
 :root {
   /* Primary Colors */
-  --color-light-1: #fefaf3;      /* Background - Cream/Off-white */
-  --color-light-2: #f1eadd;      /* Secondary Background - Warm beige */
+  --color-light-1: #FAF8F5;      /* Background - Outsome Beige */
+  --color-light-2: #F5F1EB;      /* Secondary Background - Outsome Card Hover */
   --color-dark: #000;            /* Primary text */
   --color-white: white;
   
@@ -191,8 +191,8 @@ Add these to your `globals.css` (already included in templates):
 
 @theme inline {
   /* Colors */
-  --color-background: #fefaf3;
-  --color-background-secondary: #f1eadd;
+  --color-background: #FAF8F5;
+  --color-background-secondary: #F5F1EB;
   --color-foreground: #000000;
   --color-muted: #2f2c250f;
   --color-border: #2f2c251f;
@@ -200,6 +200,20 @@ Add these to your `globals.css` (already included in templates):
   --color-glass-border: #fff6;
   --color-success: #a9ee81;
   --color-error: #f5aaaa;
+
+  /* Outsome Brand */
+  --color-accent: #1A1A1A;
+  --color-accent-hover: #333333;
+  --color-card-bg: #FFFFFF;
+  --color-card-border: #E8E4DE;
+  --color-card-hover: #F5F1EB;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #666666;
+  --color-text-muted: #999999;
+  --color-status-success: #2E7D32;
+  --color-status-warning: #F57C00;
+  --color-status-error: #C62828;
+  --color-linkedin: #0077B5;
   
   /* Spacing */
   --spacing-xs: 6px;

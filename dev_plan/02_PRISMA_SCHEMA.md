@@ -43,9 +43,11 @@ datasource db {
 // ============================================
 
 enum UserRole {
+  super_admin
   admin
   mentor
   founder
+  co_founder
 }
 
 enum BatchStatus {
@@ -83,6 +85,12 @@ enum LikeTargetType {
   comment
 }
 
+enum EventType {
+  one_off
+  office_hour
+  in_person
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -94,6 +102,9 @@ model User {
   name          String
   linkedinId    String?  @unique @map("linkedin_id")
   profileImage  String?  @map("profile_image")
+  jobTitle      String?  @map("job_title") @db.VarChar(100)
+  company       String?  @db.VarChar(100)
+  bio           String?  @db.VarChar(500)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -110,6 +121,9 @@ model User {
   comments            Comment[]
   likes               Like[]
   notifications       Notification[]
+  events              Event[]
+  groups              Group[]
+  groupMembers        GroupMember[]
 
   @@map("users")
 }
@@ -132,6 +146,8 @@ model Batch {
   sessions         Session[]
   assignments      Assignment[]
   posts            Post[]
+  events           Event[]
+  groups           Group[]
 
   @@map("batches")
 }
@@ -333,11 +349,69 @@ model Feedback {
   @@map("feedbacks")
 }
 
-// 14. Post - Community posts
+// 14. Event - Batch events
+model Event {
+  id            String    @id @default(uuid()) @db.Uuid
+  batchId       String    @map("batch_id") @db.Uuid
+  creatorId     String    @map("creator_id") @db.Uuid
+  title         String    @db.VarChar(200)
+  description   String?   @db.Text
+  eventType     EventType @map("event_type")
+  startTime     DateTime  @map("start_time")
+  endTime       DateTime  @map("end_time")
+  timezone      String    @default("UTC") @db.VarChar(50)
+  location      String?   @db.VarChar(500)
+  googleEventId String?   @map("google_event_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  batch   Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("events")
+}
+
+// 15. Group - Founder groups
+model Group {
+  id          String   @id @default(uuid()) @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  batch    Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator  User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  members  GroupMember[]
+  posts    Post[]
+
+  @@map("groups")
+}
+
+// 16. GroupMember - Group membership
+model GroupMember {
+  id       String   @id @default(uuid()) @db.Uuid
+  groupId  String   @map("group_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+// 17. Post - Community posts
 model Post {
   id        String   @id @default(uuid()) @db.Uuid
   batchId   String   @map("batch_id") @db.Uuid
   authorId  String   @map("author_id") @db.Uuid
+  groupId   String?  @map("group_id") @db.Uuid
   content   String   @db.Text
   isPinned  Boolean  @default(false) @map("is_pinned")
   isHidden  Boolean  @default(false) @map("is_hidden")
@@ -347,6 +421,7 @@ model Post {
   // Relations
   batch    Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
   author   User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  group    Group?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
   images   PostImage[]
   comments Comment[]
   likes    Like[]
@@ -354,7 +429,7 @@ model Post {
   @@map("posts")
 }
 
-// 15. PostImage - Post images
+// 18. PostImage - Post images
 model PostImage {
   id        String   @id @default(uuid()) @db.Uuid
   postId    String   @map("post_id") @db.Uuid
@@ -367,7 +442,7 @@ model PostImage {
   @@map("post_images")
 }
 
-// 16. Comment - Post comments
+// 19. Comment - Post comments
 model Comment {
   id        String   @id @default(uuid()) @db.Uuid
   postId    String   @map("post_id") @db.Uuid
@@ -387,7 +462,7 @@ model Comment {
   @@map("comments")
 }
 
-// 17. Like - Post/Comment likes
+// 20. Like - Post/Comment likes
 model Like {
   id         String         @id @default(uuid()) @db.Uuid
   userId     String         @map("user_id") @db.Uuid
@@ -405,7 +480,7 @@ model Like {
   @@map("likes")
 }
 
-// 18. Notification - Notification logs
+// 21. Notification - Notification logs
 model Notification {
   id            String   @id @default(uuid()) @db.Uuid
   userId        String   @map("user_id") @db.Uuid
@@ -464,11 +539,14 @@ npx prisma migrate reset
 | 11 | Assignment | assignments | Founder assignments |
 | 12 | Submission | submissions | Assignment submissions |
 | 13 | Feedback | feedbacks | Submission feedback |
-| 14 | Post | posts | Community posts |
-| 15 | PostImage | post_images | Post images |
-| 16 | Comment | comments | Post comments |
-| 17 | Like | likes | Post/Comment likes |
-| 18 | Notification | notifications | Notification logs |
+| 14 | Event | events | Batch events |
+| 15 | Group | groups | Founder groups |
+| 16 | GroupMember | group_members | Group membership |
+| 17 | Post | posts | Community posts |
+| 18 | PostImage | post_images | Post images |
+| 19 | Comment | comments | Post comments |
+| 20 | Like | likes | Post/Comment likes |
+| 21 | Notification | notifications | Notification logs |
 
 ---
 
@@ -480,6 +558,7 @@ npx prisma migrate reset
 - `UserBatch(userId, batchId)` - Composite unique
 - `Summary.questionId` - Unique (1 summary per question)
 - `Submission(assignmentId, authorId)` - Composite unique (1 submission per user per assignment)
+- `GroupMember(groupId, userId)` - Composite unique (1 membership per user per group)
 - `Like(userId, targetType, postId, commentId)` - Composite unique (1 like per target per user)
 
 ### Cascade Deletes

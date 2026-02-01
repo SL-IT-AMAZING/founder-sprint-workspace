@@ -10,7 +10,7 @@
 
 This document contains **POC-verified** package versions and code patterns. The original plan had 8 hallucinations/errors that were discovered and corrected through actual build testing.
 
-**POC Location**: `/Users/cosmos/fs/dev_poc/poc-test` (BUILD SUCCESSFUL)
+**POC Location**: `../dev_poc/poc-test` (BUILD SUCCESSFUL)
 
 ---
 
@@ -21,8 +21,8 @@ This document contains **POC-verified** package versions and code patterns. The 
 - **Client**: Peter Shin (YC W20) / Outsome
 - **Tech Stack**: Next.js 16 + TypeScript + Tailwind CSS 4 + Supabase + Prisma 7
 - **Deployment**: Vercel
-- **PRD Location**: `/Users/cosmos/fs/_bmad-output/Founder_Sprint_MVP_기획서.md`
-- **Design Reference**: `/Users/cosmos/fs/outsome-react`
+- **PRD Location**: `dev_plan/00_PRD_기획서.md`
+- **Design Reference**: `outsome-react/`
 
 ### 1.2 Core Features
 1. LinkedIn OAuth Login (OIDC)
@@ -32,6 +32,9 @@ This document contains **POC-verified** package versions and code patterns. The 
 5. Session & Slides management
 6. Assignment submission & feedback
 7. Community board
+8. Events (3 types: One-off, Office Hour, In-person) + Google Calendar integration
+9. Groups with group-specific feeds
+10. Profile management (manual job title, company, bio input)
 
 ---
 
@@ -229,7 +232,9 @@ founder-sprint-workspace/
 │   │   │   ├── office-hours/
 │   │   │   ├── sessions/
 │   │   │   ├── assignments/
-│   │   │   ├── community/
+│   │   │   ├── feed/
+│   │   │   ├── events/
+│   │   │   ├── groups/
 │   │   │   └── admin/
 │   │   └── api/
 │   │       └── google-calendar/
@@ -327,10 +332,10 @@ npx prisma init
 # See 03_CODE_TEMPLATES/prisma.config.ts
 
 # 5. Copy font files
-# From /Users/cosmos/fs/outsome-react/public/fonts/* -> ./public/fonts/
+# From outsome-react/public/fonts/* -> ./public/fonts/
 
 # 6. Copy logo
-# From /Users/cosmos/fs/outsome-react/public/images/Outsome-Full_Black.svg -> ./public/images/
+# From outsome-react/public/images/Outsome-Full_Black.svg -> ./public/images/
 
 # 7. Set up environment variables (.env.local)
 
@@ -380,20 +385,38 @@ npx prisma generate
 4. Submission status dashboard
 5. Feedback creation
 
-### Phase 8: Community (Day 10)
-1. Post feed
-2. Post creation (image upload)
-3. Comments/replies
+### Phase 8: Events & Google Calendar (Day 10)
+1. Event model - 3 types (One-off, Office Hour, In-person)
+2. Event creation form (Admin only, type selector dropdown)
+3. Event calendar view
+4. Google Calendar integration for all event types
+5. Calendar invite auto-send
+
+### Phase 9: Community Feed (Day 11)
+1. Post feed (`/feed` route)
+2. Post creation (image upload via Supabase Storage)
+3. Comments/replies (2-level nesting)
 4. Like toggle
 5. Pin announcements (Admin)
+6. Post archive/hide (Admin)
 
-### Phase 9: Finalization (Day 11-14)
-1. UI/UX polishing
-2. Error handling
-3. Loading states
-4. Responsive adjustments
-5. Vercel deployment
-6. Testing
+### Phase 10: Groups (Day 12)
+1. Group CRUD (Admin only)
+2. Group member management
+3. Group-specific feed (same features as main feed)
+4. Group list and detail views
+
+### Phase 11: Profile & Settings (Day 13)
+1. Profile settings page (`/settings`)
+2. Manual input: job_title, company, bio (LinkedIn OIDC only provides name/email/photo)
+3. First-login onboarding redirect to profile completion
+
+### Phase 12: Finalization (Day 14-16)
+1. UI/UX polishing with Outsome brand design tokens
+2. Error handling and loading states
+3. Responsive adjustments
+4. Vercel deployment
+5. End-to-end testing
 
 ---
 
@@ -401,28 +424,34 @@ npx prisma generate
 
 ### 8.1 Feature Verification
 - [ ] LinkedIn OAuth login works
-- [ ] Batch create/archive works
-- [ ] User invitation works
-- [ ] Question CRUD works
-- [ ] Answer/Summary works
-- [ ] Office Hour slot registration works
-- [ ] Office Hour request/approval works
-- [ ] Google Calendar integration works
+- [ ] Batch create/archive works (multiple active batches allowed)
+- [ ] User invitation works (7-day expiry, email matching)
+- [ ] 5 roles assigned correctly (Super Admin, Admin, Mentor, Founder, Co-founder)
+- [ ] Question CRUD works (Founder/Co-founder only)
+- [ ] Answer/Summary works (Mentor/Admin, Admin only for summary)
+- [ ] Office Hour slot registration works (Mentor/Admin)
+- [ ] Office Hour request/approval works (Founder request, Host approve)
+- [ ] Google Calendar + Meet link auto-generation works
+- [ ] Event CRUD works (3 types: One-off, Office Hour, In-person)
 - [ ] Session CRUD works
-- [ ] Assignment CRUD works
-- [ ] Submission/Feedback works
-- [ ] Post CRUD works
-- [ ] Comment/Like works
+- [ ] Assignment CRUD works (Admin + Mentor can create)
+- [ ] Submission/Feedback works (late submission flag)
+- [ ] Post CRUD works (feed route)
+- [ ] Comment/Like works (2-level nesting, toggle)
+- [ ] Group CRUD works (Admin only)
+- [ ] Group feed works (member-only access)
+- [ ] Profile settings works (job_title, company, bio manual input)
 
-### 8.2 Permission Verification
-- [ ] Only Founder can create questions
-- [ ] Only Admin/Mentor can create answers
-- [ ] Only Admin can create summaries
-- [ ] Only Admin/Mentor can register slots
-- [ ] Only Founder can request office hours
-- [ ] Only Admin can manage sessions/assignments
-- [ ] Only Founder can submit assignments
-- [ ] Only Admin/Mentor can write feedback
+### 8.2 Permission Verification (5 Roles)
+- [ ] Super Admin: all permissions
+- [ ] Admin: all permissions except system-level
+- [ ] Mentor: answer questions, create office hour slots, create assignments, write feedback
+- [ ] Founder: create questions, submit assignments, request office hours, write posts
+- [ ] Co-founder: same as Founder
+- [ ] Founder/Co-founder cannot access admin routes
+- [ ] Mentor cannot create events or manage batches
+- [ ] Group feed only accessible by group members
+- [ ] Archived batch is read-only
 
 ### 8.3 Data Isolation Verification
 - [ ] Data completely separated between batches
@@ -486,14 +515,45 @@ Add all environment variables in Vercel Dashboard > Settings > Environment Varia
 
 ## Document References
 
-| Document | Location |
-|----------|----------|
-| PRD | `/Users/cosmos/fs/_bmad-output/Founder_Sprint_MVP_기획서.md` |
-| POC Verification Report | `/Users/cosmos/fs/dev_plan/00_POC_VERIFICATION_REPORT.md` |
-| Prisma Schema | `/Users/cosmos/fs/dev_plan/02_PRISMA_SCHEMA.md` |
-| Code Templates | `/Users/cosmos/fs/dev_plan/03_CODE_TEMPLATES/` |
-| Setup Guide | `/Users/cosmos/fs/dev_plan/04_SETUP_GUIDE.md` |
-| Design Reference | `/Users/cosmos/fs/outsome-react` |
+### 정본 (Source of Truth) 파일
+
+| # | 문서 | 위치 | 용도 |
+|---|------|------|------|
+| 0 | PRD 기획서 | `dev_plan/00_PRD_기획서.md` | 기능/요구사항 정의 |
+| 0b | POC 검증 리포트 | `dev_plan/00_POC_VERIFICATION_REPORT.md` | 기술 검증 + LinkedIn OIDC 제한사항 |
+| 1 | 개발 계획서 (본 문서) | `dev_plan/01_DEVELOPMENT_PLAN.md` | 전체 개발 로드맵 |
+| 2 | Prisma Schema | `dev_plan/02_PRISMA_SCHEMA.md` | 21개 DB 모델 |
+| 3 | 코드 템플릿 | `dev_plan/03_CODE_TEMPLATES/` | 36개 참조 코드 |
+| 4 | 셋업 가이드 | `dev_plan/04_SETUP_GUIDE.md` | 프로젝트 초기 설정 |
+| 5 | 디자인 시스템 | `dev_plan/05_DESIGN_SYSTEM.md` | CSS 변수, 컴포넌트 클래스 |
+| 6 | API 요구사항 | `dev_plan/06_API_REQUIREMENTS.md` | API 스펙 |
+| 7 | 통합 체크리스트 | `dev_plan/07_INTEGRATION_CHECKLIST.md` | 외부 서비스 연동 |
+| 8 | 라우트 구조 | `dev_plan/08_ROUTES.md` | 31개 라우트 (21개 주요 화면) |
+| 9 | 비즈니스 규칙 | `dev_plan/09_BUSINESS_RULES.md` | 전체 비즈니스 로직 |
+| 10 | 권한 매트릭스 | `dev_plan/10_PERMISSIONS.md` | 5역할 권한 + 코드 패턴 |
+| 11 | 유저 플로우 | `dev_plan/11_USER_FLOWS.md` | 5개 핵심 플로우 |
+| 12 | 컴포넌트 스펙 | `dev_plan/12_COMPONENT_SPECS.md` | 52개 컴포넌트 + outsome-react 매핑 |
+
+### 시각 자료
+
+| 파일 | 위치 | 용도 |
+|------|------|------|
+| 와이어프레임 | `_bmad-output/excalidraw-diagrams/founder-sprint-wireframes.excalidraw` | 21개 화면 레이아웃 (구조 참고) |
+| ERD | `_bmad-output/excalidraw-diagrams/founder-sprint-erd.excalidraw` | 21개 모델 관계 시각화 |
+| 디자인 테마 | `_bmad-output/excalidraw-diagrams/founder-sprint-theme.json` | Outsome 브랜드 색상/폰트/간격 |
+
+### 디자인 참조
+
+| 자료 | 위치 | 용도 |
+|------|------|------|
+| outsome-react | `outsome-react/` | Bookface 스타일 React 컴포넌트 라이브러리 |
+| bookface CSS | `outsome-react/src/bookface.css` | 원본 디자인 토큰 |
+| Outsome 로고 | `image.png`, `image copy.png` | 브랜드 아이덴티티 참조 |
+
+### 디자인 원칙
+- **구조**: YC Bookface 레이아웃 (2컬럼 피드, 탑 네비, 카드 기반)
+- **색상/폰트**: Outsome 브랜드 (`founder-sprint-theme.json` 기준)
+- **컴포넌트**: outsome-react 라이브러리에서 재사용 가능한 것은 재사용 (12_COMPONENT_SPECS.md 참조)
 
 ---
 
