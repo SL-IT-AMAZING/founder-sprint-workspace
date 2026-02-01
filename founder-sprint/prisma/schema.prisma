@@ -1,0 +1,467 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  super_admin
+  admin
+  mentor
+  founder
+  co_founder
+}
+
+enum BatchStatus {
+  active
+  archived
+}
+
+enum UserBatchStatus {
+  invited
+  active
+}
+
+enum QuestionStatus {
+  open
+  closed
+}
+
+enum OfficeHourSlotStatus {
+  available
+  requested
+  confirmed
+  completed
+  cancelled
+}
+
+enum OfficeHourRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum LikeTargetType {
+  post
+  comment
+}
+
+enum EventType {
+  one_off
+  office_hour
+  in_person
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+// 1. User - Core user model
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  name          String
+  linkedinId    String?  @unique @map("linkedin_id")
+  profileImage  String?  @map("profile_image")
+  jobTitle      String?  @map("job_title") @db.VarChar(100)
+  company       String?  @db.VarChar(100)
+  bio           String?  @db.VarChar(500)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userBatches         UserBatch[]
+  questions           Question[]
+  answers             Answer[]
+  summaries           Summary[]
+  officeHourSlots     OfficeHourSlot[]
+  officeHourRequests  OfficeHourRequest[]
+  submissions         Submission[]
+  feedbacks           Feedback[]
+  posts               Post[]
+  comments            Comment[]
+  likes               Like[]
+  notifications       Notification[]
+  events              Event[]
+  groups              Group[]
+  groupMembers        GroupMember[]
+
+  @@map("users")
+}
+
+// 2. Batch - Program cohort
+model Batch {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @db.VarChar(100)
+  description String?     @db.Text
+  startDate   DateTime    @map("start_date") @db.Date
+  endDate     DateTime    @map("end_date") @db.Date
+  status      BatchStatus @default(active)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  userBatches      UserBatch[]
+  questions        Question[]
+  officeHourSlots  OfficeHourSlot[]
+  sessions         Session[]
+  assignments      Assignment[]
+  posts            Post[]
+  events           Event[]
+  groups           Group[]
+
+  @@map("batches")
+}
+
+// 3. UserBatch - User-Batch relationship
+model UserBatch {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String          @map("user_id") @db.Uuid
+  batchId   String          @map("batch_id") @db.Uuid
+  role      UserRole
+  invitedAt DateTime        @default(now()) @map("invited_at")
+  joinedAt  DateTime?       @map("joined_at")
+  status    UserBatchStatus @default(invited)
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, batchId])
+  @@map("user_batches")
+}
+
+// 4. Question - Founder questions
+model Question {
+  id        String         @id @default(uuid()) @db.Uuid
+  batchId   String         @map("batch_id") @db.Uuid
+  authorId  String         @map("author_id") @db.Uuid
+  title     String         @db.VarChar(200)
+  content   String         @db.Text
+  status    QuestionStatus @default(open)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  batch       Batch                  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  author      User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  attachments QuestionAttachment[]
+  answers     Answer[]
+  summary     Summary?
+
+  @@map("questions")
+}
+
+// 5. QuestionAttachment - Question file attachments
+model QuestionAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  fileUrl    String   @map("file_url")
+  fileName   String   @map("file_name")
+  fileSize   Int      @map("file_size")
+  fileType   String   @map("file_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_attachments")
+}
+
+// 6. Answer - Mentor/Admin answers
+model Answer {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  content    String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("answers")
+}
+
+// 7. Summary - Admin summary (closes question)
+model Summary {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @unique @map("question_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  content    String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+// 8. OfficeHourSlot - Mentor/Admin office hour slots
+model OfficeHourSlot {
+  id             String               @id @default(uuid()) @db.Uuid
+  batchId        String               @map("batch_id") @db.Uuid
+  hostId         String               @map("host_id") @db.Uuid
+  startTime      DateTime             @map("start_time")
+  endTime        DateTime             @map("end_time")
+  timezone       String               @default("UTC") @db.VarChar(50)
+  status         OfficeHourSlotStatus @default(available)
+  googleMeetLink String?              @map("google_meet_link")
+  googleEventId  String?              @map("google_event_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  // Relations
+  batch    Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  host     User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  requests OfficeHourRequest[]
+
+  @@map("office_hour_slots")
+}
+
+// 9. OfficeHourRequest - Founder requests for office hours
+model OfficeHourRequest {
+  id          String                   @id @default(uuid()) @db.Uuid
+  slotId      String                   @map("slot_id") @db.Uuid
+  requesterId String                   @map("requester_id") @db.Uuid
+  message     String?                  @db.Text
+  status      OfficeHourRequestStatus  @default(pending)
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  respondedAt DateTime?                @map("responded_at")
+
+  // Relations
+  slot      OfficeHourSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  requester User           @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@map("office_hour_requests")
+}
+
+// 10. Session - Program sessions
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  batchId      String   @map("batch_id") @db.Uuid
+  title        String   @db.VarChar(200)
+  description  String?  @db.Text
+  sessionDate  DateTime @map("session_date") @db.Date
+  slidesUrl    String?  @map("slides_url")
+  recordingUrl String?  @map("recording_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// 11. Assignment - Founder assignments
+model Assignment {
+  id          String   @id @default(uuid()) @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  title       String   @db.VarChar(200)
+  description String   @db.Text
+  templateUrl String?  @map("template_url")
+  dueDate     DateTime @map("due_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  batch       Batch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+// 12. Submission - Assignment submissions
+model Submission {
+  id           String   @id @default(uuid()) @db.Uuid
+  assignmentId String   @map("assignment_id") @db.Uuid
+  authorId     String   @map("author_id") @db.Uuid
+  content      String?  @db.Text
+  linkUrl      String?  @map("link_url")
+  isLate       Boolean  @default(false) @map("is_late")
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  feedbacks  Feedback[]
+
+  @@unique([assignmentId, authorId])
+  @@map("submissions")
+}
+
+// 13. Feedback - Submission feedback
+model Feedback {
+  id           String   @id @default(uuid()) @db.Uuid
+  submissionId String   @map("submission_id") @db.Uuid
+  authorId     String   @map("author_id") @db.Uuid
+  content      String   @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("feedbacks")
+}
+
+// 14. Event - Batch events
+model Event {
+  id            String    @id @default(uuid()) @db.Uuid
+  batchId       String    @map("batch_id") @db.Uuid
+  creatorId     String    @map("creator_id") @db.Uuid
+  title         String    @db.VarChar(200)
+  description   String?   @db.Text
+  eventType     EventType @map("event_type")
+  startTime     DateTime  @map("start_time")
+  endTime       DateTime  @map("end_time")
+  timezone      String    @default("UTC") @db.VarChar(50)
+  location      String?   @db.VarChar(500)
+  googleEventId String?   @map("google_event_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  batch   Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("events")
+}
+
+// 15. Group - Founder groups
+model Group {
+  id          String   @id @default(uuid()) @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  batch    Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator  User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  members  GroupMember[]
+  posts    Post[]
+
+  @@map("groups")
+}
+
+// 16. GroupMember - Group membership
+model GroupMember {
+  id       String   @id @default(uuid()) @db.Uuid
+  groupId  String   @map("group_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+// 17. Post - Community posts
+model Post {
+  id        String   @id @default(uuid()) @db.Uuid
+  batchId   String   @map("batch_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  groupId   String?  @map("group_id") @db.Uuid
+  content   String   @db.Text
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  isHidden  Boolean  @default(false) @map("is_hidden")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  batch    Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  author   User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  group    Group?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  images   PostImage[]
+  comments Comment[]
+  likes    Like[]
+
+  @@map("posts")
+}
+
+// 18. PostImage - Post images
+model PostImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  imageUrl  String   @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("post_images")
+}
+
+// 19. Comment - Post comments
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  post     Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes    Like[]
+
+  @@map("comments")
+}
+
+// 20. Like - Post/Comment likes
+model Like {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  targetType LikeTargetType @map("target_type")
+  postId     String?        @map("post_id") @db.Uuid
+  commentId  String?        @map("comment_id") @db.Uuid
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, postId, commentId])
+  @@map("likes")
+}
+
+// 21. Notification - Notification logs
+model Notification {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  type          String   @db.VarChar(50)
+  title         String   @db.VarChar(200)
+  content       String   @db.Text
+  referenceType String?  @map("reference_type") @db.VarChar(50)
+  referenceId   String?  @map("reference_id") @db.Uuid
+  sentAt        DateTime @default(now()) @map("sent_at")
+  emailSent     Boolean  @default(false) @map("email_sent")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}

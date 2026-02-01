@@ -205,7 +205,55 @@ const [state, formAction, pending] = useActionState(serverAction, initialState);
 
 ---
 
-## 5. 결론
+## 5. LinkedIn OIDC 프로필 데이터 제한사항
+
+### 5.1 가져올 수 있는 데이터 (Sign In with LinkedIn 기본)
+
+| 필드 | OpenID Connect Claim | 설명 |
+|------|---------------------|------|
+| 이름 | `name`, `given_name`, `family_name` | ✅ 자동 수집 |
+| 이메일 | `email`, `email_verified` | ✅ 자동 수집 |
+| 프로필 사진 | `picture` | ✅ 자동 수집 |
+| LinkedIn 프로필 URL | `sub` (LinkedIn member ID) | ✅ 자동 수집 |
+
+### 5.2 가져올 수 없는 데이터
+
+| 필드 | 사유 | 대안 |
+|------|------|------|
+| 직함 (Job Title) | LinkedIn Partner Program 필요 (승인 2~6개월, 보장 없음) | **수동 입력** |
+| 회사 (Company) | LinkedIn Partner Program 필요 | **수동 입력** |
+| 산업 (Industry) | LinkedIn Partner Program 필요 | **수동 입력** |
+| 경력 (Experience) | LinkedIn Partner Program + r_liteprofile 스코프 필요 | MVP 제외 |
+| 학력 (Education) | LinkedIn Partner Program 필요 | MVP 제외 |
+| 연결 수 (Connections) | API 미제공 | MVP 제외 |
+
+### 5.3 MVP 결정사항
+
+| 항목 | 결정 | 근거 |
+|------|------|------|
+| 프로필 기본 정보 | LinkedIn OIDC 자동 수집 | name, email, picture |
+| 직함/회사/소개 | **수동 입력** (프로필 설정 화면) | Partner Program 승인 불확실 |
+| 확장 가능 구조 | User 모델에 `job_title`, `company`, `bio` 필드 추가 | 나중에 자동화 전환 가능 |
+
+### 5.4 향후 자동화 경로
+
+```
+현재 (MVP): LinkedIn OIDC → name, email, picture 자동 + job_title, company, bio 수동 입력
+향후 옵션 1: LinkedIn Partner Program 승인 → API로 직함/회사 자동 수집
+향후 옵션 2: 웹 크롤링 (LinkedIn 프로필 URL 기반) → 법적 리스크 검토 필요
+향후 옵션 3: 사용자가 직접 LinkedIn 프로필 URL 입력 → 공개 정보 파싱
+```
+
+### 5.5 구현 시 주의사항
+
+1. **User 모델 필드**: `job_title`, `company`, `bio`는 nullable (Optional)
+2. **온보딩 플로우**: 첫 로그인 후 프로필 완성 화면으로 리다이렉트
+3. **프로필 설정**: `/settings` 화면에서 수동 입력/수정 가능
+4. **표시 로직**: 직함/회사가 없으면 "미입력" 표시 (빈칸 아님)
+
+---
+
+## 6. 결론
 
 원래 계획서에는 **8개의 할루시네이션/오류**가 있었음:
 1. Next.js 버전 오류
