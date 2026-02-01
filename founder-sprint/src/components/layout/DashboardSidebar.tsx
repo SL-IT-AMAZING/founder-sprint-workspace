@@ -1,31 +1,32 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 interface NavItemData {
   id: string;
   label: string;
-  icon: string;
+  iconSrc: string;
   href: string;
 }
 
 const NAV_ITEMS: NavItemData[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '🏠', href: '/dashboard' },
-  { id: 'feed', label: 'Feed', icon: '📰', href: '/feed' },
-  { id: 'assignments', label: 'Assignments', icon: '📝', href: '/assignments' },
-  { id: 'questions', label: 'Questions', icon: '❓', href: '/questions' },
-  { id: 'submissions', label: 'Submissions', icon: '📤', href: '/submissions' },
-  { id: 'groups', label: 'Groups', icon: '👥', href: '/groups' },
-  { id: 'events', label: 'Events', icon: '📅', href: '/events' },
-  { id: 'sessions', label: 'Sessions', icon: '🎥', href: '/sessions' },
-  { id: 'office-hours', label: 'Office Hours', icon: '⏰', href: '/office-hours' },
-  { id: 'settings', label: 'Settings', icon: '⚙️', href: '/settings' },
+  { id: 'dashboard', label: 'Dashboard', iconSrc: '/images/icon-decorative-home.svg', href: '/dashboard' },
+  { id: 'feed', label: 'Feed', iconSrc: '/images/icon-decorative-messaging.svg', href: '/feed' },
+  { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments' },
+  { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions' },
+  { id: 'submissions', label: 'Submissions', iconSrc: '/images/icon-interface-arrow-up-right.svg', href: '/submissions' },
+  { id: 'groups', label: 'Groups', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
+  { id: 'events', label: 'Events', iconSrc: '/images/icon-decorative-calendar.svg', href: '/events' },
+  { id: 'sessions', label: 'Sessions', iconSrc: '/images/icon-interface-play.svg', href: '/sessions' },
+  { id: 'office-hours', label: 'Office Hours', iconSrc: '/images/icon-decorative-clock.svg', href: '/office-hours' },
+  { id: 'settings', label: 'Settings', iconSrc: '/images/icon-decorative-settings.svg', href: '/settings' },
 ];
 
 const ADMIN_NAV_ITEMS: NavItemData[] = [
-  { id: 'admin', label: 'Admin', icon: '👑', href: '/admin' },
+  { id: 'admin', label: 'Admin', iconSrc: '/images/icon-decorative-favorites-shield.svg', href: '/admin' },
 ];
 
 const styles = {
@@ -72,12 +73,14 @@ const NavItem: React.FC<NavItemProps> = ({ item, isActive }) => {
     userSelect: 'none' as const,
   };
 
-  const iconStyle: React.CSSProperties = {
+  const iconContainerStyle: React.CSSProperties = {
     marginRight: '12px',
-    fontSize: '16px',
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     width: '20px',
+    height: '20px',
+    flexShrink: 0,
   };
 
   return (
@@ -88,7 +91,18 @@ const NavItem: React.FC<NavItemProps> = ({ item, isActive }) => {
       onMouseLeave={() => setIsHovered(false)}
       aria-current={isActive ? 'page' : undefined}
     >
-      <span style={iconStyle}>{item.icon}</span>
+      <span style={iconContainerStyle}>
+        <Image
+          src={item.iconSrc}
+          alt=""
+          width={20}
+          height={20}
+          style={{ 
+            opacity: isActive ? 1 : 0.7,
+            transition: 'opacity 0.2s ease',
+          }}
+        />
+      </span>
       <span>{item.label}</span>
     </Link>
   );

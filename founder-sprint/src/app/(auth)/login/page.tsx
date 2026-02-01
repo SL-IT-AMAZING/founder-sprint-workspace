@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { signInWithLinkedIn } from "@/actions/auth";
-import { AnimatedButton } from "@/components/ui/AnimatedButton";
+import { Button } from "@/components/ui";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_code: "Authentication failed. Please try again.",
@@ -96,7 +96,7 @@ export default async function LoginPage({
         )}
 
         <form action={signInWithLinkedIn} style={{ width: "100%" }}>
-          <AnimatedButton type="submit" variant="linkedin" size="default">
+          <Button type="submit" variant="linkedin" size="lg" style={{ width: "100%" }}>
             <Image
               src="/images/icon-social-linkedin.svg"
               alt="LinkedIn"
@@ -105,7 +105,7 @@ export default async function LoginPage({
               style={{ width: 20, height: 20, filter: "brightness(0) invert(1)" }}
             />
             Sign in with LinkedIn
-          </AnimatedButton>
+          </Button>
         </form>
 
         <p

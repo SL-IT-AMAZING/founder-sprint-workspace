@@ -92,7 +92,7 @@ export default async function DashboardPage() {
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>
+                <h2 className="text-2xl font-medium mb-2">
                   {batchInfo.name}
                 </h2>
                 <p className="text-sm opacity-80">
@@ -110,7 +110,7 @@ export default async function DashboardPage() {
 
         {/* Welcome Header */}
         <div className="space-y-2">
-          <h1 className="text-3xl" style={{ fontFamily: "Georgia, serif", color: "var(--color-foreground)" }}>
+          <h1 className="text-3xl" style={{ color: "var(--color-foreground)" }}>
             Welcome back, {user.name}
           </h1>
           <Badge variant="role">{getRoleDisplayName(user.role)}</Badge>
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
         {/* Recent Questions Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-medium" style={{ fontFamily: "Georgia, serif" }}>
+            <h2 className="text-xl font-medium">
               Recent Questions
             </h2>
             <Link
@@ -206,7 +206,7 @@ export default async function DashboardPage() {
         {/* Upcoming Events Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-medium" style={{ fontFamily: "Georgia, serif" }}>
+            <h2 className="text-xl font-medium">
               Upcoming Events
             </h2>
             <Link
@@ -247,7 +247,7 @@ export default async function DashboardPage() {
         {/* Admin Quick Links */}
         {userIsAdmin && (
           <section className="space-y-4">
-            <h2 className="text-xl font-medium" style={{ fontFamily: "Georgia, serif", color: "var(--color-foreground)" }}>
+            <h2 className="text-xl font-medium" style={{ color: "var(--color-foreground)" }}>
               Admin Quick Links
             </h2>
             <div className="flex gap-3">
@@ -296,7 +296,7 @@ function StatCard({
             {title}
           </p>
         </div>
-        <p className="text-3xl font-bold" style={{ fontFamily: "Georgia, serif", color: "var(--color-foreground)" }}>
+        <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-serif)", color: "var(--color-foreground)" }}>
           {count}
         </p>
       </div>
