@@ -58,7 +58,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
           where: { batchId: user.batchId, status: "active" },
           include: { user: { select: { email: true } } },
         });
-        const attendeeEmails = batchUsers.map((ub) => ub.user.email);
+        const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
 
         const calResult = await createCalendarEvent({
           summary: validated.title,
