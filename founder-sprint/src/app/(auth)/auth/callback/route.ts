@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     }
 
     // Check for pending invitations to activate
-    const pendingInvitations = user.userBatches.filter(ub => ub.status === "invited");
+    const pendingInvitations = user.userBatches.filter((ub: { status: string }) => ub.status === "invited");
 
     if (pendingInvitations.length > 0) {
       // Activate all pending invitations
