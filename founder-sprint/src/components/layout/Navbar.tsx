@@ -77,6 +77,7 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
           alt="Outsome"
           width={32}
           height={32}
+          style={{ width: 32, height: 32 }}
           priority
         />
       </Link>
@@ -125,28 +126,13 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
           width: '240px',
           border: '1px solid transparent',
         }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            style={{ marginRight: '8px', flexShrink: 0 }}
-          >
-            <path
-              d="M6 11C8.76142 11 11 8.76142 11 6C11 3.23858 8.76142 1 6 1C3.23858 1 1 3.23858 1 6C1 8.76142 3.23858 11 6 11Z"
-              stroke="#999"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M13 13L9.5 9.5"
-              stroke="#999"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <Image
+            src="/images/icon-interface-search.svg"
+            alt=""
+            width={14}
+            height={14}
+            style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
+          />
           <input
             type="text"
             placeholder="Search..."
@@ -249,11 +235,13 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
             color: 'white'
           }}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
+          <Image
+            src="/images/icon-interface-menu.svg"
+            alt="Menu"
+            width={24}
+            height={24}
+            style={{ filter: 'brightness(0) invert(1)' }}
+          />
         </button>
       </div>
 
@@ -295,28 +283,13 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
               padding: '8px 12px',
               width: '100%',
             }}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                style={{ marginRight: '8px', flexShrink: 0 }}
-              >
-                <path
-                  d="M6 11C8.76142 11 11 8.76142 11 6C11 3.23858 8.76142 1 6 1C3.23858 1 1 3.23858 1 6C1 8.76142 3.23858 11 6 11Z"
-                  stroke="#999"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M13 13L9.5 9.5"
-                  stroke="#999"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <Image
+                src="/images/icon-interface-search.svg"
+                alt=""
+                width={14}
+                height={14}
+                style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
+              />
               <input
                 type="text"
                 placeholder="Search..."

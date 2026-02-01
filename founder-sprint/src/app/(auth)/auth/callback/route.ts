@@ -49,21 +49,33 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/no-batch`);
     }
 
-    // Check for pending invitations to activate
-    const pendingInvitations = user.userBatches.filter((ub: { status: string }) => ub.status === "invited");
+    // Check for pending invitations to activate (7-day expiry)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const pendingInvitations = user.userBatches.filter(
+      (ub: { status: string; invitedAt: Date }) => ub.status === "invited"
+    );
+    const validInvitations = pendingInvitations.filter(
+      (ub: { invitedAt: Date }) => new Date(ub.invitedAt) > sevenDaysAgo
+    );
 
-    if (pendingInvitations.length > 0) {
-      // Activate all pending invitations
+    if (validInvitations.length > 0) {
+      // Activate only valid (non-expired) invitations
+      const validIds = validInvitations.map((ub: { id: string }) => ub.id);
       await prisma.userBatch.updateMany({
         where: {
-          userId: user.id,
-          status: "invited",
+          id: { in: validIds },
         },
         data: {
           status: "active",
           joinedAt: new Date(),
         },
       });
+    }
+
+    // If user had invitations but all expired, sign out and redirect
+    if (pendingInvitations.length > 0 && validInvitations.length === 0) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(`${errorRedirect}invitation_expired`);
     }
 
     // Update user profile with LinkedIn data (if first login or data changed)
