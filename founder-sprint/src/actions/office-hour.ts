@@ -131,7 +131,7 @@ export async function requestOfficeHour(slotId: string, message?: string): Promi
 
     // Check if user already has a pending request for this slot
     const existingRequest = slot.requests.find(
-      (req) => req.requesterId === user.id && req.status === "pending"
+      (req: { requesterId: string; status: string }) => req.requesterId === user.id && req.status === "pending"
     );
 
     if (existingRequest) {
