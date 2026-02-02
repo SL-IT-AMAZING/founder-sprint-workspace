@@ -1,6 +1,5 @@
 import Navbar from "@/components/layout/Navbar";
 import DashboardSidebar from "@/components/layout/DashboardSidebar";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin as checkIsAdmin } from "@/lib/permissions";
 
@@ -9,19 +8,17 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
-  if (!authUser) {
+  if (!user) {
     redirect("/login");
   }
 
-  const user = await getCurrentUser();
-  const userIsAdmin = user ? checkIsAdmin(user.role) : false;
+  const userIsAdmin = checkIsAdmin(user.role);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--color-background)" }}>
-      <Navbar user={authUser} isAdmin={userIsAdmin} />
+      <Navbar user={user} isAdmin={userIsAdmin} />
       <div className="main-container lg:grid lg:grid-cols-[240px_1fr] lg:gap-6 pt-6 pb-8">
         <aside className="hidden lg:block">
           <DashboardSidebar isAdmin={userIsAdmin} />

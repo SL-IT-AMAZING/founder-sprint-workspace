@@ -13,11 +13,9 @@ function getInitials(name: string): string {
 interface NavbarProps {
   user: {
     id: string;
-    email?: string;
-    user_metadata?: {
-      full_name?: string;
-      avatar_url?: string;
-    };
+    email: string;
+    name: string;
+    profileImage?: string | null;
   };
   isAdmin?: boolean;
 }
@@ -31,8 +29,8 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  const name = user.user_metadata?.full_name || user.email || "";
-  const avatar = user.user_metadata?.avatar_url;
+  const name = user.name || user.email;
+  const avatar = user.profileImage;
 
   const navLinks = [
     { href: "/dashboard", label: "Dashboard" },
