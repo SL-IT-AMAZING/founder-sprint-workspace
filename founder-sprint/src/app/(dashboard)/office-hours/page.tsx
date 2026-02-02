@@ -3,6 +3,8 @@ import { getOfficeHourSlots } from "@/actions/office-hour";
 import { redirect } from "next/navigation";
 import { OfficeHoursList } from "./OfficeHoursList";
 
+export const revalidate = 60;
+
 export default async function OfficeHoursPage() {
   const user = await getCurrentUser();
   if (!user) {

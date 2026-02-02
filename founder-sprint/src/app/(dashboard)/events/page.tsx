@@ -3,6 +3,8 @@ import { getEvents } from "@/actions/event";
 import { redirect } from "next/navigation";
 import { EventsList } from "./EventsList";
 
+export const revalidate = 60;
+
 export default async function EventsPage() {
   const user = await getCurrentUser();
   if (!user) {
