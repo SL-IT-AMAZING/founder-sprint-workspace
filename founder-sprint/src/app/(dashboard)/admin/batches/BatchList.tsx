@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createBatch, archiveBatch } from "@/actions/batch";
+import { createBatch, archiveBatch, deleteBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
 import type { BatchStatus } from "@/types";
 
@@ -36,13 +36,14 @@ export function BatchList({ batches }: BatchListProps) {
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
 
     startTransition(async () => {
       const result = await createBatch(formData);
       if (result.success) {
         setShowCreateModal(false);
-        e.currentTarget.reset();
+        form.reset();
       } else {
         setError(result.error);
       }
@@ -54,6 +55,17 @@ export function BatchList({ batches }: BatchListProps) {
 
     startTransition(async () => {
       const result = await archiveBatch(batchId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  }
+
+  function handleDelete(batchId: string, batchName: string) {
+    if (!confirm(`Are you sure you want to PERMANENTLY DELETE "${batchName}"?\n\nThis will delete ALL data including:\n- All users in this batch\n- All questions and answers\n- All posts and comments\n- All assignments and submissions\n- All office hours\n\nThis action CANNOT be undone.`)) return;
+
+    startTransition(async () => {
+      const result = await deleteBatch(batchId);
       if (!result.success) {
         alert(result.error);
       }
@@ -105,6 +117,14 @@ export function BatchList({ batches }: BatchListProps) {
                       Archive
                     </Button>
                   )}
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleDelete(batch.id, batch.name)}
+                    disabled={isPending}
+                  >
+                    Delete
+                  </Button>
                 </div>
               </div>
             </div>

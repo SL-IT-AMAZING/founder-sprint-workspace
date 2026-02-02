@@ -11,7 +11,6 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
 
   if (!authUser) return null;
 
-  // Find user in our DB
   const user = await prisma.user.findUnique({
     where: { email: authUser.email! },
     include: {

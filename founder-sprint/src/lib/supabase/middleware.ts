@@ -69,12 +69,14 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const { data: userBatch } = await supabase
+    const { data: userBatches } = await supabase
       .from("user_batches")
       .select("role")
       .eq("user_id", dbUser.id)
       .eq("status", "active")
-      .maybeSingle();
+      .limit(1);
+
+    const userBatch = userBatches?.[0] ?? null;
 
     const isAdmin =
       userBatch?.role === "admin" || userBatch?.role === "super_admin";
