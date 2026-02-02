@@ -77,6 +77,29 @@ export async function archiveBatch(batchId: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
+export async function deleteBatch(batchId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin"]);
+  } catch {
+    return { success: false, error: "Only Super Admin can delete batches" };
+  }
+
+  const batch = await prisma.batch.findUnique({ where: { id: batchId } });
+  if (!batch) {
+    return { success: false, error: "Batch not found" };
+  }
+
+  await prisma.batch.delete({
+    where: { id: batchId },
+  });
+
+  revalidatePath("/admin/batches");
+  return { success: true, data: undefined };
+}
+
 export async function getBatches() {
   return prisma.batch.findMany({
     orderBy: { createdAt: "desc" },

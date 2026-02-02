@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatRelativeTime, formatDate, getRoleDisplayName } from "@/lib/utils";
 import Link from "next/link";
 
+export const revalidate = 30;
+
 export default async function DashboardPage() {
   // Get current user and redirect if not authenticated
   const user = await getCurrentUser();
@@ -46,8 +48,8 @@ export default async function DashboardPage() {
     prisma.question.findMany({
       where: { batchId: user.batchId },
       include: {
-        author: true,
-        answers: true,
+        author: { select: { id: true, name: true, profileImage: true } },
+        _count: { select: { answers: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -194,7 +196,7 @@ export default async function DashboardPage() {
                       <span>•</span>
                       <span>{formatRelativeTime(question.createdAt)}</span>
                       <span>•</span>
-                      <span>{question.answers.length} {question.answers.length === 1 ? "answer" : "answers"}</span>
+                      <span>{question._count.answers} {question._count.answers === 1 ? "answer" : "answers"}</span>
                     </div>
                   </div>
                 </Link>

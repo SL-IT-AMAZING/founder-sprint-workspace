@@ -135,6 +135,8 @@ model UserBatch {
   batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@unique([userId, batchId])
+  @@index([userId, status])
+  @@index([batchId, status])
   @@map("user_batches")
 }
 
@@ -156,6 +158,9 @@ model Question {
   answers     Answer[]
   summary     Summary?
 
+  @@index([batchId, status])
+  @@index([batchId, createdAt])
+  @@index([authorId])
   @@map("questions")
 }
 
@@ -188,6 +193,7 @@ model Answer {
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
+  @@index([questionId])
   @@map("answers")
 }
 
@@ -225,6 +231,8 @@ model OfficeHourSlot {
   host     User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
   requests OfficeHourRequest[]
 
+  @@index([batchId, startTime, status])
+  @@index([hostId])
   @@map("office_hour_slots")
 }
 
@@ -278,6 +286,7 @@ model Assignment {
   batch       Batch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
   submissions Submission[]
 
+  @@index([batchId, dueDate])
   @@map("assignments")
 }
 
@@ -298,6 +307,7 @@ model Submission {
   feedbacks  Feedback[]
 
   @@unique([assignmentId, authorId])
+  @@index([assignmentId])
   @@map("submissions")
 }
 
@@ -337,6 +347,7 @@ model Event {
   batch   Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
+  @@index([batchId, startTime])
   @@map("events")
 }
 
@@ -394,6 +405,8 @@ model Post {
   comments Comment[]
   likes    Like[]
 
+  @@index([batchId, isPinned, createdAt])
+  @@index([batchId, groupId])
   @@map("posts")
 }
 
@@ -427,6 +440,7 @@ model Comment {
   author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes    Like[]
 
+  @@index([postId, parentId])
   @@map("comments")
 }
 
@@ -445,6 +459,8 @@ model Like {
   comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetType, postId, commentId])
+  @@index([postId])
+  @@index([commentId])
   @@map("likes")
 }
 
@@ -463,5 +479,6 @@ model Notification {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, sentAt])
   @@map("notifications")
 }

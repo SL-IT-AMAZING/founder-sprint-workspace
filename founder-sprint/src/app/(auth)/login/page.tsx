@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { signInWithLinkedIn } from "@/actions/auth";
+import Link from "next/link";
 import { Button } from "@/components/ui";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -8,6 +8,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_email: "Could not retrieve your email from LinkedIn.",
   server_error: "Server error. Please try again later.",
   auth_callback_error: "Authentication callback failed. Please try again.",
+  invitation_expired: "Your invitation has expired. Please contact an admin.",
+  oauth_error: "Could not initiate LinkedIn login. Please try again.",
 };
 
 export default async function LoginPage({
@@ -95,8 +97,8 @@ export default async function LoginPage({
           </div>
         )}
 
-        <form action={signInWithLinkedIn} style={{ width: "100%" }}>
-          <Button type="submit" variant="linkedin" size="lg" style={{ width: "100%" }}>
+        <Link href="/auth/login" style={{ width: "100%", textDecoration: "none" }}>
+          <Button variant="linkedin" size="lg" style={{ width: "100%" }}>
             <Image
               src="/images/icon-social-linkedin.svg"
               alt="LinkedIn"
@@ -106,7 +108,7 @@ export default async function LoginPage({
             />
             Sign in with LinkedIn
           </Button>
-        </form>
+        </Link>
 
         <p
           style={{

@@ -3,6 +3,8 @@ import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { getSessions } from "@/actions/session";
 import { SessionsList } from "./SessionsList";
 
+export const revalidate = 300;
+
 export default async function SessionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");

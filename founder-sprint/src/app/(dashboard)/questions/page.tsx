@@ -5,6 +5,8 @@ import { QuestionsList } from "./QuestionsList";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 
+export const revalidate = 60;
+
 export default async function QuestionsPage() {
   const user = await getCurrentUser();
 

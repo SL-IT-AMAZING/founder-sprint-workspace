@@ -1,15 +1,16 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { UserRole, UserWithBatch } from "@/types";
 
 // Get current authenticated user with their role in a specific batch
-export async function getCurrentUser(batchId?: string): Promise<UserWithBatch | null> {
+// Memoized with React cache() to prevent redundant calls within a request
+export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBatch | null> => {
   const supabase = await createClient();
   const { data: { user: authUser } } = await supabase.auth.getUser();
 
   if (!authUser) return null;
 
-  // Find user in our DB
   const user = await prisma.user.findUnique({
     where: { email: authUser.email! },
     include: {
@@ -37,7 +38,7 @@ export async function getCurrentUser(batchId?: string): Promise<UserWithBatch | 
     batchId: ub.batchId,
     batchName: ub.batch.name,
   };
-}
+});
 
 // Permission check helpers
 export function isAdmin(role: UserRole): boolean {
