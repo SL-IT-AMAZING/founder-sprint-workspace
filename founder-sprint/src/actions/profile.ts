@@ -2,7 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 
