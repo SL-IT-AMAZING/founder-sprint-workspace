@@ -23,7 +23,28 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     },
   });
 
-  if (!user || user.userBatches.length === 0) return null;
+  if (!user) return null;
+
+  // If user has no active batch membership
+  if (user.userBatches.length === 0) {
+    // Super admin/admin can access without batch (to create first batch)
+    const globalRole = user.role as UserRole | null;
+    if (globalRole === "super_admin" || globalRole === "admin") {
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        profileImage: user.profileImage,
+        jobTitle: user.jobTitle,
+        company: user.company,
+        bio: user.bio,
+        role: globalRole,
+        batchId: "",
+        batchName: "",
+      };
+    }
+    return null;
+  }
 
   const ub = user.userBatches[0];
   return {

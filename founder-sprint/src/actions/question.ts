@@ -233,7 +233,66 @@ export async function updateAnswer(
     data: { content: parsed.data.content },
   });
 
-  revalidatePath(`/questions/${answer.questionId}`);
+   revalidatePath(`/questions/${answer.questionId}`);
+
+   return { success: true, data: undefined };
+}
+
+const UpdateSummarySchema = z.object({
+  content: z.string().max(10000).nullable(),
+});
+
+export async function updateSummary(
+  questionId: string,
+  content: string | null
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (user.role !== "super_admin" && user.role !== "admin") {
+    return { success: false, error: "Only admins can update summaries" };
+  }
+
+  const parsed = UpdateSummarySchema.safeParse({
+    content: content,
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const question = await prisma.question.findUnique({
+    where: { id: questionId },
+    include: { summary: true },
+  });
+
+  if (!question) {
+    return { success: false, error: "Question not found" };
+  }
+
+  if (parsed.data.content) {
+    if (question.summary) {
+      await prisma.summary.update({
+        where: { id: question.summary.id },
+        data: { content: parsed.data.content },
+      });
+    } else {
+      await prisma.summary.create({
+        data: {
+          questionId,
+          authorId: user.id,
+          content: parsed.data.content,
+        },
+      });
+    }
+  } else if (question.summary) {
+    await prisma.summary.delete({
+      where: { id: question.summary.id },
+    });
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/questions");
 
   return { success: true, data: undefined };
 }

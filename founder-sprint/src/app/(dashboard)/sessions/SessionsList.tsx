@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createSession } from "@/actions/session";
+import { createSession, updateSession, deleteSession } from "@/actions/session";
 import { formatDate } from "@/lib/utils";
 
 interface Session {
@@ -27,6 +27,7 @@ interface SessionsListProps {
 
 export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editSession, setEditSession] = useState<Session | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -41,6 +42,34 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
       if (result.success) {
         setIsModalOpen(false);
         (e.target as HTMLFormElement).reset();
+      } else {
+        setError(result.error);
+      }
+    });
+  };
+
+  const handleDelete = (sessionId: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+
+    startTransition(async () => {
+      const result = await deleteSession(sessionId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editSession) return;
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(async () => {
+      const result = await updateSession(editSession.id, formData);
+      if (result.success) {
+        setEditSession(null);
       } else {
         setError(result.error);
       }
@@ -78,6 +107,26 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
                       {formatDate(session.sessionDate)}
                     </p>
                   </div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditSession(session)}
+                        disabled={isPending}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDelete(session.id, session.title)}
+                        disabled={isPending}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {session.description && (
@@ -173,6 +222,82 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!editSession}
+        onClose={() => {
+          setEditSession(null);
+          setError("");
+        }}
+        title="Edit Session"
+      >
+        {editSession && (
+          <form onSubmit={handleEdit} className="space-y-4">
+            {error && (
+              <div className="form-error p-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            <Input
+              name="title"
+              label="Title"
+              placeholder="Session 1: Introduction"
+              defaultValue={editSession.title}
+              required
+            />
+
+            <Textarea
+              name="description"
+              label="Description"
+              placeholder="Brief overview of the session"
+              defaultValue={editSession.description || ""}
+              rows={3}
+            />
+
+            <Input
+              name="sessionDate"
+              label="Session Date"
+              type="date"
+              defaultValue={new Date(editSession.sessionDate).toISOString().split("T")[0]}
+              required
+            />
+
+            <Input
+              name="slidesUrl"
+              label="Slides URL"
+              type="url"
+              placeholder="https://docs.google.com/presentation/..."
+              defaultValue={editSession.slidesUrl || ""}
+            />
+
+            <Input
+              name="recordingUrl"
+              label="Recording URL"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              defaultValue={editSession.recordingUrl || ""}
+            />
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditSession(null);
+                  setError("");
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={isPending}>
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

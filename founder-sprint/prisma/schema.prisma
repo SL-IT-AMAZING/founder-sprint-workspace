@@ -65,19 +65,21 @@ enum EventType {
 
 // 1. User - Core user model
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String   @unique
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
   name          String
-  linkedinId    String?  @unique @map("linkedin_id")
-  profileImage  String?  @map("profile_image")
-  jobTitle      String?  @map("job_title") @db.VarChar(100)
-  company       String?  @db.VarChar(100)
-  bio           String?  @db.VarChar(500)
+  role          UserRole? @default(founder) @map("global_role")
+  linkedinId    String?   @unique @map("linkedin_id")
+  profileImage  String?   @map("profile_image")
+  jobTitle      String?   @map("job_title") @db.VarChar(100)
+  company       String?   @db.VarChar(100)
+  bio           String?   @db.VarChar(500)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   userBatches         UserBatch[]
+  coFounderAssignments UserBatch[] @relation("CoFounderOf") // Users who are co-founders assigned to this founder
   questions           Question[]
   answers             Answer[]
   summaries           Summary[]
@@ -126,17 +128,20 @@ model UserBatch {
   userId    String          @map("user_id") @db.Uuid
   batchId   String          @map("batch_id") @db.Uuid
   role      UserRole
+  founderId String?         @map("founder_id") @db.Uuid // For co-founders: links to their main founder
   invitedAt DateTime        @default(now()) @map("invited_at")
   joinedAt  DateTime?       @map("joined_at")
   status    UserBatchStatus @default(invited)
 
   // Relations
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch  Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  founder User?  @relation("CoFounderOf", fields: [founderId], references: [id], onDelete: SetNull)
 
   @@unique([userId, batchId])
   @@index([userId, status])
   @@index([batchId, status])
+  @@index([founderId]) // Index for co-founder lookups
   @@map("user_batches")
 }
 
@@ -481,4 +486,20 @@ model Notification {
 
   @@index([userId, sentAt])
   @@map("notifications")
+}
+
+// 22. InvitationToken - Secure invitation links
+model InvitationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  token     String    @unique
+  userId    String    @map("user_id") @db.Uuid
+  batchId   String    @map("batch_id") @db.Uuid
+  email     String
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([userId])
+  @@map("invitation_tokens")
 }

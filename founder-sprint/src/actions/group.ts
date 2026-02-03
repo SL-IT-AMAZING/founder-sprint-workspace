@@ -8,7 +8,7 @@ import type { ActionResult } from "@/types";
 
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
-  description: z.string().optional().or(z.literal("")),
+  description: z.string().max(500).optional().or(z.literal("")),
 });
 
 export async function createGroup(formData: FormData): Promise<ActionResult<{ id: string }>> {
@@ -90,6 +90,10 @@ export async function joinGroup(groupId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
+  if (!isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
   // Check if already a member
   const existing = await prisma.groupMember.findUnique({
     where: {
@@ -116,9 +120,81 @@ export async function joinGroup(groupId: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
+export async function addMembersToGroup(
+  groupId: string,
+  userIds: string[]
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  // Validate group exists and get its batchId
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { batchId: true },
+  });
+
+  if (!group) {
+    return { success: false, error: "Group not found" };
+  }
+
+  // Validate all userIds are members of the same batch
+  const validBatchMembers = await prisma.userBatch.findMany({
+    where: {
+      batchId: group.batchId,
+      userId: { in: userIds },
+      status: "active",
+    },
+    select: { userId: true },
+  });
+
+  const validUserIds = validBatchMembers.map(ub => ub.userId);
+
+  if (validUserIds.length === 0) {
+    return { success: false, error: "No valid batch members found" };
+  }
+
+  // Filter out users who are already group members
+  const existingMembers = await prisma.groupMember.findMany({
+    where: {
+      groupId,
+      userId: { in: validUserIds },
+    },
+    select: { userId: true },
+  });
+
+  const existingUserIds = existingMembers.map(gm => gm.userId);
+  const newUserIds = validUserIds.filter(id => !existingUserIds.includes(id));
+
+  if (newUserIds.length === 0) {
+    return { success: false, error: "All users are already members of this group" };
+  }
+
+  // Create GroupMember records for each valid userId
+  await prisma.groupMember.createMany({
+    data: newUserIds.map(userId => ({
+      groupId,
+      userId,
+    })),
+  });
+
+  revalidatePath("/groups");
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath(`/groups/${groupId}/manage`);
+
+  return { success: true, data: undefined };
+}
+
 export async function leaveGroup(groupId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
 
   const member = await prisma.groupMember.findUnique({
     where: {

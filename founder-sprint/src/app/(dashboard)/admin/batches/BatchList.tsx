@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createBatch, archiveBatch, deleteBatch } from "@/actions/batch";
+import { createBatch, updateBatch, archiveBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
 import type { BatchStatus } from "@/types";
 
@@ -30,6 +30,7 @@ interface BatchListProps {
 
 export function BatchList({ batches }: BatchListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -61,21 +62,34 @@ export function BatchList({ batches }: BatchListProps) {
     });
   }
 
-  function handleDelete(batchId: string, batchName: string) {
-    if (!confirm(`Are you sure you want to PERMANENTLY DELETE "${batchName}"?\n\nThis will delete ALL data including:\n- All users in this batch\n- All questions and answers\n- All posts and comments\n- All assignments and submissions\n- All office hours\n\nThis action CANNOT be undone.`)) return;
+  function handleEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editBatch) return;
+    setError(null);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
 
     startTransition(async () => {
-      const result = await deleteBatch(batchId);
-      if (!result.success) {
-        alert(result.error);
+      const result = await updateBatch(editBatch.id, {
+        name: formData.get("name") as string,
+        description: (formData.get("description") as string) || undefined,
+        startDate: new Date(formData.get("startDate") as string),
+        endDate: new Date(formData.get("endDate") as string),
+      });
+      if (result.success) {
+        setEditBatch(null);
+      } else {
+        setError(result.error);
       }
     });
   }
 
   return (
     <>
-      <div className="flex justify-end">
-        <Button onClick={() => setShowCreateModal(true)}>Create Batch</Button>
+      <div className="flex items-center justify-end gap-3">
+        <Button onClick={() => setShowCreateModal(true)}>
+          Create Batch
+        </Button>
       </div>
 
       {batches.length === 0 ? (
@@ -106,8 +120,16 @@ export function BatchList({ batches }: BatchListProps) {
                     <span>{batch._count.userBatches} members</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {batch.status === "active" && (
+                {batch.status === "active" && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditBatch(batch)}
+                      disabled={isPending}
+                    >
+                      Edit
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -116,16 +138,8 @@ export function BatchList({ batches }: BatchListProps) {
                     >
                       Archive
                     </Button>
-                  )}
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDelete(batch.id, batch.name)}
-                    disabled={isPending}
-                  >
-                    Delete
-                  </Button>
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -204,6 +218,85 @@ export function BatchList({ batches }: BatchListProps) {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!editBatch}
+        onClose={() => {
+          setEditBatch(null);
+          setError(null);
+        }}
+        title="Edit Batch"
+      >
+        {editBatch && (
+          <form onSubmit={handleEdit} className="space-y-4">
+            <Input
+              label="Batch Name"
+              name="name"
+              required
+              defaultValue={editBatch.name}
+              disabled={isPending}
+            />
+
+            <Textarea
+              label="Description"
+              name="description"
+              placeholder="Optional description"
+              defaultValue={editBatch.description || ""}
+              disabled={isPending}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Start Date"
+                name="startDate"
+                type="date"
+                required
+                defaultValue={new Date(editBatch.startDate).toISOString().split("T")[0]}
+                disabled={isPending}
+              />
+              <Input
+                label="End Date"
+                name="endDate"
+                type="date"
+                required
+                defaultValue={new Date(editBatch.endDate).toISOString().split("T")[0]}
+                disabled={isPending}
+              />
+            </div>
+
+            {error && (
+              <div
+                className="text-sm"
+                style={{
+                  color: "var(--color-error)",
+                  padding: "12px",
+                  backgroundColor: "rgba(198, 40, 40, 0.1)",
+                  borderRadius: "6px",
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setEditBatch(null);
+                  setError(null);
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={isPending}>
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   );

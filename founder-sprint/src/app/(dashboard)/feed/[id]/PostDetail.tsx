@@ -6,15 +6,17 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
-import { createComment, toggleLike } from "@/actions/feed";
+import { Modal } from "@/components/ui/Modal";
+import { DropdownMenu } from "@/components/ui/DropdownMenu";
+import { createComment, updateComment, deleteComment, toggleLike, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface User {
   id: string;
   name: string;
   profileImage: string | null;
-  role?: string;
-  [key: string]: any;
+  role?: string | null;
 }
 
 interface PostImage {
@@ -26,6 +28,7 @@ interface Reply {
   id: string;
   content: string;
   createdAt: Date;
+  updatedAt: Date;
   author: User;
 }
 
@@ -33,6 +36,7 @@ interface Comment {
   id: string;
   content: string;
   createdAt: Date;
+  updatedAt: Date;
   author: User;
   replies: Reply[];
 }
@@ -59,10 +63,18 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ post, currentUser }: PostDetailProps) {
+  const router = useRouter();
   const [commentContent, setCommentContent] = useState("");
   const [replyContent, setReplyContent] = useState<Record<string, string>>({});
   const [showReplyForm, setShowReplyForm] = useState<Set<string>>(new Set());
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [editingPost, setEditingPost] = useState(false);
+  const [editPostContent, setEditPostContent] = useState(post.content);
+
+  const isAdmin = currentUser.role === "super_admin" || currentUser.role === "admin";
+  const isOwner = post.author.id === currentUser.id;
 
   const userHasLiked = post.likes.some((like) => like.user.id === currentUser.id);
 
@@ -113,6 +125,108 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
     });
   };
 
+  const handleEditComment = async (commentId: string) => {
+    if (!editContent.trim()) return;
+
+    startTransition(async () => {
+      const result = await updateComment(commentId, editContent);
+      if (result.success) {
+        setEditingCommentId(null);
+        setEditContent("");
+      }
+    });
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+
+    startTransition(async () => {
+      await deleteComment(commentId);
+    });
+  };
+
+  const isEdited = (createdAt: Date, updatedAt: Date) => {
+    return new Date(updatedAt).getTime() > new Date(createdAt).getTime() + 1000;
+  };
+
+  const handleEditPost = async () => {
+    if (!editPostContent.trim()) return;
+    
+    const formData = new FormData();
+    formData.append("content", editPostContent);
+    
+    startTransition(async () => {
+      const result = await updatePost(post.id, formData);
+      if (result.success) {
+        setEditingPost(false);
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleDeletePost = async () => {
+    if (!confirm("Are you sure you want to delete this post? This action cannot be undone.")) return;
+    
+    startTransition(async () => {
+      const result = await deletePost(post.id);
+      if (result.success) {
+        router.push("/feed");
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handlePinPost = async () => {
+    startTransition(async () => {
+      const result = await pinPost(post.id);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleHidePost = async () => {
+    startTransition(async () => {
+      const result = await hidePost(post.id);
+      if (result.success) {
+        router.push("/feed");
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
+  const postMenuItems = (() => {
+    const items = [];
+    
+    if (isOwner || isAdmin) {
+      items.push({
+        label: "Edit",
+        onClick: () => setEditingPost(true),
+      });
+      items.push({
+        label: "Delete",
+        onClick: handleDeletePost,
+        variant: "danger" as const,
+      });
+    }
+    
+    if (isAdmin) {
+      items.push({
+        label: post.isPinned ? "Unpin" : "Pin",
+        onClick: handlePinPost,
+      });
+      items.push({
+        label: "Hide",
+        onClick: handleHidePost,
+      });
+    }
+    
+    return items;
+  })();
+
   return (
     <div className="space-y-6">
       <Link href="/feed" className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
@@ -131,7 +245,6 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
         }}
       >
         <div className="space-y-4">
-          {/* Post Header */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <Avatar
@@ -146,7 +259,12 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                 </p>
               </div>
             </div>
-            {post.isPinned && <Badge variant="warning">Pinned</Badge>}
+            <div className="flex items-center gap-2">
+              {post.isPinned && <Badge variant="warning">Pinned</Badge>}
+              {(isOwner || isAdmin) && postMenuItems.length > 0 && (
+                <DropdownMenu items={postMenuItems} />
+              )}
+            </div>
           </div>
 
           {/* Post Content */}
@@ -203,7 +321,42 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
         </div>
       </div>
 
-      {/* Comments Section */}
+      <Modal
+        open={editingPost}
+        onClose={() => {
+          setEditingPost(false);
+          setEditPostContent(post.content);
+        }}
+        title="Edit Post"
+      >
+        <div className="space-y-4">
+          <Textarea
+            value={editPostContent}
+            onChange={(e) => setEditPostContent(e.target.value)}
+            rows={5}
+            placeholder="What's on your mind?"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setEditingPost(false);
+                setEditPostContent(post.content);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditPost}
+              loading={isPending}
+              disabled={!editPostContent.trim()}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Comments ({post.comments.length})</h3>
 
@@ -281,15 +434,74 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                       size={40}
                     />
                     <div className="flex-1">
-                      <p style={{ fontWeight: 600 }}>{comment.author.name}</p>
-                      <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                        {formatRelativeTime(comment.createdAt)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p style={{ fontWeight: 600 }}>{comment.author.name}</p>
+                          <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                            {formatRelativeTime(comment.createdAt)}
+                            {isEdited(comment.createdAt, comment.updatedAt) && (
+                              <span style={{ marginLeft: "8px", fontStyle: "italic" }}>(edited)</span>
+                            )}
+                          </p>
+                        </div>
+                        {(comment.author.id === currentUser.id || isAdmin) && (
+                          <div className="flex items-center gap-2">
+                            {comment.author.id === currentUser.id && (
+                              <button
+                                onClick={() => {
+                                  setEditingCommentId(comment.id);
+                                  setEditContent(comment.content);
+                                }}
+                                className="text-xs"
+                                style={{ color: "var(--color-foreground-muted)", background: "none", border: "none", cursor: "pointer" }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="text-xs"
+                              style={{ color: "var(--color-error)", background: "none", border: "none", cursor: "pointer" }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Comment Content */}
-                  <p style={{ whiteSpace: "pre-wrap" }}>{comment.content}</p>
+                  {editingCommentId === comment.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        rows={3}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditingCommentId(null);
+                            setEditContent("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleEditComment(comment.id)}
+                          loading={isPending}
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p style={{ whiteSpace: "pre-wrap" }}>{comment.content}</p>
+                  )}
 
                   {/* Reply Button */}
                   <button
@@ -364,13 +576,70 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                             size={32}
                           />
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm" style={{ fontWeight: 600 }}>{reply.author.name}</p>
-                              <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
-                                {formatRelativeTime(reply.createdAt)}
-                              </p>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm" style={{ fontWeight: 600 }}>{reply.author.name}</p>
+                                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                                  {formatRelativeTime(reply.createdAt)}
+                                  {isEdited(reply.createdAt, reply.updatedAt) && (
+                                    <span style={{ marginLeft: "4px", fontStyle: "italic" }}>(edited)</span>
+                                  )}
+                                </p>
+                              </div>
+                              {(reply.author.id === currentUser.id || isAdmin) && (
+                                <div className="flex items-center gap-2">
+                                  {reply.author.id === currentUser.id && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingCommentId(reply.id);
+                                        setEditContent(reply.content);
+                                      }}
+                                      className="text-xs"
+                                      style={{ color: "var(--color-foreground-muted)", background: "none", border: "none", cursor: "pointer" }}
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteComment(reply.id)}
+                                    className="text-xs"
+                                    style={{ color: "var(--color-error)", background: "none", border: "none", cursor: "pointer" }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                            <p className="text-sm" style={{ whiteSpace: "pre-wrap" }}>{reply.content}</p>
+                            {editingCommentId === reply.id ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={editContent}
+                                  onChange={(e) => setEditContent(e.target.value)}
+                                  rows={2}
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingCommentId(null);
+                                      setEditContent("");
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleEditComment(reply.id)}
+                                    loading={isPending}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm" style={{ whiteSpace: "pre-wrap" }}>{reply.content}</p>
+                            )}
                           </div>
                         </div>
                       ))}

@@ -6,6 +6,18 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 import { isCalendarConfigured, createCalendarEventWithMeet } from "@/lib/google-calendar";
+import { fromZonedTime } from "date-fns-tz";
+
+const TIMEZONE_MAP: Record<string, string> = {
+  UTC: "UTC",
+  KST: "Asia/Seoul",
+  PST: "America/Los_Angeles",
+  EST: "America/New_York",
+};
+
+function toIanaTimezone(tz: string): string {
+  return TIMEZONE_MAP[tz.toUpperCase()] || tz;
+}
 
 const slotSchema = z.object({
   startTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid start time"),
@@ -44,14 +56,22 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
       timezone: (formData.get("timezone") as string) || "UTC",
     };
 
-    const validated = slotSchema.parse(data);
+     const validated = slotSchema.parse(data);
 
-    const slot = await prisma.officeHourSlot.create({
+     const ianaTimezone = toIanaTimezone(validated.timezone);
+     const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
+     const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
+
+     if (startTimeUtc < new Date()) {
+       throw new Error("Cannot create office hour slot in the past");
+     }
+
+     const slot = await prisma.officeHourSlot.create({
       data: {
         batchId: user.batchId,
         hostId: user.id,
-        startTime: new Date(validated.startTime),
-        endTime: new Date(validated.endTime),
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
         timezone: validated.timezone,
         status: "available",
       },
@@ -341,11 +361,15 @@ export async function updateSlot(slotId: string, formData: FormData): Promise<Ac
 
     const validated = slotSchema.parse(data);
 
+    const ianaTimezone = toIanaTimezone(validated.timezone);
+    const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
+    const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
+
     await prisma.officeHourSlot.update({
       where: { id: slotId },
       data: {
-        startTime: new Date(validated.startTime),
-        endTime: new Date(validated.endTime),
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
         timezone: validated.timezone,
       },
     });
@@ -368,12 +392,13 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
       return { success: false, error: "Unauthorized: staff access required" };
     }
 
-    // Get the slot with requests
     const slot = await prisma.officeHourSlot.findUnique({
       where: { id: slotId },
       include: {
-        _count: {
-          select: { requests: true },
+        requests: {
+          where: {
+            status: { in: ["pending", "approved"] },
+          },
         },
       },
     });
@@ -382,7 +407,6 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
       return { success: false, error: "Office hour slot not found" };
     }
 
-    // Verify user is the host or admin
     const isHost = slot.hostId === user.id;
     const isAdminUser = user.role === "super_admin" || user.role === "admin";
 
@@ -390,9 +414,8 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
       return { success: false, error: "Unauthorized: only host or admin can delete slot" };
     }
 
-    // Check if there are any requests at all
-    if (slot._count.requests > 0) {
-      return { success: false, error: "Cannot delete slot with requests" };
+    if (slot.requests.length > 0) {
+      return { success: false, error: "Cannot delete slot with pending or approved requests" };
     }
 
     await prisma.officeHourSlot.delete({
@@ -421,17 +444,21 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
       return { success: false, error: "Request not found" };
     }
 
-    // Verify user is the requester
-    if (request.requesterId !== user.id) {
-      return { success: false, error: "Unauthorized: only the requester can cancel this request" };
+    const isRequester = request.requesterId === user.id;
+    const isAdminUser = user.role === "super_admin" || user.role === "admin";
+
+    if (request.status === "pending") {
+      if (!isRequester) {
+        return { success: false, error: "Unauthorized: only the requester can cancel pending requests" };
+      }
+    } else if (request.status === "approved") {
+      if (!isAdminUser) {
+        return { success: false, error: "Unauthorized: only Admin/Super Admin can cancel approved requests" };
+      }
+    } else {
+      return { success: false, error: "This request cannot be cancelled" };
     }
 
-    // Only pending requests can be cancelled
-    if (request.status !== "pending") {
-      return { success: false, error: "Only pending requests can be cancelled" };
-    }
-
-    // Update request status to cancelled
     await prisma.officeHourRequest.update({
       where: { id: requestId },
       data: {
@@ -440,20 +467,25 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
       },
     });
 
-    // Check if there are other pending requests
-    const pendingRequests = await prisma.officeHourRequest.count({
-      where: {
-        slotId: request.slotId,
-        status: "pending",
-      },
-    });
-
-    // If no pending requests and slot was requested, set back to available
-    if (pendingRequests === 0 && request.slot.status === "requested") {
+    if (request.status === "approved") {
       await prisma.officeHourSlot.update({
         where: { id: request.slotId },
-        data: { status: "available" },
+        data: { status: "cancelled" },
       });
+    } else {
+      const pendingRequests = await prisma.officeHourRequest.count({
+        where: {
+          slotId: request.slotId,
+          status: "pending",
+        },
+      });
+
+      if (pendingRequests === 0 && request.slot.status === "requested") {
+        await prisma.officeHourSlot.update({
+          where: { id: request.slotId },
+          data: { status: "available" },
+        });
+      }
     }
 
     revalidatePath("/office-hours");

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
-import { getPosts } from "@/actions/feed";
+import { getPosts, getArchivedPosts } from "@/actions/feed";
+import { getBatchUsers } from "@/actions/user-management";
 import { FeedView } from "./FeedView";
+import { BatchMembersSidebar } from "@/components/feed/BatchMembersSidebar";
 
 export const revalidate = 30;
 
@@ -9,7 +11,21 @@ export default async function FeedPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const posts = await getPosts(user.batchId);
+  const isAdmin = user.role === "super_admin" || user.role === "admin";
+  const [posts, archivedPosts, batchMembers] = await Promise.all([
+    getPosts(user.batchId),
+    isAdmin ? getArchivedPosts(user.batchId) : Promise.resolve([]),
+    getBatchUsers(user.batchId),
+  ]);
 
-  return <FeedView posts={posts} currentUser={user} />;
+  return (
+    <div className="flex gap-6">
+      <div className="flex-1 min-w-0">
+        <FeedView posts={posts} archivedPosts={archivedPosts} currentUser={user} isAdmin={isAdmin} />
+      </div>
+      <div className="hidden lg:block w-64 shrink-0">
+        <BatchMembersSidebar members={batchMembers} />
+      </div>
+    </div>
+  );
 }

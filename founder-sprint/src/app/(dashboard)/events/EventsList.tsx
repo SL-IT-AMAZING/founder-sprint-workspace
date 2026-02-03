@@ -8,10 +8,13 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatDateTime } from "@/lib/utils";
+import { Calendar } from "@/components/ui/Calendar";
+import { formatDateTime, formatDate } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
 import type { UserWithBatch, EventType } from "@/types";
+
+type ViewMode = "list" | "calendar";
 
 interface Event {
   id: string;
@@ -70,6 +73,8 @@ function getEventTypeLabel(type: EventType): string {
 export function EventsList({ user, events }: EventsListProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<EventType | "all">("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +83,21 @@ export function EventsList({ user, events }: EventsListProps) {
   const filteredEvents = selectedType === "all"
     ? events
     : events.filter((e) => e.eventType === selectedType);
+
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date);
+  };
+
+  const selectedDateEvents = selectedDate
+    ? filteredEvents.filter((e) => {
+        const eventDate = new Date(e.startTime);
+        return (
+          eventDate.getFullYear() === selectedDate.getFullYear() &&
+          eventDate.getMonth() === selectedDate.getMonth() &&
+          eventDate.getDate() === selectedDate.getDate()
+        );
+      })
+    : [];
 
   const handleCreateEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -140,14 +160,71 @@ export function EventsList({ user, events }: EventsListProps) {
             In-person
           </button>
         </div>
-        {canCreate && (
-          <Button onClick={() => setCreateModalOpen(true)} size="sm">
-            Create Event
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex border rounded overflow-hidden" style={{ borderColor: "#e0e0e0" }}>
+            <button
+              onClick={() => setViewMode("list")}
+              className="px-3 py-1.5 text-sm"
+              style={{
+                border: "none",
+                background: viewMode === "list" ? "var(--color-primary)" : "transparent",
+                color: viewMode === "list" ? "white" : "var(--color-foreground)",
+                cursor: "pointer",
+              }}
+            >
+              List
+            </button>
+            <button
+              onClick={() => setViewMode("calendar")}
+              className="px-3 py-1.5 text-sm"
+              style={{
+                border: "none",
+                background: viewMode === "calendar" ? "var(--color-primary)" : "transparent",
+                color: viewMode === "calendar" ? "white" : "var(--color-foreground)",
+                cursor: "pointer",
+              }}
+            >
+              Calendar
+            </button>
+          </div>
+          {canCreate && (
+            <Button onClick={() => setCreateModalOpen(true)} size="sm">
+              Create Event
+            </Button>
+          )}
+        </div>
       </div>
 
-      {filteredEvents.length === 0 ? (
+      {viewMode === "calendar" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <Calendar events={filteredEvents} onDayClick={handleDayClick} />
+          </div>
+          <div className="space-y-3">
+            <h3 className="font-medium">
+              {selectedDate ? formatDate(selectedDate) : "Select a day"}
+            </h3>
+            {selectedDate && selectedDateEvents.length === 0 && (
+              <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                No events on this day
+              </p>
+            )}
+            {selectedDateEvents.map((event) => (
+              <div key={event.id} className="card p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-sm">{event.title}</h4>
+                  <Badge variant={getEventTypeBadgeVariant(event.eventType)}>
+                    {getEventTypeLabel(event.eventType)}
+                  </Badge>
+                </div>
+                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                  {formatDateTime(event.startTime)} - {formatDateTime(event.endTime)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : filteredEvents.length === 0 ? (
         <EmptyState
           title="No events found"
           description={selectedType === "all" ? "No events scheduled yet" : `No ${getEventTypeLabel(selectedType as EventType).toLowerCase()} events scheduled`}
@@ -244,11 +321,15 @@ export function EventsList({ user, events }: EventsListProps) {
             type="datetime-local"
             required
           />
-          <Input
+          <Select
             label="Timezone"
             name="timezone"
-            placeholder="UTC"
-            defaultValue="UTC"
+            options={[
+              { value: "America/Los_Angeles", label: "PST (Pacific)" },
+              { value: "Asia/Seoul", label: "KST (Korea)" },
+              { value: "UTC", label: "UTC" },
+            ]}
+            required
           />
           <Input
             label="Location"

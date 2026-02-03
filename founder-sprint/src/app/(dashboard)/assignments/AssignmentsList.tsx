@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createAssignment } from "@/actions/assignment";
+import { createAssignment, updateAssignment, deleteAssignment } from "@/actions/assignment";
 import { formatDate } from "@/lib/utils";
 
 interface Assignment {
@@ -28,6 +28,7 @@ interface AssignmentsListProps {
 
 export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
@@ -45,6 +46,39 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
         (e.target as HTMLFormElement).reset();
       } else {
         setError(result.error);
+      }
+    });
+  };
+
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editAssignment) return;
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(async () => {
+      const result = await updateAssignment(editAssignment.id, formData);
+      if (result.success) {
+        setEditAssignment(null);
+      } else {
+        setError(result.error);
+      }
+    });
+  };
+
+  const handleDelete = (e: React.MouseEvent, assignmentId: string, title: string, hasSubmissions: boolean) => {
+    e.stopPropagation();
+    if (hasSubmissions) {
+      alert("Cannot delete assignment with existing submissions");
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+
+    startTransition(async () => {
+      const result = await deleteAssignment(assignmentId);
+      if (!result.success) {
+        alert(result.error);
       }
     });
   };
@@ -117,8 +151,33 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
                   {assignment.description}
                 </p>
 
-                <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                  <span>{assignment._count.submissions} submissions</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                    <span>{assignment._count.submissions} submissions</span>
+                  </div>
+                  {canCreate && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditAssignment(assignment);
+                        }}
+                        disabled={isPending || assignment._count.submissions > 0}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={(e) => handleDelete(e, assignment.id, assignment.title, assignment._count.submissions > 0)}
+                        disabled={isPending || assignment._count.submissions > 0}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -177,6 +236,65 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!editAssignment}
+        onClose={() => {
+          setEditAssignment(null);
+          setError("");
+        }}
+        title="Edit Assignment"
+      >
+        {editAssignment && (
+          <form onSubmit={handleEdit} className="space-y-4">
+            {error && (
+              <div className="form-error p-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            <Input
+              name="title"
+              label="Title"
+              defaultValue={editAssignment.title}
+              required
+            />
+
+            <Textarea
+              name="description"
+              label="Description"
+              defaultValue={editAssignment.description}
+              rows={4}
+              required
+            />
+
+            <Input
+              name="dueDate"
+              label="Due Date"
+              type="datetime-local"
+              defaultValue={new Date(editAssignment.dueDate).toISOString().slice(0, 16)}
+              required
+            />
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditAssignment(null);
+                  setError("");
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={isPending}>
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

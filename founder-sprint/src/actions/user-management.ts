@@ -2,7 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/permissions";
+import { sendInvitationEmail } from "@/lib/email";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { ActionResult, UserRole } from "@/types";
 
@@ -11,9 +13,11 @@ const InviteUserSchema = z.object({
   name: z.string().min(1).max(100),
   role: z.enum(["admin", "mentor", "founder", "co_founder"]),
   batchId: z.string().uuid(),
+  linkedInUrl: z.string().optional(),
+  founderId: z.string().uuid().optional(), // Required when role is co_founder
 });
 
-export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string }>> {
+export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -28,13 +32,20 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     name: formData.get("name"),
     role: formData.get("role"),
     batchId: formData.get("batchId"),
+    linkedInUrl: formData.get("linkedInUrl") || undefined,
+    founderId: formData.get("founderId") || undefined,
   });
 
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  const { email, name, role, batchId } = parsed.data;
+  const { email, name, role, batchId, linkedInUrl, founderId } = parsed.data;
+
+  // Validate founderId is provided for co-founders
+  if (role === "co_founder" && !founderId) {
+    return { success: false, error: "founderId is required when inviting a co-founder" };
+  }
 
   // Check batch exists and is active
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
@@ -52,18 +63,43 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  // Check co-founder limit (0-2 per founder, not 0-3)
-  if (role === "co_founder") {
-    // Note: This validation assumes co-founders are associated with a specific founder
-    // Since the current schema doesn't directly link co-founders to their main founder,
-    // we enforce a general limit per batch. If you need per-founder limits,
-    // you'll need to add a founderId field to track which founder each co-founder belongs to.
-    const coFounderCount = await prisma.userBatch.count({
-      where: { batchId, role: "co_founder" },
+  // Prevent founder re-participation (check email)
+  if (role === "founder") {
+    const existingFounder = await prisma.userBatch.findFirst({
+      where: {
+        user: { email: email },
+        role: "founder",
+      },
     });
-    // With 30 founders max and 2 co-founders per founder, max is 60
-    if (coFounderCount >= 60) {
-      return { success: false, error: "Co-founder limit reached (2 per founder, 60 per batch)" };
+    if (existingFounder) {
+      return { success: false, error: "This email is already registered as a Founder in another batch" };
+    }
+  }
+
+  // Prevent founder re-participation (check LinkedIn profile)
+  if (role === "founder" && linkedInUrl) {
+    const existingFounder = await prisma.user.findFirst({
+      where: {
+        linkedinId: linkedInUrl,
+        userBatches: {
+          some: {
+            role: "founder",
+          },
+        },
+      },
+    });
+    if (existingFounder) {
+      return { success: false, error: "This LinkedIn profile has already participated as a founder" };
+    }
+  }
+
+  // Check co-founder limit (max 2 per founder)
+  if (role === "co_founder") {
+    const coFounderCount = await prisma.userBatch.count({
+      where: { batchId, founderId, role: "co_founder" },
+    });
+    if (coFounderCount >= 2) {
+      return { success: false, error: "Maximum 2 co-founders per founder reached" };
     }
   }
 
@@ -89,13 +125,46 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
       userId: invitedUser.id,
       batchId,
       role: role as any,
+      founderId: role === "co_founder" ? founderId : undefined,
       status: "invited",
     },
   });
 
+  // Generate invitation token (expires in 7 days)
+  const token = randomUUID();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  await prisma.invitationToken.create({
+    data: {
+      token,
+      userId: invitedUser.id,
+      batchId,
+      email,
+      expiresAt,
+    },
+  });
+
+  // Send invitation email (non-blocking - don't fail invite if email fails)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const inviteLink = `${appUrl}/invite/${token}`;
+
+  const emailResult = await sendInvitationEmail({
+    to: email,
+    inviteeName: name,
+    batchName: batch.name,
+    role,
+    inviteLink,
+  });
+
+  if (!emailResult.success) {
+    console.warn(`Failed to send invitation email to ${email}:`, emailResult.error);
+    // Continue anyway - user is created, they can be re-invited
+  }
+
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
-  return { success: true, data: { id: userBatch.id } };
+  return { success: true, data: { id: userBatch.id, inviteLink } };
 }
 
 export async function updateUserRole(
@@ -148,10 +217,81 @@ export async function removeUserFromBatch(
   return { success: true, data: undefined };
 }
 
+export async function cancelInvite(userId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { userBatches: true },
+  });
+
+  if (!targetUser) {
+    return { success: false, error: "User not found" };
+  }
+
+  const hasActiveStatus = targetUser.userBatches.some((ub) => ub.status === "active");
+  if (hasActiveStatus) {
+    return { success: false, error: "Cannot cancel invite for active user" };
+  }
+
+  await prisma.user.delete({
+    where: { id: userId },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/batches");
+  return { success: true, data: undefined };
+}
+
 export async function getBatchUsers(batchId: string) {
   return prisma.userBatch.findMany({
     where: { batchId },
     include: { user: true, batch: true },
     orderBy: { invitedAt: "desc" },
   });
+}
+
+export async function checkInviteExpiration(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { userBatches: true },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Check if user has any invited status in any batch
+  const invitedBatch = user.userBatches.find((ub) => ub.status === "invited");
+
+  if (invitedBatch) {
+    // Find the latest invitation token for this user
+    const latestToken = await prisma.invitationToken.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!latestToken) {
+      return { expired: true, message: "No invitation token found" };
+    }
+
+    // Check if token has been used
+    if (latestToken.usedAt) {
+      return { expired: false };
+    }
+
+    // Check if token has expired
+    if (latestToken.expiresAt < new Date()) {
+      return { expired: true, message: "Invite has expired after 7 days" };
+    }
+  }
+
+  return { expired: false };
 }

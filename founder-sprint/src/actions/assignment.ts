@@ -44,18 +44,126 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
+  // Normalize dueDate to KST 23:59:59 (14:59:59 UTC)
+  // If the input is a date-only string (no specific time), set it to end of day KST
+  const dueDateInput = formData.get("dueDate") as string;
+  let normalizedDueDate = parsed.data.dueDate;
+
+  // Check if the input is date-only (no time component)
+  if (dueDateInput && !dueDateInput.includes("T") && !dueDateInput.includes(":")) {
+    // Extract date portion and create new Date at 14:59:59 UTC (23:59:59 KST)
+    const datePart = dueDateInput.split(" ")[0]; // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM"
+    normalizedDueDate = new Date(`${datePart}T14:59:59.000Z`);
+  }
+
   const assignment = await prisma.assignment.create({
     data: {
       batchId: user.batchId,
       title: parsed.data.title,
       description: parsed.data.description,
       templateUrl: parsed.data.templateUrl || null,
-      dueDate: parsed.data.dueDate,
+      dueDate: normalizedDueDate,
     },
   });
 
+   revalidatePath("/assignments");
+   return { success: true, data: { id: assignment.id } };
+}
+
+const UpdateAssignmentSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(1).max(5000).optional(),
+  dueDate: z.string().transform((s) => new Date(s)).optional(),
+});
+
+export async function updateAssignment(
+  assignmentId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!canCreateAssignment(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  // Check for existing submissions
+  const submissionCount = await prisma.submission.count({
+    where: { assignmentId },
+  });
+
+  if (submissionCount > 0) {
+    return { success: false, error: "Cannot modify assignment with existing submissions" };
+  }
+
+  const parsed = UpdateAssignmentSchema.safeParse({
+    title: formData.get("title") || undefined,
+    description: formData.get("description") || undefined,
+    dueDate: formData.get("dueDate") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  // Check if assignment exists
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { id: true },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Assignment not found" };
+  }
+
+  const updateData: Record<string, any> = {};
+  if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.dueDate !== undefined) updateData.dueDate = parsed.data.dueDate;
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: updateData,
+  });
+
   revalidatePath("/assignments");
-  return { success: true, data: { id: assignment.id } };
+  revalidatePath(`/assignments/${assignmentId}`);
+  return { success: true, data: undefined };
+}
+
+export async function deleteAssignment(assignmentId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!canCreateAssignment(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  // Check for existing submissions
+  const submissionCount = await prisma.submission.count({
+    where: { assignmentId },
+  });
+
+  if (submissionCount > 0) {
+    return { success: false, error: "Cannot modify assignment with existing submissions" };
+  }
+
+  // Check if assignment exists
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { id: true },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Assignment not found" };
+  }
+
+  await prisma.assignment.delete({
+    where: { id: assignmentId },
+  });
+
+  revalidatePath("/assignments");
+  return { success: true, data: undefined };
 }
 
 export async function getAssignments(batchId: string) {

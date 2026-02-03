@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch } from "@/actions/user-management";
+import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -56,6 +56,8 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [formError, setFormError] = useState("");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
 
   // Handle batch selection change
@@ -87,6 +89,8 @@ export function UserManagement({ batches }: UserManagementProps) {
 
       if (result.success) {
         setIsInviteModalOpen(false);
+        setInviteLink(result.data.inviteLink);
+        setLinkCopied(false);
         loadUsers(selectedBatchId);
         (e.target as HTMLFormElement).reset();
       } else {
@@ -112,6 +116,20 @@ export function UserManagement({ batches }: UserManagementProps) {
       if (result.success) {
         loadUsers(selectedBatchId);
         setConfirmRemove(null);
+      }
+    });
+  };
+
+  const handleCancelInvite = async (userId: string, userName: string) => {
+    if (!confirm(`Cancel invite for ${userName}? They will need to be re-invited.`)) return;
+
+    startTransition(async () => {
+      const result = await cancelInvite(userId);
+
+      if (result.success) {
+        loadUsers(selectedBatchId);
+      } else {
+        alert(result.error);
       }
     });
   };
@@ -221,6 +239,16 @@ export function UserManagement({ batches }: UserManagementProps) {
                       <option value="founder">Founder</option>
                       <option value="co_founder">Co-founder</option>
                     </select>
+                    {userBatch.status === "invited" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCancelInvite(userBatch.userId, userBatch.user.name)}
+                        disabled={isPending}
+                      >
+                        Cancel Invite
+                      </Button>
+                    )}
                     <Button
                       variant="danger"
                       size="sm"
@@ -307,6 +335,16 @@ export function UserManagement({ batches }: UserManagementProps) {
                           <option value="founder">Founder</option>
                           <option value="co_founder">Co-founder</option>
                         </select>
+                        {userBatch.status === "invited" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelInvite(userBatch.userId, userBatch.user.name)}
+                            disabled={isPending}
+                          >
+                            Cancel Invite
+                          </Button>
+                        )}
                         <Button
                           variant="danger"
                           size="sm"
@@ -356,6 +394,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             label="Role"
             name="role"
             options={roleOptions}
+            defaultValue="founder"
             required
           />
 
@@ -383,6 +422,42 @@ export function UserManagement({ batches }: UserManagementProps) {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Invite Link Modal */}
+      <Modal
+        open={!!inviteLink}
+        onClose={() => setInviteLink(null)}
+        title="Invitation Sent"
+      >
+        <div className="space-y-4">
+          <p style={{ color: "var(--color-foreground-secondary)" }}>
+            The user has been invited. Share this link with them if the email doesn&apos;t arrive:
+          </p>
+          <div
+            className="p-3 rounded-lg text-sm break-all font-mono"
+            style={{ backgroundColor: "var(--color-background-secondary)", border: "1px solid var(--color-card-border)" }}
+          >
+            {inviteLink}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setInviteLink(null)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(inviteLink || "");
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }}
+            >
+              {linkCopied ? "Copied!" : "Copy Link"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Remove Confirmation Modal */}

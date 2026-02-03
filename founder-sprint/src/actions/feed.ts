@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -42,6 +42,27 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function getPosts(batchId: string, groupId?: string) {
+  // If groupId is provided, check group membership
+  if (groupId) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    // Check if user is a member of the group
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId,
+          userId: user.id,
+        },
+      },
+    });
+
+    // If not a member and not admin, return empty array
+    if (!membership && !isAdmin(user.role)) {
+      return [];
+    }
+  }
+
   return prisma.post.findMany({
     where: {
       batchId,
@@ -62,6 +83,26 @@ export async function getPosts(batchId: string, groupId?: string) {
       { isPinned: "desc" },
       { createdAt: "desc" },
     ],
+  });
+}
+
+export async function getArchivedPosts(batchId: string) {
+  return prisma.post.findMany({
+    where: {
+      batchId,
+      isHidden: true,
+    },
+    include: {
+      author: true,
+      images: true,
+      _count: {
+        select: {
+          comments: true,
+          likes: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -108,10 +149,83 @@ export async function createComment(
   return { success: true, data: { id: comment.id } };
 }
 
+const UpdateCommentSchema = z.object({
+  content: z.string().min(1).max(1000),
+});
+
+export async function updateComment(
+  commentId: string,
+  content: string
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!content.trim()) {
+    return { success: false, error: "Comment content is required" };
+  }
+
+  if (content.length > 1000) {
+    return { success: false, error: "Comment content exceeds maximum length of 1000 characters" };
+  }
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { authorId: true, postId: true },
+  });
+
+  if (!comment) {
+    return { success: false, error: "Comment not found" };
+  }
+
+  if (comment.authorId !== user.id) {
+    return { success: false, error: "Unauthorized: only comment owner can update" };
+  }
+
+  await prisma.comment.update({
+    where: { id: commentId },
+    data: { content: content.trim() },
+  });
+
+  revalidatePath("/feed");
+  revalidatePath(`/feed/${comment.postId}`);
+
+  return { success: true, data: undefined };
+}
+
+export async function deleteComment(commentId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { authorId: true, postId: true },
+  });
+
+  if (!comment) {
+    return { success: false, error: "Comment not found" };
+  }
+
+  const isOwner = comment.authorId === user.id;
+  const isAdminUser = user.role === "super_admin" || user.role === "admin";
+
+  if (!isOwner && !isAdminUser) {
+    return { success: false, error: "Unauthorized: only comment owner or admin can delete" };
+  }
+
+  await prisma.comment.delete({
+    where: { id: commentId },
+  });
+
+  revalidatePath("/feed");
+  revalidatePath(`/feed/${comment.postId}`);
+
+  return { success: true, data: undefined };
+}
+
 export async function toggleLike(
-  targetType: "post" | "comment",
-  postId?: string,
-  commentId?: string
+   targetType: "post" | "comment",
+   postId?: string,
+   commentId?: string
 ): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -206,35 +320,24 @@ export async function updatePost(
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  // Get the post with comment count
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    include: {
-      _count: {
-        select: { comments: true },
-      },
-    },
+    select: { authorId: true, groupId: true },
   });
 
   if (!post) {
     return { success: false, error: "Post not found" };
   }
 
-  // Owner can update before any comments, admin can update anytime
-  const isOwner = post.authorId === user.id;
-  const isAdminUser = user.role === "super_admin" || user.role === "admin";
-
-  if (!isOwner && !isAdminUser) {
-    return { success: false, error: "Unauthorized: only post owner or admin can update" };
-  }
-
-  if (isOwner && !isAdminUser && post._count.comments > 0) {
-    return { success: false, error: "Cannot update post after comments have been added" };
+  if (post.authorId !== user.id) {
+    return { success: false, error: "Unauthorized: only post owner can update" };
   }
 
   await prisma.post.update({
     where: { id: postId },
-    data: { content: parsed.data.content },
+    data: { 
+      content: parsed.data.content,
+    },
   });
 
   revalidatePath("/feed");
@@ -355,32 +458,67 @@ export async function pinPost(postId: string): Promise<ActionResult> {
 }
 
 export async function archivePost(postId: string): Promise<ActionResult> {
-  const user = await getCurrentUser();
-  if (!user) return { success: false, error: "Not authenticated" };
+   const user = await getCurrentUser();
+   if (!user) return { success: false, error: "Not authenticated" };
 
-  if (user.role !== "super_admin" && user.role !== "admin") {
-    return { success: false, error: "Unauthorized: admin access required" };
-  }
+   if (user.role !== "super_admin" && user.role !== "admin") {
+     return { success: false, error: "Unauthorized: admin access required" };
+   }
 
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    select: { groupId: true },
-  });
+   const post = await prisma.post.findUnique({
+     where: { id: postId },
+     select: { groupId: true },
+   });
 
-  if (!post) {
-    return { success: false, error: "Post not found" };
-  }
+   if (!post) {
+     return { success: false, error: "Post not found" };
+   }
 
-  // Soft delete by hiding the post
-  await prisma.post.update({
-    where: { id: postId },
-    data: { isHidden: true },
-  });
+   // Soft delete by hiding the post
+   await prisma.post.update({
+     where: { id: postId },
+     data: { isHidden: true },
+   });
 
-  revalidatePath("/feed");
-  if (post.groupId) {
-    revalidatePath(`/groups/${post.groupId}`);
-  }
+   revalidatePath("/feed");
+   if (post.groupId) {
+     revalidatePath(`/groups/${post.groupId}`);
+   }
 
-  return { success: true, data: undefined };
+   return { success: true, data: undefined };
+}
+
+export async function restorePost(postId: string): Promise<ActionResult> {
+   const user = await getCurrentUser();
+   if (!user) return { success: false, error: "Not authenticated" };
+
+   if (user.role !== "super_admin" && user.role !== "admin") {
+     return { success: false, error: "Unauthorized: admin access required" };
+   }
+
+   const post = await prisma.post.findUnique({
+     where: { id: postId },
+     select: { isHidden: true, groupId: true },
+   });
+
+   if (!post) {
+     return { success: false, error: "Post not found" };
+   }
+
+   if (!post.isHidden) {
+     return { success: false, error: "Post is not hidden and cannot be restored" };
+   }
+
+   // Restore hidden post
+   await prisma.post.update({
+     where: { id: postId },
+     data: { isHidden: false },
+   });
+
+   revalidatePath("/feed");
+   if (post.groupId) {
+     revalidatePath(`/groups/${post.groupId}`);
+   }
+
+   return { success: true, data: undefined };
 }
