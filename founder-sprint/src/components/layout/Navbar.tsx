@@ -43,7 +43,7 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
   ];
 
   const adminLinks = isAdmin ? [
-    { href: "/admin/batches", label: "Admin" },
+    { href: "/admin", label: "Admin" },
   ] : [];
 
   const allLinks = [...navLinks, ...adminLinks];

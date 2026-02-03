@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createPost, createComment, toggleLike } from "@/actions/feed";
-import { formatRelativeTime, getInitials } from "@/lib/utils";
+import { Tabs } from "@/components/ui/Tabs";
+import { Modal } from "@/components/ui/Modal";
+import { DropdownMenu } from "@/components/ui/DropdownMenu";
+import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface User {
   id: string;
@@ -24,6 +27,7 @@ interface Post {
   id: string;
   content: string;
   isPinned: boolean;
+  isHidden?: boolean;
   createdAt: Date;
   author: User;
   images: PostImage[];
@@ -35,15 +39,34 @@ interface Post {
 
 interface FeedViewProps {
   posts: Post[];
+  archivedPosts?: Post[];
   currentUser: User;
+  isAdmin?: boolean;
 }
 
-export function FeedView({ posts, currentUser }: FeedViewProps) {
+type FeedFilter = "all" | "latest" | "pinned";
+
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false }: FeedViewProps) {
   const [postContent, setPostContent] = useState("");
   const [commentContent, setCommentContent] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
+  const [showArchived, setShowArchived] = useState(false);
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editContent, setEditContent] = useState("");
+
+  const filteredPosts = useMemo(() => {
+    switch (feedFilter) {
+      case "latest":
+        return [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      case "pinned":
+        return posts.filter((p) => p.isPinned);
+      default:
+        return posts;
+    }
+  }, [posts, feedFilter]);
 
   const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -92,9 +115,121 @@ export function FeedView({ posts, currentUser }: FeedViewProps) {
     setShowComments(newShow);
   };
 
+  const handleRestore = async (postId: string) => {
+    startTransition(async () => {
+      const result = await restorePost(postId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleEditPost = async () => {
+    if (!editingPost || !editContent.trim()) return;
+    
+    const formData = new FormData();
+    formData.append("content", editContent);
+    
+    startTransition(async () => {
+      const result = await updatePost(editingPost.id, formData);
+      if (result.success) {
+        setEditingPost(null);
+        setEditContent("");
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Are you sure you want to delete this post? This action cannot be undone.")) return;
+    
+    startTransition(async () => {
+      const result = await deletePost(postId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handlePinPost = async (postId: string) => {
+    startTransition(async () => {
+      const result = await pinPost(postId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const handleHidePost = async (postId: string) => {
+    startTransition(async () => {
+      const result = await hidePost(postId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  };
+
+  const getPostMenuItems = (post: Post) => {
+    const items = [];
+    const isOwner = post.author.id === currentUser.id;
+    
+    if (isOwner || isAdmin) {
+      items.push({
+        label: "Edit",
+        onClick: () => {
+          setEditingPost(post);
+          setEditContent(post.content);
+        },
+      });
+      items.push({
+        label: "Delete",
+        onClick: () => handleDeletePost(post.id),
+        variant: "danger" as const,
+      });
+    }
+    
+    if (isAdmin) {
+      items.push({
+        label: post.isPinned ? "Unpin" : "Pin",
+        onClick: () => handlePinPost(post.id),
+      });
+      items.push({
+        label: "Hide",
+        onClick: () => handleHidePost(post.id),
+      });
+    }
+    
+    return items;
+  };
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl">Feed</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl">Feed</h1>
+        {isAdmin && archivedPosts.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            {showArchived ? "Hide Archived" : `Show Archived (${archivedPosts.length})`}
+          </Button>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        {(["all", "latest", "pinned"] as const).map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setFeedFilter(filter)}
+            className={feedFilter === filter ? "btn btn-primary" : "btn btn-secondary"}
+            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
+          >
+            {filter === "all" ? "All" : filter === "latest" ? "Latest" : "Pinned"}
+          </button>
+        ))}
+      </div>
 
       {/* Post Creation Form */}
       <div
@@ -136,14 +271,14 @@ export function FeedView({ posts, currentUser }: FeedViewProps) {
       </div>
 
       {/* Posts Feed */}
-      {posts.length === 0 ? (
+      {filteredPosts.length === 0 ? (
         <EmptyState
-          title="No posts yet"
-          description="Be the first to share something with your batch!"
+          title={feedFilter === "pinned" ? "No pinned posts" : "No posts yet"}
+          description={feedFilter === "pinned" ? "No announcements at the moment" : "Be the first to share something with your batch!"}
         />
       ) : (
         <div className="space-y-4">
-          {posts.map((post) => (
+          {filteredPosts.map((post) => (
             <div
               key={post.id}
               className="card"
@@ -155,7 +290,6 @@ export function FeedView({ posts, currentUser }: FeedViewProps) {
               }}
             >
               <div className="space-y-4">
-                {/* Post Header */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
                     <Avatar
@@ -169,7 +303,12 @@ export function FeedView({ posts, currentUser }: FeedViewProps) {
                       </p>
                     </div>
                   </div>
-                  {post.isPinned && <Badge variant="warning">Pinned</Badge>}
+                  <div className="flex items-center gap-2">
+                    {post.isPinned && <Badge variant="warning">Pinned</Badge>}
+                    {(post.author.id === currentUser.id || isAdmin) && (
+                      <DropdownMenu items={getPostMenuItems(post)} />
+                    )}
+                  </div>
                 </div>
 
                 {/* Post Content */}
@@ -276,6 +415,95 @@ export function FeedView({ posts, currentUser }: FeedViewProps) {
           ))}
         </div>
       )}
+
+      {isAdmin && showArchived && archivedPosts.length > 0 && (
+        <div className="space-y-4 mt-8">
+          <h2 className="text-xl font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
+            Archived Posts ({archivedPosts.length})
+          </h2>
+          {archivedPosts.map((post) => (
+            <div
+              key={post.id}
+              className="card"
+              style={{
+                backgroundColor: "#f9f9f9",
+                borderRadius: "8px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                border: "1px solid #e0e0e0",
+                opacity: 0.8,
+              }}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar
+                      src={post.author.profileImage}
+                      name={post.author.name}
+                    />
+                    <div>
+                      <p className="font-medium">{post.author.name}</p>
+                      <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                        {formatRelativeTime(post.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="error">Archived</Badge>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleRestore(post.id)}
+                      disabled={isPending}
+                    >
+                      Restore
+                    </Button>
+                  </div>
+                </div>
+                <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
+                <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                  {post._count.likes} likes · {post._count.comments} comments
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal
+        open={!!editingPost}
+        onClose={() => {
+          setEditingPost(null);
+          setEditContent("");
+        }}
+        title="Edit Post"
+      >
+        <div className="space-y-4">
+          <Textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={5}
+            placeholder="What's on your mind?"
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setEditingPost(null);
+                setEditContent("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditPost}
+              loading={isPending}
+              disabled={!editContent.trim()}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

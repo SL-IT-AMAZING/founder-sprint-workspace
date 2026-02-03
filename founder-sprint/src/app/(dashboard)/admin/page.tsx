@@ -1,5 +1,8 @@
-import { redirect } from "next/navigation";
+import { getBatches } from "@/actions/batch";
+import { AdminView } from "./AdminView";
 
-export default function AdminPage() {
-  redirect("/admin/batches");
+export default async function AdminPage() {
+  const batches = await getBatches();
+
+  return <AdminView batches={batches} />;
 }

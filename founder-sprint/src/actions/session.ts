@@ -98,6 +98,29 @@ export async function updateSession(
     },
   });
 
-  revalidatePath("/sessions");
-  return { success: true, data: undefined };
+   revalidatePath("/sessions");
+   return { success: true, data: undefined };
+}
+
+export async function deleteSession(sessionId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  try {
+    await prisma.session.delete({
+      where: { id: sessionId },
+    });
+
+    revalidatePath("/sessions");
+    return { success: true, data: undefined };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("not found")) {
+      return { success: false, error: "Session not found" };
+    }
+    return { success: false, error: "Failed to delete session" };
+  }
 }

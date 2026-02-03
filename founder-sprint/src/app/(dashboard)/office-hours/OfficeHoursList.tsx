@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest } from "@/actions/office-hour";
+import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot } from "@/actions/office-hour";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 
 interface OfficeHourRequest {
@@ -149,6 +149,17 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
     }
   };
 
+  const handleDeleteSlot = async (slotId: string) => {
+    if (!confirm("Are you sure you want to delete this slot?")) return;
+
+    setLoading(true);
+    const result = await deleteSlot(slotId);
+    if (!result.success) {
+      alert(result.error);
+    }
+    setLoading(false);
+  };
+
   const openRequestModal = (slot: OfficeHourSlot) => {
     setSelectedSlot(slot);
     setRequestModalOpen(true);
@@ -215,6 +226,19 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
                     )}
                     {userHasRequested && (
                       <Badge variant="warning">Request Pending</Badge>
+                    )}
+                    {(isHost || user.role === "super_admin" || user.role === "admin") && 
+                     pendingRequests.length === 0 && 
+                     !approvedRequest && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteSlot(slot.id)}
+                        disabled={loading}
+                        style={{ color: "var(--color-error)" }}
+                      >
+                        Delete
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -320,12 +344,24 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
             type="datetime-local"
             required
           />
-          <Input
-            label="Timezone"
-            name="timezone"
-            placeholder="UTC"
-            defaultValue="UTC"
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Timezone</label>
+            <select
+              name="timezone"
+              defaultValue="UTC"
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="UTC">UTC</option>
+              <option value="KST">KST (Korea Standard Time)</option>
+              <option value="PST">PST (Pacific Standard Time)</option>
+              <option value="EST">EST (Eastern Standard Time)</option>
+            </select>
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
               Cancel

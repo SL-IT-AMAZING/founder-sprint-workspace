@@ -13,6 +13,13 @@ const CreateBatchSchema = z.object({
   endDate: z.string().transform((s) => new Date(s)),
 });
 
+const UpdateBatchSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+});
+
 export async function createBatch(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -77,27 +84,41 @@ export async function archiveBatch(batchId: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
-export async function deleteBatch(batchId: string): Promise<ActionResult> {
+export async function updateBatch(
+  batchId: string,
+  data: { name?: string; startDate?: Date; endDate?: Date; description?: string }
+): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
   try {
     requireRole(user.role, ["super_admin"]);
   } catch {
-    return { success: false, error: "Only Super Admin can delete batches" };
+    return { success: false, error: "Only Super Admin can update batches" };
   }
 
-  const batch = await prisma.batch.findUnique({ where: { id: batchId } });
-  if (!batch) {
-    return { success: false, error: "Batch not found" };
+  const parsed = UpdateBatchSchema.safeParse(data);
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  await prisma.batch.delete({
+  const batch = await prisma.batch.update({
     where: { id: batchId },
+    data: {
+      ...(parsed.data.name && { name: parsed.data.name }),
+      ...(parsed.data.description !== undefined && { description: parsed.data.description || null }),
+      ...(parsed.data.startDate && { startDate: parsed.data.startDate }),
+      ...(parsed.data.endDate && { endDate: parsed.data.endDate }),
+    },
   });
 
   revalidatePath("/admin/batches");
-  return { success: true, data: undefined };
+  return { success: true, data: { id: batch.id } };
+}
+
+export async function deleteBatch(_batchId: string): Promise<ActionResult> {
+  return { success: false, error: "Batch deletion is not allowed. If you created a batch by mistake, please contact database administrator for direct DB handling." };
 }
 
 export async function getBatches() {

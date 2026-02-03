@@ -54,8 +54,104 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     },
   });
 
+   revalidatePath("/assignments");
+   return { success: true, data: { id: assignment.id } };
+}
+
+const UpdateAssignmentSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(1).max(5000).optional(),
+  dueDate: z.string().transform((s) => new Date(s)).optional(),
+});
+
+export async function updateAssignment(
+  assignmentId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!canCreateAssignment(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  // Check for existing submissions
+  const submissionCount = await prisma.submission.count({
+    where: { assignmentId },
+  });
+
+  if (submissionCount > 0) {
+    return { success: false, error: "Cannot modify assignment with existing submissions" };
+  }
+
+  const parsed = UpdateAssignmentSchema.safeParse({
+    title: formData.get("title") || undefined,
+    description: formData.get("description") || undefined,
+    dueDate: formData.get("dueDate") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  // Check if assignment exists
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { id: true },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Assignment not found" };
+  }
+
+  const updateData: Record<string, any> = {};
+  if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.dueDate !== undefined) updateData.dueDate = parsed.data.dueDate;
+
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: updateData,
+  });
+
   revalidatePath("/assignments");
-  return { success: true, data: { id: assignment.id } };
+  revalidatePath(`/assignments/${assignmentId}`);
+  return { success: true, data: undefined };
+}
+
+export async function deleteAssignment(assignmentId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!canCreateAssignment(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  // Check for existing submissions
+  const submissionCount = await prisma.submission.count({
+    where: { assignmentId },
+  });
+
+  if (submissionCount > 0) {
+    return { success: false, error: "Cannot modify assignment with existing submissions" };
+  }
+
+  // Check if assignment exists
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    select: { id: true },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Assignment not found" };
+  }
+
+  await prisma.assignment.delete({
+    where: { id: assignmentId },
+  });
+
+  revalidatePath("/assignments");
+  return { success: true, data: undefined };
 }
 
 export async function getAssignments(batchId: string) {

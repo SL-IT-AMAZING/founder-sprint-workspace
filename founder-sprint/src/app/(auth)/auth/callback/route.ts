@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -70,6 +71,17 @@ export async function GET(request: Request) {
           joinedAt: new Date(),
         },
       });
+
+      // Mark invitation token as used (if present in cookie)
+      const cookieStore = await cookies();
+      const inviteToken = cookieStore.get("invite_token")?.value;
+      if (inviteToken) {
+        await prisma.invitationToken.updateMany({
+          where: { token: inviteToken, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        cookieStore.delete("invite_token");
+      }
     }
 
     // If user had invitations but all expired, sign out and redirect

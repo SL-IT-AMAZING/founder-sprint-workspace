@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch } from "@/actions/user-management";
+import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -116,6 +116,20 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
+  const handleCancelInvite = async (userId: string, userName: string) => {
+    if (!confirm(`Cancel invite for ${userName}? They will need to be re-invited.`)) return;
+
+    startTransition(async () => {
+      const result = await cancelInvite(userId);
+
+      if (result.success) {
+        loadUsers(selectedBatchId);
+      } else {
+        alert(result.error);
+      }
+    });
+  };
+
   const batchOptions = batches.map((batch) => ({
     value: batch.id,
     label: `${batch.name} (${batch.status})`,
@@ -221,6 +235,16 @@ export function UserManagement({ batches }: UserManagementProps) {
                       <option value="founder">Founder</option>
                       <option value="co_founder">Co-founder</option>
                     </select>
+                    {userBatch.status === "invited" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCancelInvite(userBatch.userId, userBatch.user.name)}
+                        disabled={isPending}
+                      >
+                        Cancel Invite
+                      </Button>
+                    )}
                     <Button
                       variant="danger"
                       size="sm"
@@ -307,6 +331,16 @@ export function UserManagement({ batches }: UserManagementProps) {
                           <option value="founder">Founder</option>
                           <option value="co_founder">Co-founder</option>
                         </select>
+                        {userBatch.status === "invited" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelInvite(userBatch.userId, userBatch.user.name)}
+                            disabled={isPending}
+                          >
+                            Cancel Invite
+                          </Button>
+                        )}
                         <Button
                           variant="danger"
                           size="sm"
@@ -356,6 +390,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             label="Role"
             name="role"
             options={roleOptions}
+            defaultValue="founder"
             required
           />
 

@@ -34,9 +34,14 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
       location: formData.get("location") as string | undefined,
     };
 
-    const validated = eventSchema.parse(data);
+     const validated = eventSchema.parse(data);
 
-    const event = await prisma.event.create({
+     const eventCount = await prisma.event.count({ where: { batchId: user.batchId } });
+     if (eventCount >= 20) {
+       return { success: false, error: "Maximum 20 events per batch reached" };
+     }
+
+     const event = await prisma.event.create({
       data: {
         batchId: user.batchId,
         creatorId: user.id,
