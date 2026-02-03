@@ -11,13 +11,6 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
   const invitation = await prisma.invitationToken.findUnique({
     where: { token },
-    include: {
-      userBatch: {
-        include: {
-          batch: true,
-        },
-      },
-    },
   });
 
   const roleDisplayName: Record<string, string> = {
@@ -103,9 +96,26 @@ export default async function InvitePage({ params }: InvitePageProps) {
     );
   }
 
-  // Valid invitation - show confirmation page
-  const batchName = invitation.userBatch.batch.name;
-  const role = roleDisplayName[invitation.userBatch.role] || invitation.userBatch.role;
+  // Valid invitation - fetch batch and role info
+  const userBatch = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId: invitation.userId, batchId: invitation.batchId } },
+    include: { batch: true },
+  });
+
+  if (!userBatch) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3" }}>
+        <div style={{ maxWidth: "480px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "12px" }}>Invalid Invitation</h1>
+          <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "32px" }}>This invitation is no longer valid. Please contact the administrator.</p>
+          <Link href="/login" style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}>Go to Login</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const batchName = userBatch.batch.name;
+  const role = roleDisplayName[userBatch.role] || userBatch.role;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3", padding: "20px" }}>

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createBatch, updateBatch, archiveBatch } from "@/actions/batch";
+import { createBatch, updateBatch, archiveBatch, deleteBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
 import type { BatchStatus } from "@/types";
 
@@ -56,6 +56,17 @@ export function BatchList({ batches }: BatchListProps) {
 
     startTransition(async () => {
       const result = await archiveBatch(batchId);
+      if (!result.success) {
+        alert(result.error);
+      }
+    });
+  }
+
+  function handleDelete(batchId: string) {
+    if (!confirm("Are you sure you want to DELETE this batch? This will permanently remove ALL data (members, questions, posts, events, etc). This cannot be undone.")) return;
+
+    startTransition(async () => {
+      const result = await deleteBatch(batchId);
       if (!result.success) {
         alert(result.error);
       }
@@ -120,26 +131,37 @@ export function BatchList({ batches }: BatchListProps) {
                     <span>{batch._count.userBatches} members</span>
                   </div>
                 </div>
-                {batch.status === "active" && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditBatch(batch)}
-                      disabled={isPending}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleArchive(batch.id)}
-                      disabled={isPending}
-                    >
-                      Archive
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {batch.status === "active" && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditBatch(batch)}
+                        disabled={isPending}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleArchive(batch.id)}
+                        disabled={isPending}
+                      >
+                        Archive
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(batch.id)}
+                    disabled={isPending}
+                    style={{ color: "var(--color-error)" }}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

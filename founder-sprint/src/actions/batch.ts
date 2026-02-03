@@ -117,8 +117,20 @@ export async function updateBatch(
   return { success: true, data: { id: batch.id } };
 }
 
-export async function deleteBatch(_batchId: string): Promise<ActionResult> {
-  return { success: false, error: "Batch deletion is not allowed. If you created a batch by mistake, please contact database administrator for direct DB handling." };
+export async function deleteBatch(batchId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized: only Super Admin can delete batches" };
+  }
+
+  await prisma.batch.delete({ where: { id: batchId } });
+
+  revalidatePath("/admin/batches");
+  return { success: true, data: undefined };
 }
 
 export async function getBatches() {
