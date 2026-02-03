@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot } from "@/lib/permissions";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -30,9 +30,9 @@ const slotSchema = z.object({
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
     const diffMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-    return diffMinutes === 30;
+    return diffMinutes > 0 && diffMinutes < 60;
   },
-  { message: "Office hour slots must be exactly 30 minutes long" }
+  { message: "Office hour slots must be less than 1 hour" }
 );
 
 const requestSchema = z.object({
@@ -51,6 +51,8 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     if (!user || !isStaff(user.role)) {
       return { success: false, error: "Unauthorized: staff access required" };
     }
+
+    const groupId = (formData.get("groupId") as string) || null;
 
     const data = {
       startTime: formData.get("startTime") as string,
@@ -76,6 +78,7 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
         endTime: endTimeUtc,
         timezone: validated.timezone,
         status: "available",
+        groupId,
       },
     });
 
@@ -88,6 +91,109 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     }
     console.error("Failed to create office hour slot:", error);
     return { success: false, error: "Failed to create office hour slot" };
+  }
+}
+
+export async function scheduleGroupOfficeHour(formData: FormData) {
+  // 1. Auth check — staff only (admin/super_admin/mentor)
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Authentication required" };
+  if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
+
+  // 2. Parse formData
+  const groupId = formData.get("groupId") as string;
+  const startTime = formData.get("startTime") as string;
+  const endTime = formData.get("endTime") as string;
+  const timezoneInput = formData.get("timezone") as string;
+
+  if (!groupId || !startTime || !endTime) {
+    return { success: false, error: "Group, start time, and end time are required" };
+  }
+
+  // 3. Validate timezone (same pattern as createOfficeHourSlot)
+  const timezoneMap: Record<string, string> = {
+    UTC: "UTC",
+    KST: "Asia/Seoul",
+    PST: "America/Los_Angeles",
+    EST: "America/New_York",
+  };
+  const timezone = timezoneMap[timezoneInput] || "UTC";
+
+  // 4. Validate time (30-min slot, not in past)
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { success: false, error: "Invalid date format" };
+  }
+  const durationMs = end.getTime() - start.getTime();
+  if (durationMs <= 0 || durationMs >= 60 * 60 * 1000) {
+    return { success: false, error: "Office hour slots must be less than 1 hour" };
+  }
+  if (start < new Date()) {
+    return { success: false, error: "Cannot schedule office hours in the past" };
+  }
+
+  // 5. Validate group — exists, same batch, has members
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!group) return { success: false, error: "Group not found" };
+  if (group.batchId !== user.batchId) return { success: false, error: "Group is not in your batch" };
+  if (group.members.length === 0) return { success: false, error: "Cannot schedule for an empty group" };
+
+  try {
+    // 6. Create slot as confirmed with groupId
+    const slot = await prisma.officeHourSlot.create({
+      data: {
+        batchId: user.batchId,
+        hostId: user.id,
+        startTime: start,
+        endTime: end,
+        timezone,
+        status: "confirmed",
+        groupId,
+      },
+    });
+
+    // 7. Create Google Calendar event with Meet link for all group members
+    const memberEmails = group.members.map((m) => m.user.email);
+    const hostEmail = user.email;
+    const allEmails = [...new Set([hostEmail, ...memberEmails])];
+
+    const calResult = await createCalendarEventWithMeet({
+      summary: `Office Hour: ${user.name} × ${group.name}`,
+      description: `Group office hour session with ${group.name}`,
+      startTime: start,
+      endTime: end,
+      attendeeEmails: allEmails,
+      timezone,
+    });
+
+    if (calResult?.meetLink || calResult?.eventId) {
+      await prisma.officeHourSlot.update({
+        where: { id: slot.id },
+        data: {
+          googleMeetLink: calResult.meetLink || "https://meet.google.com/new",
+          googleEventId: calResult.eventId || null,
+        },
+      });
+    }
+
+    revalidateTag(`office-hours-${user.batchId}`);
+    return { success: true, data: { id: slot.id } };
+  } catch (error) {
+    console.error("[scheduleGroupOfficeHour] Error:", error);
+    return { success: false, error: "Failed to schedule group office hour" };
   }
 }
 
@@ -104,6 +210,17 @@ export async function getOfficeHourSlots(batchId: string) {
                 name: true,
                 email: true,
                 profileImage: true,
+              },
+            },
+            group: {
+              include: {
+                members: {
+                  include: {
+                    user: {
+                      select: { id: true, name: true, email: true, profileImage: true },
+                    },
+                  },
+                },
               },
             },
             requests: {
@@ -151,11 +268,19 @@ export async function getOfficeHourSlots(batchId: string) {
   }
 }
 
-export async function requestOfficeHour(slotId: string, message?: string): Promise<ActionResult<{ id: string }>> {
+export async function requestOfficeHour(slotId: string, groupId: string, message?: string): Promise<ActionResult<{ id: string }>> {
   try {
     const user = await getCurrentUser();
     if (!user || !isFounder(user.role)) {
       return { success: false, error: "Unauthorized: founder access required" };
+    }
+
+    // Validate group membership
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: user.id },
+    });
+    if (!membership) {
+      return { success: false, error: "You must be a member of this group to request office hours" };
     }
 
     const validated = requestSchema.parse({ slotId, message });
@@ -283,15 +408,36 @@ export async function respondToRequest(requestId: string, status: "approved" | "
             }),
           ]);
 
-          if (host && requester) {
+          // Get attendee emails — if slot has a group, invite all members
+          let attendeeEmails: string[] = [];
+          let calendarSummary = `Office Hour: ${host?.name || "Host"} × ${requester?.name || "Requester"}`;
+
+          if (request.slot.groupId) {
+            const group = await prisma.group.findUnique({
+              where: { id: request.slot.groupId },
+              include: {
+                members: { include: { user: { select: { email: true, name: true } } } },
+              },
+            });
+            if (group) {
+              attendeeEmails = group.members.map((m) => m.user.email);
+              calendarSummary = `Office Hour: ${host?.name || "Host"} × ${group.name}`;
+            }
+          } else if (requester) {
+            attendeeEmails = [requester.email];
+          }
+          // Add host and deduplicate
+          if (host) attendeeEmails = [...new Set([host.email, ...attendeeEmails])];
+
+          if (attendeeEmails.length > 0) {
             const calResult = await createCalendarEventWithMeet({
-              summary: `Office Hour: ${host.name} × ${requester.name}`,
+              summary: calendarSummary,
               description: request.message
                 ? `Office hour session.\n\nFounder message: ${request.message}`
                 : "Office hour session.",
               startTime: request.slot.startTime,
               endTime: request.slot.endTime,
-              attendeeEmails: [host.email, requester.email],
+              attendeeEmails,
               timezone: request.slot.timezone,
             });
 

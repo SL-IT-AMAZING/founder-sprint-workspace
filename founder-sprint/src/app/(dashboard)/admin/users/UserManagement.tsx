@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
+import { getGroups } from "@/actions/group";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -59,6 +60,8 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; _count: { members: number; posts: number } }>>([]);
+  const [selectedRole, setSelectedRole] = useState("founder");
 
   // Handle batch selection change
   const handleBatchChange = (batchId: string) => {
@@ -77,6 +80,17 @@ export function UserManagement({ batches }: UserManagementProps) {
       .catch(() => setUsers([]))
       .finally(() => setIsLoadingUsers(false));
   };
+
+  // Fetch groups when batch changes
+  useEffect(() => {
+    if (selectedBatchId) {
+      getGroups(selectedBatchId).then((g) => {
+        if (g) setGroups(g);
+      });
+    } else {
+      setGroups([]);
+    }
+  }, [selectedBatchId]);
 
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -370,6 +384,7 @@ export function UserManagement({ batches }: UserManagementProps) {
         onClose={() => {
           setIsInviteModalOpen(false);
           setFormError("");
+          setSelectedRole("founder");
         }}
         title="Invite User"
       >
@@ -394,9 +409,28 @@ export function UserManagement({ batches }: UserManagementProps) {
             label="Role"
             name="role"
             options={roleOptions}
-            defaultValue="founder"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
             required
           />
+
+          {/* Group Assignment (optional, for founders/co-founders) */}
+          {(selectedRole === "founder" || selectedRole === "co_founder") && groups.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium">Group (Optional)</label>
+              <select
+                name="groupId"
+                className="form-input"
+              >
+                <option value="">No group</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} ({g._count.members} members)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <input type="hidden" name="batchId" value={selectedBatchId} />
 
@@ -413,6 +447,7 @@ export function UserManagement({ batches }: UserManagementProps) {
               onClick={() => {
                 setIsInviteModalOpen(false);
                 setFormError("");
+                setSelectedRole("founder");
               }}
             >
               Cancel

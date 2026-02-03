@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 export async function signInWithLinkedIn() {
   const supabase = await createClient();
@@ -25,6 +26,7 @@ export async function signInWithLinkedIn() {
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  (await cookies()).delete("selected_batch_id");
   redirect("/login");
 }
 

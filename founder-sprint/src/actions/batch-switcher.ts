@@ -1,0 +1,106 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { getAuthUserFromHeaders } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import type { ActionResult } from "@/types";
+
+export async function getUserBatches(): Promise<
+  ActionResult<Array<{ batchId: string; batchName: string; role: string; batchStatus: string }>>
+> {
+  try {
+    let authEmail: string | null = null;
+
+    const headerAuth = await getAuthUserFromHeaders();
+    if (headerAuth) {
+      authEmail = headerAuth.email;
+    } else {
+      const supabase = await createClient();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (!authUser) return { success: false, error: "Not authenticated" };
+      authEmail = authUser.email!;
+    }
+
+    if (!authEmail) return { success: false, error: "Not authenticated" };
+
+    const user = await prisma.user.findUnique({
+      where: { email: authEmail },
+      include: {
+        userBatches: {
+          where: { status: "active" },
+          include: { batch: true },
+          orderBy: { batch: { createdAt: "desc" } },
+        },
+      },
+    });
+
+    if (!user) return { success: false, error: "User not found" };
+
+    const batches = user.userBatches.map((ub) => ({
+      batchId: ub.batchId,
+      batchName: ub.batch.name,
+      role: ub.role,
+      batchStatus: ub.batch.status,
+    }));
+
+    return { success: true, data: batches };
+  } catch (error) {
+    console.error("Failed to get user batches:", error);
+    return { success: false, error: "Failed to get user batches" };
+  }
+}
+
+export async function switchBatch(batchId: string): Promise<ActionResult<undefined>> {
+  try {
+    let authEmail: string | null = null;
+
+    const headerAuth = await getAuthUserFromHeaders();
+    if (headerAuth) {
+      authEmail = headerAuth.email;
+    } else {
+      const supabase = await createClient();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (!authUser) return { success: false, error: "Not authenticated" };
+      authEmail = authUser.email!;
+    }
+
+    if (!authEmail) return { success: false, error: "Not authenticated" };
+
+    // Verify user belongs to this batch
+    const user = await prisma.user.findUnique({
+      where: { email: authEmail },
+      include: {
+        userBatches: {
+          where: { batchId, status: "active" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user || user.userBatches.length === 0) {
+      return { success: false, error: "You do not belong to this batch" };
+    }
+
+    // Set cookie
+    const cookieStore = await cookies();
+    cookieStore.set("selected_batch_id", batchId, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60,
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    revalidatePath("/");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("Failed to switch batch:", error);
+    return { success: false, error: "Failed to switch batch" };
+  }
+}
