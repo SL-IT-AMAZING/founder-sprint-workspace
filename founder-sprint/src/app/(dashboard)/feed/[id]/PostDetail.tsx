@@ -16,8 +16,7 @@ interface User {
   id: string;
   name: string;
   profileImage: string | null;
-  role?: string;
-  [key: string]: any;
+  role?: string | null;
 }
 
 interface PostImage {

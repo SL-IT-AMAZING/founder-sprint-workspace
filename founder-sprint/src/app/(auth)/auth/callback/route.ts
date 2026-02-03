@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Check if user exists in our database (must be pre-invited)
+    // Check if user exists in our database
     let user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -43,12 +43,14 @@ export async function GET(request: Request) {
       },
     });
 
-    // User must exist and have at least one batch invitation
+    // User must exist (pre-invited or admin)
     if (!user) {
-      // User not invited - redirect to no-batch page
       await supabase.auth.signOut();
       return NextResponse.redirect(`${origin}/no-batch`);
     }
+
+    // Super admin/admin can bypass batch requirement
+    const isGlobalAdmin = user.role === "super_admin" || user.role === "admin";
 
     // Check for pending invitations to activate (7-day expiry)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -129,8 +131,11 @@ export async function GET(request: Request) {
       },
     });
 
-    // Check if user has active batch membership
-    if (!user || user.userBatches.length === 0) {
+    // Check if user has active batch membership (admins can bypass)
+    const hasActiveBatch = user && user.userBatches.length > 0;
+    const userIsGlobalAdmin = user?.role === "super_admin" || user?.role === "admin";
+    
+    if (!user || (!hasActiveBatch && !userIsGlobalAdmin)) {
       await supabase.auth.signOut();
       return NextResponse.redirect(`${origin}/no-batch`);
     }
