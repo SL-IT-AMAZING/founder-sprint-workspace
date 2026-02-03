@@ -33,6 +33,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (user) {
+    request.headers.set("x-auth-user-id", user.id);
+    request.headers.set("x-auth-user-email", user.email || "");
+  }
+
   const publicPaths = ["/login", "/auth/callback", "/", "/no-batch"];
   const isPublicPath = publicPaths.some(
     (path) =>
@@ -47,47 +52,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
-
-  if (user && isAdminPath) {
-    const userEmail = user.email;
-
-    if (!userEmail) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", userEmail)
-      .maybeSingle();
-
-    if (!dbUser) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-
-    const { data: userBatches } = await supabase
-      .from("user_batches")
-      .select("role")
-      .eq("user_id", dbUser.id)
-      .eq("status", "active")
-      .limit(1);
-
-    const userBatch = userBatches?.[0] ?? null;
-
-    const isAdmin =
-      userBatch?.role === "admin" || userBatch?.role === "super_admin";
-
-    if (!isAdmin) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-  }
+  supabaseResponse = NextResponse.next({ request });
 
   return supabaseResponse;
 }

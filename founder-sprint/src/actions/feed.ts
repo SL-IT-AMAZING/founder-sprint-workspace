@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreatePostSchema = z.object({
   content: z.string().min(1).max(3000),
@@ -37,6 +39,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
   if (parsed.data.groupId) {
     revalidatePath(`/groups/${parsed.data.groupId}`);
   }
+  revalidateTag(`posts-${user.batchId}`);
 
   return { success: true, data: { id: post.id } };
 }
@@ -63,47 +66,59 @@ export async function getPosts(batchId: string, groupId?: string) {
     }
   }
 
-  return prisma.post.findMany({
-    where: {
-      batchId,
-      ...(groupId ? { groupId } : {}),
-      isHidden: false,
-    },
-    include: {
-      author: true,
-      images: true,
-      _count: {
-        select: {
-          comments: true,
-          likes: true,
+  const cacheKey = groupId ? `posts-${batchId}-group-${groupId}` : `posts-${batchId}`;
+
+  return unstable_cache(
+    () =>
+      prisma.post.findMany({
+        where: {
+          batchId,
+          ...(groupId ? { groupId } : {}),
+          isHidden: false,
         },
-      },
-    },
-    orderBy: [
-      { isPinned: "desc" },
-      { createdAt: "desc" },
-    ],
-  });
+        include: {
+          author: true,
+          images: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+            },
+          },
+        },
+        orderBy: [
+          { isPinned: "desc" },
+          { createdAt: "desc" },
+        ],
+      }),
+    [cacheKey],
+    { revalidate: 60, tags: [`posts-${batchId}`] }
+  )();
 }
 
 export async function getArchivedPosts(batchId: string) {
-  return prisma.post.findMany({
-    where: {
-      batchId,
-      isHidden: true,
-    },
-    include: {
-      author: true,
-      images: true,
-      _count: {
-        select: {
-          comments: true,
-          likes: true,
+  return unstable_cache(
+    () =>
+      prisma.post.findMany({
+        where: {
+          batchId,
+          isHidden: true,
         },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+        include: {
+          author: true,
+          images: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`archived-posts-${batchId}`],
+    { revalidate: 60, tags: [`archived-posts-${batchId}`] }
+  )();
 }
 
 export async function createComment(
@@ -145,6 +160,8 @@ export async function createComment(
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${postId}`);
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${postId}`);
 
   return { success: true, data: { id: comment.id } };
 }
@@ -188,6 +205,8 @@ export async function updateComment(
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${comment.postId}`);
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${comment.postId}`);
 
   return { success: true, data: undefined };
 }
@@ -218,6 +237,8 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${comment.postId}`);
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${comment.postId}`);
 
   return { success: true, data: undefined };
 }
@@ -266,39 +287,56 @@ export async function toggleLike(
   }
 
   revalidatePath("/feed");
-  if (postId) {
-    revalidatePath(`/feed/${postId}`);
+  let targetPostId = postId;
+  if (!targetPostId && commentId) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { postId: true },
+    });
+    targetPostId = comment?.postId;
+  }
+  if (targetPostId) {
+    revalidatePath(`/feed/${targetPostId}`);
+  }
+  revalidateTag(`posts-${user.batchId}`);
+  if (targetPostId) {
+    revalidateTag(`post-${targetPostId}`);
   }
 
   return { success: true, data: undefined };
 }
 
 export async function getPost(id: string) {
-  return prisma.post.findUnique({
-    where: { id },
-    include: {
-      author: true,
-      images: true,
-      comments: {
-        where: { parentId: null },
+  return unstable_cache(
+    () =>
+      prisma.post.findUnique({
+        where: { id },
         include: {
           author: true,
-          replies: {
+          images: true,
+          comments: {
+            where: { parentId: null },
             include: {
               author: true,
+              replies: {
+                include: {
+                  author: true,
+                },
+                orderBy: { createdAt: "asc" },
+              },
             },
             orderBy: { createdAt: "asc" },
           },
+          likes: {
+            include: {
+              user: true,
+            },
+          },
         },
-        orderBy: { createdAt: "asc" },
-      },
-      likes: {
-        include: {
-          user: true,
-        },
-      },
-    },
-  });
+      }),
+    [`post-${id}`],
+    { revalidate: 60, tags: [`post-${id}`] }
+  )();
 }
 
 const UpdatePostSchema = z.object({
@@ -345,6 +383,8 @@ export async function updatePost(
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
 }
@@ -377,6 +417,8 @@ export async function deletePost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
 }
@@ -408,6 +450,8 @@ export async function hidePost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
+  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
 }
@@ -453,6 +497,8 @@ export async function pinPost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
+  revalidateTag(`posts-${post.batchId}`);
+  revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
 }
@@ -484,6 +530,8 @@ export async function archivePost(postId: string): Promise<ActionResult> {
    if (post.groupId) {
      revalidatePath(`/groups/${post.groupId}`);
    }
+   revalidateTag(`posts-${user.batchId}`);
+   revalidateTag(`post-${postId}`);
 
    return { success: true, data: undefined };
 }
@@ -519,6 +567,8 @@ export async function restorePost(postId: string): Promise<ActionResult> {
    if (post.groupId) {
      revalidatePath(`/groups/${post.groupId}`);
    }
+   revalidateTag(`posts-${user.batchId}`);
+   revalidateTag(`post-${postId}`);
 
    return { success: true, data: undefined };
 }

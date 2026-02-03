@@ -10,18 +10,19 @@ interface NavItemData {
   label: string;
   iconSrc: string;
   href: string;
+  prefetch?: boolean;
 }
 
 const NAV_ITEMS: NavItemData[] = [
-  { id: 'dashboard', label: 'Dashboard', iconSrc: '/images/icon-decorative-home.svg', href: '/dashboard' },
-  { id: 'feed', label: 'Feed', iconSrc: '/images/icon-decorative-messaging.svg', href: '/feed' },
-  { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments' },
-  { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions' },
+  { id: 'dashboard', label: 'Dashboard', iconSrc: '/images/icon-decorative-home.svg', href: '/dashboard', prefetch: true },
+  { id: 'feed', label: 'Feed', iconSrc: '/images/icon-decorative-messaging.svg', href: '/feed', prefetch: true },
+  { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments', prefetch: true },
+  { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions', prefetch: true },
   { id: 'submissions', label: 'Submissions', iconSrc: '/images/icon-interface-arrow-up-right.svg', href: '/submissions' },
   { id: 'groups', label: 'Groups', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
-  { id: 'events', label: 'Events', iconSrc: '/images/icon-decorative-calendar.svg', href: '/events' },
-  { id: 'sessions', label: 'Sessions', iconSrc: '/images/icon-interface-play.svg', href: '/sessions' },
-  { id: 'office-hours', label: 'Office Hours', iconSrc: '/images/icon-decorative-clock.svg', href: '/office-hours' },
+  { id: 'events', label: 'Events', iconSrc: '/images/icon-decorative-calendar.svg', href: '/events', prefetch: true },
+  { id: 'sessions', label: 'Sessions', iconSrc: '/images/icon-interface-play.svg', href: '/sessions', prefetch: true },
+  { id: 'office-hours', label: 'Office Hours', iconSrc: '/images/icon-decorative-clock.svg', href: '/office-hours', prefetch: true },
   { id: 'settings', label: 'Settings', iconSrc: '/images/icon-decorative-settings.svg', href: '/settings' },
 ];
 
@@ -86,6 +87,7 @@ const NavItem: React.FC<NavItemProps> = ({ item, isActive }) => {
   return (
     <Link
       href={item.href}
+      prefetch={item.prefetch ?? false}
       style={itemStyle}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreateQuestionSchema = z.object({
   title: z.string().min(1).max(200),
@@ -38,6 +40,7 @@ export async function createQuestion(formData: FormData): Promise<ActionResult<{
   });
 
   revalidatePath("/questions");
+  revalidateTag(`questions-${user.batchId}`);
   return { success: true, data: { id: question.id } };
 }
 
@@ -69,6 +72,8 @@ export async function createAnswer(
   });
 
   revalidatePath(`/questions/${questionId}`);
+  revalidateTag(`question-${questionId}`);
+  revalidateTag(`questions-${user.batchId}`);
   return { success: true, data: { id: answer.id } };
 }
 
@@ -100,40 +105,52 @@ export async function createSummary(
 
   revalidatePath(`/questions/${questionId}`);
   revalidatePath("/questions");
+  revalidateTag(`question-${questionId}`);
+  revalidateTag(`questions-${user.batchId}`);
   return { success: true, data: { id: summary.id } };
 }
 
 export async function getQuestions(batchId: string) {
-  return prisma.question.findMany({
-    where: { batchId },
-    include: {
-      author: { select: { id: true, name: true, profileImage: true } },
-      _count: { select: { answers: true } },
-      summary: { select: { id: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  return unstable_cache(
+    () =>
+      prisma.question.findMany({
+        where: { batchId },
+        include: {
+          author: { select: { id: true, name: true, profileImage: true } },
+          _count: { select: { answers: true } },
+          summary: { select: { id: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`questions-${batchId}`],
+    { revalidate: 60, tags: [`questions-${batchId}`] }
+  )();
 }
 
 export async function getQuestion(id: string) {
-  return prisma.question.findUnique({
-    where: { id },
-    include: {
-      author: { select: { id: true, name: true, profileImage: true, jobTitle: true, company: true } },
-      attachments: true,
-      answers: {
+  return unstable_cache(
+    () =>
+      prisma.question.findUnique({
+        where: { id },
         include: {
-          author: { select: { id: true, name: true, profileImage: true } },
+          author: { select: { id: true, name: true, profileImage: true, jobTitle: true, company: true } },
+          attachments: true,
+          answers: {
+            include: {
+              author: { select: { id: true, name: true, profileImage: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+          summary: {
+            include: {
+              author: { select: { id: true, name: true, profileImage: true } },
+            },
+          },
         },
-        orderBy: { createdAt: "asc" },
-      },
-      summary: {
-        include: {
-          author: { select: { id: true, name: true, profileImage: true } },
-        },
-      },
-    },
-  });
+      }),
+    [`question-${id}`],
+    { revalidate: 60, tags: [`question-${id}`] }
+  )();
 }
 
 const UpdateQuestionSchema = z.object({
@@ -190,6 +207,8 @@ export async function updateQuestion(
 
   revalidatePath("/questions");
   revalidatePath(`/questions/${questionId}`);
+  revalidateTag(`questions-${user.batchId}`);
+  revalidateTag(`question-${questionId}`);
 
   return { success: true, data: undefined };
 }
@@ -233,9 +252,11 @@ export async function updateAnswer(
     data: { content: parsed.data.content },
   });
 
-   revalidatePath(`/questions/${answer.questionId}`);
+  revalidatePath(`/questions/${answer.questionId}`);
+  revalidateTag(`question-${answer.questionId}`);
+  revalidateTag(`questions-${user.batchId}`);
 
-   return { success: true, data: undefined };
+  return { success: true, data: undefined };
 }
 
 const UpdateSummarySchema = z.object({
@@ -293,6 +314,8 @@ export async function updateSummary(
 
   revalidatePath(`/questions/${questionId}`);
   revalidatePath("/questions");
+  revalidateTag(`question-${questionId}`);
+  revalidateTag(`questions-${user.batchId}`);
 
   return { success: true, data: undefined };
 }

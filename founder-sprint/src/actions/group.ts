@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
@@ -38,52 +40,64 @@ export async function createGroup(formData: FormData): Promise<ActionResult<{ id
   });
 
   revalidatePath("/groups");
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${group.id}`);
   return { success: true, data: { id: group.id } };
 }
 
 export async function getGroups(batchId: string) {
-  return prisma.group.findMany({
-    where: { batchId },
-    include: {
-      _count: {
-        select: {
-          members: true,
-          posts: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-export async function getGroup(id: string) {
-  return prisma.group.findUnique({
-    where: { id },
-    include: {
-      members: {
+  return unstable_cache(
+    () =>
+      prisma.group.findMany({
+        where: { batchId },
         include: {
-          user: true,
-        },
-        orderBy: { joinedAt: "desc" },
-      },
-      posts: {
-        include: {
-          author: true,
-          images: true,
           _count: {
             select: {
-              comments: true,
-              likes: true,
+              members: true,
+              posts: true,
             },
           },
         },
-        orderBy: [
-          { isPinned: "desc" },
-          { createdAt: "desc" },
-        ],
-      },
-    },
-  });
+        orderBy: { createdAt: "desc" },
+      }),
+    [`groups-${batchId}`],
+    { revalidate: 60, tags: [`groups-${batchId}`] }
+  )();
+}
+
+export async function getGroup(id: string) {
+  return unstable_cache(
+    () =>
+      prisma.group.findUnique({
+        where: { id },
+        include: {
+          members: {
+            include: {
+              user: true,
+            },
+            orderBy: { joinedAt: "desc" },
+          },
+          posts: {
+            include: {
+              author: true,
+              images: true,
+              _count: {
+                select: {
+                  comments: true,
+                  likes: true,
+                },
+              },
+            },
+            orderBy: [
+              { isPinned: "desc" },
+              { createdAt: "desc" },
+            ],
+          },
+        },
+      }),
+    [`group-${id}`],
+    { revalidate: 60, tags: [`group-${id}`] }
+  )();
 }
 
 export async function joinGroup(groupId: string): Promise<ActionResult> {
@@ -117,6 +131,8 @@ export async function joinGroup(groupId: string): Promise<ActionResult> {
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
   return { success: true, data: undefined };
 }
 
@@ -184,6 +200,8 @@ export async function addMembersToGroup(
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
   revalidatePath(`/groups/${groupId}/manage`);
+  revalidateTag(`groups-${group.batchId}`);
+  revalidateTag(`group-${groupId}`);
 
   return { success: true, data: undefined };
 }
@@ -215,6 +233,8 @@ export async function leaveGroup(groupId: string): Promise<ActionResult> {
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
   return { success: true, data: undefined };
 }
 
@@ -249,6 +269,8 @@ export async function updateGroup(
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
   revalidatePath(`/groups/${groupId}/manage`);
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
   return { success: true, data: undefined };
 }
 
@@ -265,6 +287,8 @@ export async function deleteGroup(groupId: string): Promise<ActionResult> {
   });
 
   revalidatePath("/groups");
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
   return { success: true, data: undefined };
 }
 
@@ -299,5 +323,7 @@ export async function removeGroupMember(
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
   revalidatePath(`/groups/${groupId}/manage`);
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
   return { success: true, data: undefined };
 }
