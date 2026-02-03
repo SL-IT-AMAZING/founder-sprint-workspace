@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isStaff, isFounder, canCreateAssignment } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreateAssignmentSchema = z.object({
   title: z.string().min(1).max(200),
@@ -67,6 +69,7 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
   });
 
    revalidatePath("/assignments");
+   revalidateTag(`assignments-${user.batchId}`);
    return { success: true, data: { id: assignment.id } };
 }
 
@@ -128,6 +131,8 @@ export async function updateAssignment(
 
   revalidatePath("/assignments");
   revalidatePath(`/assignments/${assignmentId}`);
+  revalidateTag(`assignments-${user.batchId}`);
+  revalidateTag(`assignment-${assignmentId}`);
   return { success: true, data: undefined };
 }
 
@@ -163,39 +168,50 @@ export async function deleteAssignment(assignmentId: string): Promise<ActionResu
   });
 
   revalidatePath("/assignments");
+  revalidateTag(`assignments-${user.batchId}`);
   return { success: true, data: undefined };
 }
 
 export async function getAssignments(batchId: string) {
-  return prisma.assignment.findMany({
-    where: { batchId },
-    orderBy: { dueDate: "desc" },
-    include: {
-      _count: {
-        select: { submissions: true },
-      },
-    },
-  });
+  return unstable_cache(
+    () =>
+      prisma.assignment.findMany({
+        where: { batchId },
+        orderBy: { dueDate: "desc" },
+        include: {
+          _count: {
+            select: { submissions: true },
+          },
+        },
+      }),
+    [`assignments-${batchId}`],
+    { revalidate: 60, tags: [`assignments-${batchId}`] }
+  )();
 }
 
 export async function getAssignment(id: string) {
-  return prisma.assignment.findUnique({
-    where: { id },
-    include: {
-      submissions: {
+  return unstable_cache(
+    () =>
+      prisma.assignment.findUnique({
+        where: { id },
         include: {
-          author: true,
-          feedbacks: {
+          submissions: {
             include: {
               author: true,
+              feedbacks: {
+                include: {
+                  author: true,
+                },
+                orderBy: { createdAt: "asc" },
+              },
             },
-            orderBy: { createdAt: "asc" },
+            orderBy: { submittedAt: "desc" },
           },
         },
-        orderBy: { submittedAt: "desc" },
-      },
-    },
-  });
+      }),
+    [`assignment-${id}`],
+    { revalidate: 60, tags: [`assignment-${id}`] }
+  )();
 }
 
 export async function submitAssignment(
@@ -257,6 +273,9 @@ export async function submitAssignment(
 
   revalidatePath(`/assignments/${assignmentId}`);
   revalidatePath("/assignments");
+  revalidateTag(`assignment-${assignmentId}`);
+  revalidateTag(`assignments-${user.batchId}`);
+  revalidateTag(`submissions-${user.batchId}`);
   return { success: true, data: { id: submission.id } };
 }
 
@@ -277,19 +296,24 @@ export async function getSubmission(id: string) {
 }
 
 export async function getSubmissions(batchId: string) {
-  return prisma.submission.findMany({
-    where: {
-      assignment: {
-        batchId,
-      },
-    },
-    include: {
-      author: true,
-      assignment: true,
-      feedbacks: true,
-    },
-    orderBy: { submittedAt: "desc" },
-  });
+  return unstable_cache(
+    () =>
+      prisma.submission.findMany({
+        where: {
+          assignment: {
+            batchId,
+          },
+        },
+        include: {
+          author: true,
+          assignment: true,
+          feedbacks: true,
+        },
+        orderBy: { submittedAt: "desc" },
+      }),
+    [`submissions-${batchId}`],
+    { revalidate: 60, tags: [`submissions-${batchId}`] }
+  )();
 }
 
 export async function addFeedback(
@@ -327,8 +351,10 @@ export async function addFeedback(
 
   if (submission) {
     revalidatePath(`/assignments/${submission.assignmentId}`);
+    revalidateTag(`assignment-${submission.assignmentId}`);
   }
   revalidatePath(`/submissions/${submissionId}`);
+  revalidateTag(`submissions-${user.batchId}`);
 
   return { success: true, data: { id: feedback.id } };
 }
@@ -377,6 +403,8 @@ export async function updateFeedback(
   });
 
   revalidatePath(`/assignments/${feedback.submission.assignmentId}`);
+  revalidateTag(`assignment-${feedback.submission.assignmentId}`);
+  revalidateTag(`submissions-${user.batchId}`);
 
   return { success: true, data: undefined };
 }

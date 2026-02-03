@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreateBatchSchema = z.object({
   name: z.string().min(1).max(100),
@@ -62,6 +64,7 @@ export async function createBatch(formData: FormData): Promise<ActionResult<{ id
   });
 
   revalidatePath("/admin/batches");
+  revalidateTag("batches");
   return { success: true, data: { id: batch.id } };
 }
 
@@ -81,6 +84,7 @@ export async function archiveBatch(batchId: string): Promise<ActionResult> {
   });
 
   revalidatePath("/admin/batches");
+  revalidateTag("batches");
   return { success: true, data: undefined };
 }
 
@@ -114,6 +118,7 @@ export async function updateBatch(
   });
 
   revalidatePath("/admin/batches");
+  revalidateTag("batches");
   return { success: true, data: { id: batch.id } };
 }
 
@@ -130,16 +135,22 @@ export async function deleteBatch(batchId: string): Promise<ActionResult> {
   await prisma.batch.delete({ where: { id: batchId } });
 
   revalidatePath("/admin/batches");
+  revalidateTag("batches");
   return { success: true, data: undefined };
 }
 
 export async function getBatches() {
-  return prisma.batch.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { userBatches: true } },
-    },
-  });
+  return unstable_cache(
+    () =>
+      prisma.batch.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: { select: { userBatches: true } },
+        },
+      }),
+    ["batches"],
+    { revalidate: 60, tags: ["batches"] }
+  )();
 }
 
 export async function getBatch(id: string) {

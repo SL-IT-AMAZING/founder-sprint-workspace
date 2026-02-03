@@ -2,9 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreateSessionSchema = z.object({
   title: z.string().min(1).max(200),
@@ -48,20 +50,32 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
   });
 
   revalidatePath("/sessions");
+  revalidateTag(`sessions-${user.batchId}`);
+  revalidateTag(`session-${session.id}`);
   return { success: true, data: { id: session.id } };
 }
 
 export async function getSessions(batchId: string) {
-  return prisma.session.findMany({
-    where: { batchId },
-    orderBy: { sessionDate: "desc" },
-  });
+  return unstable_cache(
+    () =>
+      prisma.session.findMany({
+        where: { batchId },
+        orderBy: { sessionDate: "desc" },
+      }),
+    [`sessions-${batchId}`],
+    { revalidate: 60, tags: [`sessions-${batchId}`] }
+  )();
 }
 
 export async function getSession(id: string) {
-  return prisma.session.findUnique({
-    where: { id },
-  });
+  return unstable_cache(
+    () =>
+      prisma.session.findUnique({
+        where: { id },
+      }),
+    [`session-${id}`],
+    { revalidate: 60, tags: [`session-${id}`] }
+  )();
 }
 
 export async function updateSession(
@@ -99,6 +113,8 @@ export async function updateSession(
   });
 
    revalidatePath("/sessions");
+   revalidateTag(`sessions-${user.batchId}`);
+   revalidateTag(`session-${id}`);
    return { success: true, data: undefined };
 }
 
@@ -116,6 +132,8 @@ export async function deleteSession(sessionId: string): Promise<ActionResult> {
     });
 
     revalidatePath("/sessions");
+    revalidateTag(`sessions-${user.batchId}`);
+    revalidateTag(`session-${sessionId}`);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof Error && error.message.includes("not found")) {

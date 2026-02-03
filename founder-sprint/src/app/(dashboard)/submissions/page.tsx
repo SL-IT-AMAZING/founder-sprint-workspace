@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isStaff } from "@/lib/permissions";
+
+export const revalidate = 60;
 import { getSubmissions } from "@/actions/assignment";
 import { SubmissionsDashboard } from "./SubmissionsDashboard";
 

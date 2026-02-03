@@ -2,10 +2,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult, EventType } from "@/types";
 import { isCalendarConfigured, createCalendarEvent, createCalendarEventWithMeet, deleteCalendarEvent, updateCalendarEvent } from "@/lib/google-calendar";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
@@ -102,6 +104,8 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     }
 
     revalidatePath("/events");
+    revalidateTag(`events-${user.batchId}`);
+    revalidateTag(`event-${event.id}`);
     return { success: true, data: { id: event.id }, warning };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -114,20 +118,25 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
 export async function getEvents(batchId: string) {
   try {
-    const events = await prisma.event.findMany({
-      where: { batchId },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profileImage: true,
+    const events = await unstable_cache(
+      () =>
+        prisma.event.findMany({
+          where: { batchId },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+              },
+            },
           },
-        },
-      },
-      orderBy: { startTime: "desc" },
-    });
+          orderBy: { startTime: "desc" },
+        }),
+      [`events-${batchId}`],
+      { revalidate: 60, tags: [`events-${batchId}`] }
+    )();
 
     return events;
   } catch (error) {
@@ -138,19 +147,24 @@ export async function getEvents(batchId: string) {
 
 export async function getEvent(eventId: string) {
   try {
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profileImage: true,
+    const event = await unstable_cache(
+      () =>
+        prisma.event.findUnique({
+          where: { id: eventId },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+              },
+            },
           },
-        },
-      },
-    });
+        }),
+      [`event-${eventId}`],
+      { revalidate: 60, tags: [`event-${eventId}`] }
+    )();
 
     return event;
   } catch (error) {
@@ -187,6 +201,8 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
     });
 
     revalidatePath("/events");
+    revalidateTag(`events-${user.batchId}`);
+    revalidateTag(`event-${eventId}`);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Failed to delete event:", error);
@@ -257,6 +273,8 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     }
 
     revalidatePath("/events");
+    revalidateTag(`events-${user.batchId}`);
+    revalidateTag(`event-${eventId}`);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {

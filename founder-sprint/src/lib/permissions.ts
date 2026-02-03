@@ -1,18 +1,26 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthUserFromHeaders } from "@/lib/auth";
 import type { UserRole, UserWithBatch } from "@/types";
 
-// Get current authenticated user with their role in a specific batch
-// Memoized with React cache() to prevent redundant calls within a request
 export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBatch | null> => {
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  let authEmail: string | null = null;
 
-  if (!authUser) return null;
+  const headerAuth = await getAuthUserFromHeaders();
+  if (headerAuth) {
+    authEmail = headerAuth.email;
+  } else {
+    const supabase = await createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return null;
+    authEmail = authUser.email!;
+  }
+
+  if (!authEmail) return null;
 
   const user = await prisma.user.findUnique({
-    where: { email: authUser.email! },
+    where: { email: authEmail },
     include: {
       userBatches: {
         where: batchId ? { batchId, status: "active" } : { status: "active" },
@@ -25,9 +33,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
 
   if (!user) return null;
 
-  // If user has no active batch membership
   if (user.userBatches.length === 0) {
-    // Super admin/admin can access without batch (to create first batch)
     const globalRole = user.role as UserRole | null;
     if (globalRole === "super_admin" || globalRole === "admin") {
       return {
@@ -61,7 +67,6 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   };
 });
 
-// Permission check helpers
 export function isAdmin(role: UserRole): boolean {
   return role === "super_admin" || role === "admin";
 }
@@ -114,7 +119,6 @@ export function canManageGroups(role: UserRole): boolean {
   return isAdmin(role);
 }
 
-// Require permission - throws if not authorized
 export function requireRole(role: UserRole, allowedRoles: UserRole[]): void {
   if (!allowedRoles.includes(role)) {
     throw new Error("Unauthorized: insufficient permissions");

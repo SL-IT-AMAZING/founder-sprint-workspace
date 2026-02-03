@@ -3,10 +3,12 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/permissions";
 import { sendInvitationEmail } from "@/lib/email";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { ActionResult, UserRole } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const InviteUserSchema = z.object({
   email: z.string().email(),
@@ -164,6 +166,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
+  revalidateTag(`batch-users-${batchId}`);
   return { success: true, data: { id: userBatch.id, inviteLink } };
 }
 
@@ -192,6 +195,7 @@ export async function updateUserRole(
   });
 
   revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
   return { success: true, data: undefined };
 }
 
@@ -214,6 +218,7 @@ export async function removeUserFromBatch(
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
+  revalidateTag(`batch-users-${batchId}`);
   return { success: true, data: undefined };
 }
 
@@ -247,15 +252,23 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
+  targetUser.userBatches.forEach((userBatch) => {
+    revalidateTag(`batch-users-${userBatch.batchId}`);
+  });
   return { success: true, data: undefined };
 }
 
 export async function getBatchUsers(batchId: string) {
-  return prisma.userBatch.findMany({
-    where: { batchId },
-    include: { user: true, batch: true },
-    orderBy: { invitedAt: "desc" },
-  });
+  return unstable_cache(
+    () =>
+      prisma.userBatch.findMany({
+        where: { batchId },
+        include: { user: true, batch: true },
+        orderBy: { invitedAt: "desc" },
+      }),
+    [`batch-users-${batchId}`],
+    { revalidate: 60, tags: [`batch-users-${batchId}`] }
+  )();
 }
 
 export async function checkInviteExpiration(userId: string) {

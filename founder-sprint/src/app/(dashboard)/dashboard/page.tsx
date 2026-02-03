@@ -154,7 +154,7 @@ export default async function DashboardPage() {
         {/* Second Stats Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <StatCard title="Office Hours" count={officeHoursCount} href="/events?type=office_hour" icon="clock" />
-          <StatCard title="Team Members" count={teamMembersCount} href="/community" icon="users" />
+          <StatCard title="Team Members" count={teamMembersCount} href="/groups" icon="users" />
         </div>
 
       {/* Recent Questions & Upcoming Events Grid */}

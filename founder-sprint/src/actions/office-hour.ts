@@ -2,11 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 import { isCalendarConfigured, createCalendarEventWithMeet } from "@/lib/google-calendar";
 import { fromZonedTime } from "date-fns-tz";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const TIMEZONE_MAP: Record<string, string> = {
   UTC: "UTC",
@@ -78,6 +80,7 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     });
 
     revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${user.batchId}`);
     return { success: true, data: { id: slot.id } };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -90,20 +93,12 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
 
 export async function getOfficeHourSlots(batchId: string) {
   try {
-    const slots = await prisma.officeHourSlot.findMany({
-      where: { batchId },
-      include: {
-        host: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profileImage: true,
-          },
-        },
-        requests: {
+    const slots = await unstable_cache(
+      () =>
+        prisma.officeHourSlot.findMany({
+          where: { batchId },
           include: {
-            requester: {
+            host: {
               select: {
                 id: true,
                 name: true,
@@ -111,12 +106,25 @@ export async function getOfficeHourSlots(batchId: string) {
                 profileImage: true,
               },
             },
+            requests: {
+              include: {
+                requester: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    profileImage: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: "asc" },
+            },
           },
-          orderBy: { createdAt: "asc" },
-        },
-      },
-      orderBy: { startTime: "asc" },
-    });
+          orderBy: { startTime: "asc" },
+        }),
+      [`office-hours-${batchId}`],
+      { revalidate: 60, tags: [`office-hours-${batchId}`] }
+    )();
 
     return slots;
   } catch (error) {
@@ -174,6 +182,7 @@ export async function requestOfficeHour(slotId: string, message?: string): Promi
     });
 
     revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${slot.batchId}`);
     return { success: true, data: { id: request.id } };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -287,6 +296,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
       }
 
       revalidatePath("/office-hours");
+      revalidateTag(`office-hours-${request.slot.batchId}`);
       return { success: true, data: undefined, warning };
     } else {
       // If rejected, check if there are other pending requests
@@ -306,6 +316,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
       }
 
       revalidatePath("/office-hours");
+      revalidateTag(`office-hours-${request.slot.batchId}`);
       return { success: true, data: undefined };
     }
   } catch (error) {
@@ -375,6 +386,7 @@ export async function updateSlot(slotId: string, formData: FormData): Promise<Ac
     });
 
     revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${slot.batchId}`);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -423,6 +435,7 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
     });
 
     revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${slot.batchId}`);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Failed to delete office hour slot:", error);
@@ -489,6 +502,7 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
     }
 
     revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${request.slot.batchId}`);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Failed to cancel request:", error);
