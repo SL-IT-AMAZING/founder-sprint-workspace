@@ -143,12 +143,23 @@ export async function GET(request: Request) {
     // Check if profile is incomplete (needs onboarding)
     const needsOnboarding = !user.jobTitle || !user.company;
 
+    // Read cookies set by exchangeCodeForSession to propagate on redirect
+    const cookieStore = await cookies();
+
     if (needsOnboarding) {
-      return NextResponse.redirect(`${origin}/settings?onboarding=true`);
+      const redirectResponse = NextResponse.redirect(`${origin}/settings?onboarding=true`);
+      cookieStore.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      return redirectResponse;
     }
 
     // Success - redirect to dashboard or requested page
-    return NextResponse.redirect(`${origin}${next}`);
+    const redirectResponse = NextResponse.redirect(`${origin}${next}`);
+    cookieStore.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
 
   } catch (error) {
     console.error("Auth callback database error:", error);

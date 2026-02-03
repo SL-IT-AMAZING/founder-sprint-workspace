@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 
@@ -77,6 +77,7 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/settings");
   revalidatePath("/feed");
+  revalidateTag("current-user");
 
   return { success: true, data: undefined };
 }

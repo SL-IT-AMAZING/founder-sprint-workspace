@@ -167,6 +167,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
   revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
   return { success: true, data: { id: userBatch.id, inviteLink } };
 }
 
@@ -196,6 +197,7 @@ export async function updateUserRole(
 
   revalidatePath("/admin/users");
   revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
   return { success: true, data: undefined };
 }
 
@@ -219,6 +221,7 @@ export async function removeUserFromBatch(
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
   revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
   return { success: true, data: undefined };
 }
 
@@ -255,6 +258,7 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
   targetUser.userBatches.forEach((userBatch) => {
     revalidateTag(`batch-users-${userBatch.batchId}`);
   });
+  revalidateTag("current-user");
   return { success: true, data: undefined };
 }
 
