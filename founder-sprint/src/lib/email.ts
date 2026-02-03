@@ -1,8 +1,15 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+const transporter =
+  process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      })
+    : null;
 
 interface InvitationEmailParams {
   to: string;
@@ -19,8 +26,8 @@ export async function sendInvitationEmail({
   role,
   inviteLink,
 }: InvitationEmailParams): Promise<{ success: boolean; error?: string }> {
-  if (!resend) {
-    console.warn("Resend not configured - RESEND_API_KEY missing");
+  if (!transporter) {
+    console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
 
@@ -32,9 +39,9 @@ export async function sendInvitationEmail({
   }[role] || role;
 
   try {
-    const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "Founder Sprint <onboarding@resend.dev>",
-      to: [to],
+    await transporter.sendMail({
+      from: `Founder Sprint <${process.env.GMAIL_USER}>`,
+      to,
       subject: `You're invited to join ${batchName} as ${roleDisplayName}`,
       html: `
         <!DOCTYPE html>
@@ -43,43 +50,46 @@ export async function sendInvitationEmail({
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Founder Sprint</h1>
-          </div>
+        <body style="font-family: 'BDO Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #fefaf3;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
 
-          <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 12px 12px;">
-            <h2 style="margin-top: 0;">Hello ${inviteeName}!</h2>
-
-            <p>You've been invited to join <strong>${batchName}</strong> as a <strong>${roleDisplayName}</strong>.</p>
-
-            <p>Click the button below to accept your invitation and get started:</p>
-
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${inviteLink}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
-                Join Now
-              </a>
+            <div style="background: #2F2C26; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700; font-family: 'BDO Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">Founder Sprint</h1>
             </div>
 
-            <p style="color: #666; font-size: 14px;">
-              This invitation link will expire in <strong>7 days</strong>.
-            </p>
+            <div style="background: #ffffff; padding: 32px; border: 1px solid #e0d6c8; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Hello ${inviteeName}!</h2>
 
-            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 24px 0;">
+              <p style="font-size: 15px; color: #2F2C26; line-height: 1.6; margin-bottom: 12px;">
+                You've been invited to join <strong>${batchName}</strong> as a <strong>${roleDisplayName}</strong>.
+              </p>
 
-            <p style="color: #888; font-size: 12px; margin-bottom: 0;">
-              If you didn't expect this invitation, you can safely ignore this email.
-            </p>
+              <p style="font-size: 15px; color: #2F2C26; line-height: 1.6; margin-bottom: 24px;">
+                Click the button below to accept your invitation and get started:
+              </p>
+
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${inviteLink}" style="background: #555AB9; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">
+                  Join Now
+                </a>
+              </div>
+
+              <p style="font-size: 13px; color: #666666; margin-bottom: 24px;">
+                This invitation link will expire in <strong>7 days</strong>.
+              </p>
+
+              <hr style="border: none; border-top: 1px solid #e0d6c8; margin: 24px 0;">
+
+              <p style="font-size: 12px; color: #999999; margin-bottom: 0;">
+                If you didn't expect this invitation, you can safely ignore this email.
+              </p>
+            </div>
+
           </div>
         </body>
         </html>
       `,
     });
-
-    if (error) {
-      console.error("Failed to send invitation email:", error);
-      return { success: false, error: error.message };
-    }
 
     return { success: true };
   } catch (err) {

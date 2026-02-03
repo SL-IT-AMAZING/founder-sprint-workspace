@@ -17,7 +17,7 @@ const InviteUserSchema = z.object({
   founderId: z.string().uuid().optional(), // Required when role is co_founder
 });
 
-export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string }>> {
+export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -32,8 +32,8 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     name: formData.get("name"),
     role: formData.get("role"),
     batchId: formData.get("batchId"),
-    linkedInUrl: formData.get("linkedInUrl"),
-    founderId: formData.get("founderId"),
+    linkedInUrl: formData.get("linkedInUrl") || undefined,
+    founderId: formData.get("founderId") || undefined,
   });
 
   if (!parsed.success) {
@@ -60,6 +60,19 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     });
     if (founderCount >= 30) {
       return { success: false, error: "Founder limit reached (30 per batch)" };
+    }
+  }
+
+  // Prevent founder re-participation (check email)
+  if (role === "founder") {
+    const existingFounder = await prisma.userBatch.findFirst({
+      where: {
+        user: { email: email },
+        role: "founder",
+      },
+    });
+    if (existingFounder) {
+      return { success: false, error: "This email is already registered as a Founder in another batch" };
     }
   }
 
@@ -151,7 +164,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
-  return { success: true, data: { id: userBatch.id } };
+  return { success: true, data: { id: userBatch.id, inviteLink } };
 }
 
 export async function updateUserRole(
@@ -259,10 +272,23 @@ export async function checkInviteExpiration(userId: string) {
   const invitedBatch = user.userBatches.find((ub) => ub.status === "invited");
 
   if (invitedBatch) {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Find the latest invitation token for this user
+    const latestToken = await prisma.invitationToken.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (user.createdAt < sevenDaysAgo) {
+    if (!latestToken) {
+      return { expired: true, message: "No invitation token found" };
+    }
+
+    // Check if token has been used
+    if (latestToken.usedAt) {
+      return { expired: false };
+    }
+
+    // Check if token has expired
+    if (latestToken.expiresAt < new Date()) {
       return { expired: true, message: "Invite has expired after 7 days" };
     }
   }

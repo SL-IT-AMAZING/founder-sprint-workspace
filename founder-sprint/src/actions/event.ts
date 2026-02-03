@@ -5,7 +5,7 @@ import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult, EventType } from "@/types";
-import { isCalendarConfigured, createCalendarEvent } from "@/lib/google-calendar";
+import { isCalendarConfigured, createCalendarEvent, createCalendarEventWithMeet, deleteCalendarEvent, updateCalendarEvent } from "@/lib/google-calendar";
 
 const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
@@ -65,20 +65,32 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
         });
         const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
 
-        const calResult = await createCalendarEvent({
-          summary: validated.title,
-          description: validated.description || undefined,
-          startTime: new Date(validated.startTime),
-          endTime: new Date(validated.endTime),
-          attendeeEmails,
-          timezone: validated.timezone,
-          location: validated.location || undefined,
-        });
+        // Use createCalendarEventWithMeet for office_hour events to generate Google Meet link
+        const calResult = validated.eventType === "office_hour"
+          ? await createCalendarEventWithMeet({
+              summary: validated.title,
+              description: validated.description || undefined,
+              startTime: new Date(validated.startTime),
+              endTime: new Date(validated.endTime),
+              attendeeEmails,
+              timezone: validated.timezone,
+            })
+          : await createCalendarEvent({
+              summary: validated.title,
+              description: validated.description || undefined,
+              startTime: new Date(validated.startTime),
+              endTime: new Date(validated.endTime),
+              attendeeEmails,
+              timezone: validated.timezone,
+              location: validated.location || undefined,
+            });
 
         if (calResult) {
           await prisma.event.update({
             where: { id: event.id },
-            data: { googleEventId: calResult.eventId },
+            data: {
+              googleEventId: calResult.eventId,
+            },
           });
         } else {
           warning = "Event created, but Google Calendar sync failed. Please create the calendar event manually.";
@@ -154,6 +166,22 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
       return { success: false, error: "Unauthorized: admin access required" };
     }
 
+    // Get the event to check if it has a Google Calendar event ID
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { googleEventId: true },
+    });
+
+    // Attempt to delete from Google Calendar if googleEventId exists
+    if (event?.googleEventId) {
+      try {
+        await deleteCalendarEvent(event.googleEventId);
+      } catch (err) {
+        console.error("Failed to delete Google Calendar event:", err);
+        // Continue with DB deletion even if Calendar delete fails
+      }
+    }
+
     await prisma.event.delete({
       where: { id: eventId },
     });
@@ -185,6 +213,12 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
 
     const validated = eventSchema.parse(data);
 
+    // Get the event to check if it has a Google Calendar event ID
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { googleEventId: true },
+    });
+
     await prisma.event.update({
       where: { id: eventId },
       data: {
@@ -197,6 +231,30 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
         location: validated.location || null,
       },
     });
+
+    // Attempt to update Google Calendar event if googleEventId exists
+    if (existingEvent?.googleEventId) {
+      try {
+        const batchUsers = await prisma.userBatch.findMany({
+          where: { batchId: user.batchId, status: "active" },
+          include: { user: { select: { email: true } } },
+        });
+        const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+
+        await updateCalendarEvent(existingEvent.googleEventId, {
+          summary: validated.title,
+          description: validated.description || undefined,
+          startTime: new Date(validated.startTime),
+          endTime: new Date(validated.endTime),
+          attendeeEmails,
+          timezone: validated.timezone,
+          location: validated.location || undefined,
+        });
+      } catch (err) {
+        console.error("Failed to update Google Calendar event:", err);
+        // Continue even if Calendar update fails
+      }
+    }
 
     revalidatePath("/events");
     return { success: true, data: undefined };

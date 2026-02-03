@@ -92,9 +92,9 @@ export async function updateBatch(
   if (!user) return { success: false, error: "Not authenticated" };
 
   try {
-    requireRole(user.role, ["super_admin"]);
+    requireRole(user.role, ["super_admin", "admin"]);
   } catch {
-    return { success: false, error: "Only Super Admin can update batches" };
+    return { success: false, error: "Unauthorized" };
   }
 
   const parsed = UpdateBatchSchema.safeParse(data);

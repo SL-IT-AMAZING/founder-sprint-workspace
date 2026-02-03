@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -42,6 +42,27 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function getPosts(batchId: string, groupId?: string) {
+  // If groupId is provided, check group membership
+  if (groupId) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    // Check if user is a member of the group
+    const membership = await prisma.groupMember.findUnique({
+      where: {
+        groupId_userId: {
+          groupId,
+          userId: user.id,
+        },
+      },
+    });
+
+    // If not a member and not admin, return empty array
+    if (!membership && !isAdmin(user.role)) {
+      return [];
+    }
+  }
+
   return prisma.post.findMany({
     where: {
       batchId,
@@ -308,11 +329,8 @@ export async function updatePost(
     return { success: false, error: "Post not found" };
   }
 
-  const isOwner = post.authorId === user.id;
-  const isAdminUser = user.role === "super_admin" || user.role === "admin";
-
-  if (!isOwner && !isAdminUser) {
-    return { success: false, error: "Unauthorized: only post owner or admin can update" };
+  if (post.authorId !== user.id) {
+    return { success: false, error: "Unauthorized: only post owner can update" };
   }
 
   await prisma.post.update({

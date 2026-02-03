@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 interface InvitePageProps {
   params: Promise<{ token: string }>;
@@ -12,25 +11,40 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
   const invitation = await prisma.invitationToken.findUnique({
     where: { token },
+    include: {
+      userBatch: {
+        include: {
+          batch: true,
+        },
+      },
+    },
   });
+
+  const roleDisplayName: Record<string, string> = {
+    admin: "Admin",
+    mentor: "Mentor",
+    founder: "Founder",
+    co_founder: "Co-founder",
+    super_admin: "Super Admin",
+  };
 
   // Token not found
   if (!invitation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white rounded-xl shadow-lg text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3" }}>
+        <div style={{ maxWidth: "480px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
+          <div style={{ width: "64px", height: "64px", margin: "0 auto 24px", borderRadius: "50%", backgroundColor: "#fee", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg style={{ width: "32px", height: "32px", color: "#c33" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Invitation</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "12px" }}>Invalid Invitation</h1>
+          <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "32px" }}>
             This invitation link is not valid. Please contact the administrator for a new invitation.
           </p>
           <Link
             href="/login"
-            className="inline-block px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition"
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -42,20 +56,20 @@ export default async function InvitePage({ params }: InvitePageProps) {
   // Token already used
   if (invitation.usedAt) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white rounded-xl shadow-lg text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
-            <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3" }}>
+        <div style={{ maxWidth: "480px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
+          <div style={{ width: "64px", height: "64px", margin: "0 auto 24px", borderRadius: "50%", backgroundColor: "#e6f0ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg style={{ width: "32px", height: "32px", color: "#4a7fc3" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Already Accepted</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "12px" }}>Already Accepted</h1>
+          <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "32px" }}>
             This invitation has already been accepted. You can log in to access your account.
           </p>
           <Link
             href="/login"
-            className="inline-block px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition"
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -67,20 +81,20 @@ export default async function InvitePage({ params }: InvitePageProps) {
   // Token expired
   if (invitation.expiresAt < new Date()) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 bg-white rounded-xl shadow-lg text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
-            <svg className="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3" }}>
+        <div style={{ maxWidth: "480px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
+          <div style={{ width: "64px", height: "64px", margin: "0 auto 24px", borderRadius: "50%", backgroundColor: "#fff3cd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg style={{ width: "32px", height: "32px", color: "#c8a822" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invitation Expired</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "12px" }}>Invitation Expired</h1>
+          <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "32px" }}>
             This invitation link has expired. Please contact the administrator to request a new invitation.
           </p>
           <Link
             href="/login"
-            className="inline-block px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition"
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -89,15 +103,44 @@ export default async function InvitePage({ params }: InvitePageProps) {
     );
   }
 
-  // Valid invitation - set cookie and redirect to login
-  const cookieStore = await cookies();
-  cookieStore.set("invite_token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60, // 1 hour
-    path: "/",
-  });
+  // Valid invitation - show confirmation page
+  const batchName = invitation.userBatch.batch.name;
+  const role = roleDisplayName[invitation.userBatch.role] || invitation.userBatch.role;
 
-  redirect("/login");
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fefaf3", padding: "20px" }}>
+      <div style={{ maxWidth: "520px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
+        <div style={{ marginBottom: "32px" }}>
+          <Image src="/images/Outsome-Full_Black.svg" alt="Outsome" width={160} height={40} style={{ margin: "0 auto" }} />
+        </div>
+
+        <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "16px" }}>
+          You're Invited!
+        </h1>
+
+        <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "8px" }}>
+          You've been invited to join
+        </p>
+
+        <p style={{ fontSize: "20px", fontWeight: "600", color: "#000", marginBottom: "8px" }}>
+          {batchName}
+        </p>
+
+        <p style={{ fontSize: "14px", color: "#666666", marginBottom: "32px" }}>
+          as a {role}
+        </p>
+
+        <Link
+          href={`/api/invite/accept?token=${token}`}
+          style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
+        >
+          Join Now
+        </Link>
+
+        <p style={{ fontSize: "13px", color: "#666666", marginTop: "24px" }}>
+          Click the button above to accept your invitation and get started.
+        </p>
+      </div>
+    </div>
+  );
 }

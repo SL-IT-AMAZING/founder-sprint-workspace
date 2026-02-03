@@ -9,6 +9,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   server_error: "Server error. Please try again later.",
   auth_callback_error: "Authentication callback failed. Please try again.",
   invitation_expired: "Your invitation has expired. Please contact an admin.",
+  invalid_invite: "This invitation link is not valid. Please contact an admin.",
+  invite_used: "This invitation has already been accepted.",
   oauth_error: "Could not initiate LinkedIn login. Please try again.",
 };
 

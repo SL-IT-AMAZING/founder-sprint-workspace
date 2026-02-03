@@ -56,6 +56,8 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [isPending, startTransition] = useTransition();
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [formError, setFormError] = useState("");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
 
   // Handle batch selection change
@@ -87,6 +89,8 @@ export function UserManagement({ batches }: UserManagementProps) {
 
       if (result.success) {
         setIsInviteModalOpen(false);
+        setInviteLink(result.data.inviteLink);
+        setLinkCopied(false);
         loadUsers(selectedBatchId);
         (e.target as HTMLFormElement).reset();
       } else {
@@ -418,6 +422,42 @@ export function UserManagement({ batches }: UserManagementProps) {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Invite Link Modal */}
+      <Modal
+        open={!!inviteLink}
+        onClose={() => setInviteLink(null)}
+        title="Invitation Sent"
+      >
+        <div className="space-y-4">
+          <p style={{ color: "var(--color-foreground-secondary)" }}>
+            The user has been invited. Share this link with them if the email doesn&apos;t arrive:
+          </p>
+          <div
+            className="p-3 rounded-lg text-sm break-all font-mono"
+            style={{ backgroundColor: "var(--color-background-secondary)", border: "1px solid var(--color-card-border)" }}
+          >
+            {inviteLink}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setInviteLink(null)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(inviteLink || "");
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }}
+            >
+              {linkCopied ? "Copied!" : "Copy Link"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Remove Confirmation Modal */}

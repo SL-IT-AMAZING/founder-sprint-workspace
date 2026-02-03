@@ -44,13 +44,25 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
+  // Normalize dueDate to KST 23:59:59 (14:59:59 UTC)
+  // If the input is a date-only string (no specific time), set it to end of day KST
+  const dueDateInput = formData.get("dueDate") as string;
+  let normalizedDueDate = parsed.data.dueDate;
+
+  // Check if the input is date-only (no time component)
+  if (dueDateInput && !dueDateInput.includes("T") && !dueDateInput.includes(":")) {
+    // Extract date portion and create new Date at 14:59:59 UTC (23:59:59 KST)
+    const datePart = dueDateInput.split(" ")[0]; // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM"
+    normalizedDueDate = new Date(`${datePart}T14:59:59.000Z`);
+  }
+
   const assignment = await prisma.assignment.create({
     data: {
       batchId: user.batchId,
       title: parsed.data.title,
       description: parsed.data.description,
       templateUrl: parsed.data.templateUrl || null,
-      dueDate: parsed.data.dueDate,
+      dueDate: normalizedDueDate,
     },
   });
 

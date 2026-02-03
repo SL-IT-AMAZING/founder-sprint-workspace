@@ -2,8 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 const BUCKET_CONFIG = {
-  "question-attachments": { maxSize: 10 * 1024 * 1024, maxFiles: 5 },
-  "post-images": { maxSize: 5 * 1024 * 1024, maxFiles: 5 },
+  "question-attachments": {
+    maxSize: 10 * 1024 * 1024,
+    maxFiles: 5,
+    allowedTypes: ["image/jpeg", "image/png", "image/gif", "application/pdf"],
+  },
+  "post-images": {
+    maxSize: 5 * 1024 * 1024,
+    maxFiles: 5,
+    allowedTypes: ["image/jpeg", "image/png", "image/gif"],
+  },
 } as const;
 
 type BucketName = keyof typeof BUCKET_CONFIG;
@@ -52,6 +60,18 @@ export async function POST(
           success: false,
           error: `File size exceeds ${maxMB}MB limit`,
           code: "FILE_TOO_LARGE",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate file type
+    if (!(config.allowedTypes as readonly string[]).includes(file.type)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `File type not allowed. Allowed types: ${config.allowedTypes.join(", ")}`,
+          code: "INVALID_FILE_TYPE",
         },
         { status: 400 }
       );
