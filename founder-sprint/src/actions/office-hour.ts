@@ -295,16 +295,23 @@ export async function respondToRequest(requestId: string, status: "approved" | "
               timezone: request.slot.timezone,
             });
 
-            if (calResult) {
+            if (calResult?.meetLink) {
               await prisma.officeHourSlot.update({
                 where: { id: request.slotId },
                 data: {
-                  googleMeetLink: calResult.meetLink || null,
+                  googleMeetLink: calResult.meetLink,
                   googleEventId: calResult.eventId,
                 },
               });
             } else {
-              warning = "Request approved, but Google Meet link generation failed. Please set up the meeting manually.";
+              // Fallback: store a "create new meeting" link
+              await prisma.officeHourSlot.update({
+                where: { id: request.slotId },
+                data: {
+                  googleMeetLink: "https://meet.google.com/new",
+                  googleEventId: calResult?.eventId || null,
+                },
+              });
             }
           }
         } catch (err) {

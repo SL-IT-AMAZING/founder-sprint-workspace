@@ -15,6 +15,7 @@ export function isCalendarConfigured(): boolean {
 
 function getAuth() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const impersonateUser = process.env.GOOGLE_CALENDAR_IMPERSONATE;
 
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !privateKey) {
     return null;
@@ -25,6 +26,7 @@ function getAuth() {
       client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       private_key: privateKey,
     },
+    clientOptions: impersonateUser ? { subject: impersonateUser } : undefined,
     scopes: SCOPES,
   });
 }
