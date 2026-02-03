@@ -60,11 +60,11 @@ const NavItem: React.FC<NavItemProps> = ({ item, isActive }) => {
     padding: '10px 16px',
     cursor: 'pointer',
     backgroundColor: isActive
-      ? 'rgba(85, 90, 185, 0.1)'
+      ? 'rgba(0, 0, 0, 0.06)'
       : isHovered
         ? 'rgba(0, 0, 0, 0.04)'
         : 'transparent',
-    color: isActive ? '#555AB9' : '#2F2C26',
+    color: isActive ? '#1A1A1A' : '#2F2C26',
     fontWeight: isActive ? 600 : 400,
     fontSize: '14px',
     textDecoration: 'none',

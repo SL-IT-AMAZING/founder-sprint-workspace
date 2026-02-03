@@ -27,7 +27,7 @@ const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
 
 const variantInlineStyles: Record<ButtonVariant, React.CSSProperties> = {
   primary: {
-    backgroundColor: "#555AB9",
+    backgroundColor: "#1A1A1A",
     color: "white",
     borderRadius: 9,
   },

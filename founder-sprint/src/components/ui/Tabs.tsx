@@ -27,8 +27,8 @@ export function Tabs({ tabs, defaultTab }: TabsProps) {
             style={{
               background: "none",
               border: "none",
-              borderBottom: active === tab.key ? "2px solid #555AB9" : "2px solid transparent",
-              color: active === tab.key ? "#555AB9" : "var(--color-foreground-secondary)",
+              borderBottom: active === tab.key ? "2px solid #1A1A1A" : "2px solid transparent",
+              color: active === tab.key ? "#1A1A1A" : "var(--color-foreground-secondary)",
               fontWeight: active === tab.key ? 600 : 400,
               cursor: "pointer",
             }}

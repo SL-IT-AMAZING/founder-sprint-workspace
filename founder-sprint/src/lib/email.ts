@@ -69,7 +69,7 @@ export async function sendInvitationEmail({
               </p>
 
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${inviteLink}" style="background: #555AB9; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">
+                <a href="${inviteLink}" style="background: #1A1A1A; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block;">
                   Join Now
                 </a>
               </div>

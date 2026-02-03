@@ -126,7 +126,25 @@ export async function getOfficeHourSlots(batchId: string) {
       { revalidate: 60, tags: [`office-hours-${batchId}`] }
     )();
 
-    return slots;
+    // Auto-complete confirmed slots whose endTime has passed
+    const now = new Date();
+    const expiredSlotIds = slots
+      .filter((s) => s.status === "confirmed" && new Date(s.endTime) < now)
+      .map((s) => s.id);
+
+    if (expiredSlotIds.length > 0) {
+      await prisma.officeHourSlot.updateMany({
+        where: { id: { in: expiredSlotIds } },
+        data: { status: "completed" },
+      });
+      // Invalidate cache so next fetch reflects the update
+      revalidateTag(`office-hours-${batchId}`);
+    }
+
+    // Return slots with updated status applied locally
+    return slots.map((s) =>
+      expiredSlotIds.includes(s.id) ? { ...s, status: "completed" as const } : s
+    );
   } catch (error) {
     console.error("Failed to fetch office hour slots:", error);
     return [];
@@ -426,7 +444,7 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
       return { success: false, error: "Unauthorized: only host or admin can delete slot" };
     }
 
-    if (slot.requests.length > 0) {
+    if (slot.status !== "completed" && slot.requests.length > 0) {
       return { success: false, error: "Cannot delete slot with pending or approved requests" };
     }
 
