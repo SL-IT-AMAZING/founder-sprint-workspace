@@ -65,6 +65,7 @@ export async function createBatch(formData: FormData): Promise<ActionResult<{ id
 
   revalidatePath("/admin/batches");
   revalidateTag("batches");
+  revalidateTag("current-user");
   return { success: true, data: { id: batch.id } };
 }
 

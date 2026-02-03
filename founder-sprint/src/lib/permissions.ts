@@ -1,8 +1,28 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserFromHeaders } from "@/lib/auth";
 import type { UserRole, UserWithBatch } from "@/types";
+
+const getCachedUserByEmail = (email: string, batchId?: string) =>
+  unstable_cache(
+    async () => {
+      return prisma.user.findUnique({
+        where: { email },
+        include: {
+          userBatches: {
+            where: batchId ? { batchId, status: "active" } : { status: "active" },
+            include: { batch: true },
+            take: 1,
+            orderBy: { batch: { createdAt: "desc" } },
+          },
+        },
+      });
+    },
+    [`current-user-${email}-${batchId || "default"}`],
+    { revalidate: 30, tags: ["current-user"] }
+  )();
 
 export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBatch | null> => {
   let authEmail: string | null = null;
@@ -19,17 +39,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
 
   if (!authEmail) return null;
 
-  const user = await prisma.user.findUnique({
-    where: { email: authEmail },
-    include: {
-      userBatches: {
-        where: batchId ? { batchId, status: "active" } : { status: "active" },
-        include: { batch: true },
-        take: 1,
-        orderBy: { batch: { createdAt: "desc" } },
-      },
-    },
-  });
+  const user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
 

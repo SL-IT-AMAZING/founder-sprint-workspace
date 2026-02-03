@@ -52,7 +52,5 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  supabaseResponse = NextResponse.next({ request });
-
   return supabaseResponse;
 }
