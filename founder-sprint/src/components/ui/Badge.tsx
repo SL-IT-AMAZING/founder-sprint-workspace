@@ -9,13 +9,13 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, React.CSSProperties> = {
   default: {
-    backgroundColor: "#555AB9",
+    backgroundColor: "#1A1A1A",
     color: "white",
   },
   outline: {
     backgroundColor: "transparent",
-    border: "1px solid #555AB9",
-    color: "#555AB9",
+    border: "1px solid #1A1A1A",
+    color: "#1A1A1A",
   },
   success: {
     backgroundColor: "#E8F5E9",
@@ -30,7 +30,7 @@ const variantStyles: Record<BadgeVariant, React.CSSProperties> = {
     color: "var(--color-error)",
   },
   role: {
-    backgroundColor: "#555AB9",
+    backgroundColor: "#1A1A1A",
     color: "white",
   },
 };

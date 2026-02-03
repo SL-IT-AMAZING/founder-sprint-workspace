@@ -64,7 +64,7 @@ export function Avatar({ src, name, size = "md", badge }: AvatarProps) {
             position: "absolute",
             bottom: 0,
             right: 0,
-            backgroundColor: "#555AB9",
+            backgroundColor: "#1A1A1A",
             color: "white",
             fontSize: 9,
             fontWeight: 700,

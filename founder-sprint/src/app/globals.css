@@ -40,8 +40,8 @@
   --color-foreground-secondary: #666666;
   --color-foreground-muted: #999999;
   --color-white: #FFFFFF;
-  --color-accent: #555AB9;
-  --color-accent-hover: #454a9a;
+  --color-accent: #1A1A1A;
+  --color-accent-hover: #333333;
   --color-card-bg: #FFFFFF;
   --color-card-border: #e0e0e0;
   --color-card-hover: #f5f5f5;
@@ -59,12 +59,12 @@
   --color-sidebar-bg: #FFFFFF;
   --color-topbar-bg: #FFFFFF;
   --color-badge-closed: #9CA3AF;
-  --color-primary: #555AB9;
-  --color-primary-hover: #454a9a;
-  --color-primary-light: #6b70c7;
+  --color-primary: #1A1A1A;
+  --color-primary-hover: #333333;
+  --color-primary-light: #4A4A4A;
   --color-header-bg: #2F2C26;
   --color-header-text: #ffffff;
-  --color-link-blue: #555AB9;
+  --color-link-blue: #1A1A1A;
   --color-border-light: #f1eadd;
   --color-tag-gray: #f0f2f5;
   --color-tag-text: #555555;
@@ -147,12 +147,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary {
-  background-color: #555AB9;
+  background-color: #1A1A1A;
   color: white;
 }
 
 .btn-primary:hover {
-  background-color: #454a9a;
+  background-color: #333333;
 }
 
 .btn-secondary {
@@ -187,7 +187,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .form-input:focus {
   outline: none;
-  border-color: #555AB9;
+  border-color: #1A1A1A;
 }
 
 .form-error {
@@ -216,7 +216,7 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
   padding: 3px 6px;
   border-radius: 3px;
-  background-color: #555AB9;
+  background-color: #1A1A1A;
   color: white;
 }
 

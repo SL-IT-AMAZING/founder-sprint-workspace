@@ -293,7 +293,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
               style={{
                 background: userHasLiked ? "rgba(85,90,185,0.1)" : "none",
                 border: "none",
-                color: userHasLiked ? "#555AB9" : "#666666",
+                color: userHasLiked ? "#1A1A1A" : "#666666",
                 cursor: "pointer",
                 padding: "4px 8px",
                 borderRadius: "4px",
@@ -301,7 +301,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
               }}
               onMouseEnter={(e) => {
                 if (!userHasLiked) {
-                  e.currentTarget.style.color = "#555AB9";
+                  e.currentTarget.style.color = "#1A1A1A";
                   e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
                 }
               }}
@@ -517,7 +517,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#555AB9";
+                      e.currentTarget.style.color = "#1A1A1A";
                       e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
                     }}
                     onMouseLeave={(e) => {

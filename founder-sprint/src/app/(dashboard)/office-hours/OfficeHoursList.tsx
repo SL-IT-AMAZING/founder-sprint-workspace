@@ -227,9 +227,8 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
                     {userHasRequested && (
                       <Badge variant="warning">Request Pending</Badge>
                     )}
-                    {(isHost || user.role === "super_admin" || user.role === "admin") && 
-                     pendingRequests.length === 0 && 
-                     !approvedRequest && (
+                    {(isHost || user.role === "super_admin" || user.role === "admin") &&
+                     (slot.status === "completed" || (pendingRequests.length === 0 && !approvedRequest)) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -243,7 +242,7 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
                   </div>
                 </div>
 
-                {slot.status === "confirmed" && slot.googleMeetLink && (
+                {(slot.status === "confirmed" || slot.status === "completed") && slot.googleMeetLink && (
                   <div className="pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>
                     <a
                       href={slot.googleMeetLink}

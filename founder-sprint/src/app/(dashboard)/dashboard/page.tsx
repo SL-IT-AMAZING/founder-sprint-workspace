@@ -309,7 +309,7 @@ function StatCard({
 
 // Stat Icon Component
 function StatIcon({ type }: { type: "question" | "calendar" | "clipboard" | "clock" | "users" }) {
-  const iconColor = "#555AB9";
+  const iconColor = "#1A1A1A";
 
   switch (type) {
     case "question":

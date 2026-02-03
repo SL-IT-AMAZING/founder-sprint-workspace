@@ -344,7 +344,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#555AB9";
+                      e.currentTarget.style.color = "#1A1A1A";
                       e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
                     }}
                     onMouseLeave={(e) => {
@@ -367,7 +367,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#555AB9";
+                      e.currentTarget.style.color = "#1A1A1A";
                       e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
                     }}
                     onMouseLeave={(e) => {

@@ -37,7 +37,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
           </p>
           <Link
             href="/login"
-            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -62,7 +62,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
           </p>
           <Link
             href="/login"
-            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -87,7 +87,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
           </p>
           <Link
             href="/login"
-            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
+            style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
           >
             Go to Login
           </Link>
@@ -108,7 +108,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
         <div style={{ maxWidth: "480px", width: "100%", padding: "48px", backgroundColor: "#FFFFFF", border: "1px solid #e0d6c8", borderRadius: "16px", textAlign: "center" }}>
           <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 400, color: "#000", marginBottom: "12px" }}>Invalid Invitation</h1>
           <p style={{ fontSize: "14px", color: "#2F2C26", marginBottom: "32px" }}>This invitation is no longer valid. Please contact the administrator.</p>
-          <Link href="/login" style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}>Go to Login</Link>
+          <Link href="/login" style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}>Go to Login</Link>
         </div>
       </div>
     );
@@ -142,7 +142,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
         <Link
           href={`/api/invite/accept?token=${token}`}
-          style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#555AB9", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
+          style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
         >
           Join Now
         </Link>
