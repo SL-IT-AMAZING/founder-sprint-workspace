@@ -70,7 +70,9 @@ export function GroupManage({ group }: GroupManageProps) {
   const handleRemoveMember = async (userId: string) => {
     startTransition(async () => {
       const result = await removeGroupMember(group.id, userId);
-      if (!result.success) {
+      if (result.success) {
+        router.refresh();
+      } else {
         setError(result.error);
       }
     });

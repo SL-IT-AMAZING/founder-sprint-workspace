@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -10,8 +10,33 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot } from "@/actions/office-hour";
+import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour } from "@/actions/office-hour";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
+
+interface GroupMember {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    profileImage: string | null;
+  };
+}
+
+interface Group {
+  id: string;
+  name: string;
+  description: string | null;
+  _count: {
+    members: number;
+    posts: number;
+  };
+}
+
+interface GroupDetail {
+  id: string;
+  name: string;
+  members: GroupMember[];
+}
 
 interface OfficeHourRequest {
   id: string;
@@ -40,11 +65,17 @@ interface OfficeHourSlot {
     profileImage: string | null;
   };
   requests: OfficeHourRequest[];
+  group?: {
+    id: string;
+    name: string;
+    members: GroupMember[];
+  } | null;
 }
 
 interface OfficeHoursListProps {
   user: UserWithBatch;
   slots: OfficeHourSlot[];
+  groups: Group[];
 }
 
 function getStatusBadgeVariant(status: OfficeHourSlotStatus): "default" | "success" | "warning" | "error" {
@@ -81,15 +112,74 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
   }
 }
 
-export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
+export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const endTimeRef = useRef<HTMLInputElement>(null);
+  const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
 
-  const canCreateSlot = isStaff(user.role);
-  const canRequest = isFounder(user.role);
+  // Auto-select if only one group
+  useEffect(() => {
+    if (groups.length === 1) {
+      setSelectedGroupId(groups[0].id);
+    }
+  }, [groups]);
+
+  const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const startVal = e.target.value;
+    if (startVal && endTimeRef.current) {
+      const startDate = new Date(startVal);
+      startDate.setMinutes(startDate.getMinutes() + 30);
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, "0");
+      const day = String(startDate.getDate()).padStart(2, "0");
+      const hours = String(startDate.getHours()).padStart(2, "0");
+      const minutes = String(startDate.getMinutes()).padStart(2, "0");
+      endTimeRef.current.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+  };
+
+  const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const startVal = e.target.value;
+    if (startVal && scheduleEndTimeRef.current) {
+      const startDate = new Date(startVal);
+      startDate.setMinutes(startDate.getMinutes() + 30);
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, "0");
+      const day = String(startDate.getDate()).padStart(2, "0");
+      const hours = String(startDate.getHours()).padStart(2, "0");
+      const minutes = String(startDate.getMinutes()).padStart(2, "0");
+      scheduleEndTimeRef.current.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+  };
+
+  const handleScheduleGroupOH = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await scheduleGroupOfficeHour(formData);
+
+    if (result.success) {
+      setScheduleModalOpen(false);
+      (e.target as HTMLFormElement).reset();
+    } else {
+      setError(result.error || "Failed to schedule");
+    }
+
+    setLoading(false);
+  };
+
+  const isStaffUser = isStaff(user.role);
+  const isFounderUser = isFounder(user.role);
+  const canCreateSlot = isStaffUser;
+  const canRequest = isFounderUser;
 
   const handleCreateSlot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -118,11 +208,12 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
 
     const formData = new FormData(e.currentTarget);
     const message = formData.get("message") as string;
-    const result = await requestOfficeHour(selectedSlot.id, message);
+    const result = await requestOfficeHour(selectedSlot.id, selectedGroupId, message);
 
     if (result.success) {
       setRequestModalOpen(false);
       setSelectedSlot(null);
+      setSelectedGroupId("");
       (e.target as HTMLFormElement).reset();
     } else {
       setError(result.error);
@@ -168,11 +259,20 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        {canCreateSlot && (
-          <Button onClick={() => setCreateModalOpen(true)} size="sm">
-            Create Slot
-          </Button>
+      <div className="flex items-center justify-end gap-2">
+        {isStaffUser && (
+          <>
+            <button
+              onClick={() => setScheduleModalOpen(true)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ backgroundColor: "var(--color-success)" }}
+            >
+              Schedule Group Office Hour
+            </button>
+            <Button onClick={() => setCreateModalOpen(true)} size="sm">
+              Create Slot
+            </Button>
+          </>
         )}
       </div>
 
@@ -212,17 +312,28 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
                       <div className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                         Timezone: {slot.timezone}
                       </div>
+                      {slot.group && (
+                        <div className="flex items-center gap-1 text-sm" style={{ color: "var(--color-primary)" }}>
+                          <span className="font-medium">Group: {slot.group.name}</span>
+                          <span style={{ color: "var(--color-foreground-secondary)" }}>({slot.group.members.length} members)</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    {canRequest && slot.status === "available" && !userHasRequested && (
+                    {canRequest && slot.status === "available" && !userHasRequested && groups.length > 0 && (
                       <Button
                         size="sm"
                         onClick={() => openRequestModal(slot)}
                       >
                         Request
                       </Button>
+                    )}
+                    {isFounderUser && groups.length === 0 && slot.status === "available" && (
+                      <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                        Join a group to request
+                      </p>
                     )}
                     {userHasRequested && (
                       <Badge variant="warning">Request Pending</Badge>
@@ -272,6 +383,25 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {slot.status === "confirmed" && slot.group && !approvedRequest && (
+                  <div className="pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>
+                    <div className="text-sm font-medium mb-2">Group Members:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {slot.group.members.slice(0, 5).map((m) => (
+                        <div key={m.user.id} className="flex items-center gap-1">
+                          <Avatar src={m.user.profileImage} name={m.user.name} size={24} />
+                          <span className="text-xs">{m.user.name}</span>
+                        </div>
+                      ))}
+                      {slot.group.members.length > 5 && (
+                        <span className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>
+                          +{slot.group.members.length - 5} more
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -336,12 +466,14 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
             name="startTime"
             type="datetime-local"
             required
+            onChange={handleStartTimeChange}
           />
           <Input
             label="End Time"
             name="endTime"
             type="datetime-local"
             required
+            ref={endTimeRef}
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Timezone</label>
@@ -395,6 +527,21 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
               </div>
             </div>
           )}
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Group</label>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background)" }}
+              required
+            >
+              <option value="">Select your group</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
           <Textarea
             label="Message (Optional)"
             name="message"
@@ -407,6 +554,77 @@ export function OfficeHoursList({ user, slots }: OfficeHoursListProps) {
             </Button>
             <Button type="submit" loading={loading}>
               Send Request
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); }} title="Schedule Group Office Hour">
+        <form onSubmit={handleScheduleGroupOH} className="space-y-4">
+          {error && (
+            <div
+              className="p-3 rounded text-sm"
+              style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
+            >
+              {error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Group</label>
+            <select
+              name="groupId"
+              required
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="">Select group</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name} ({g._count.members} members)</option>
+              ))}
+            </select>
+          </div>
+          <Input
+            label="Start Time"
+            name="startTime"
+            type="datetime-local"
+            required
+            onChange={handleScheduleStartTimeChange}
+          />
+          <Input
+            label="End Time"
+            name="endTime"
+            type="datetime-local"
+            required
+            ref={scheduleEndTimeRef}
+          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Timezone</label>
+            <select
+              name="timezone"
+              defaultValue="KST"
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="KST">KST (Korea Standard Time)</option>
+              <option value="PST">PST (Pacific Standard Time)</option>
+              <option value="EST">EST (Eastern Standard Time)</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); }}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Schedule & Send Invites
             </Button>
           </div>
         </form>

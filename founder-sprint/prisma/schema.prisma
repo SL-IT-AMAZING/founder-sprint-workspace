@@ -231,13 +231,17 @@ model OfficeHourSlot {
   googleEventId  String?              @map("google_event_id")
   createdAt      DateTime             @default(now()) @map("created_at")
 
+  groupId        String?              @map("group_id") @db.Uuid
+
   // Relations
   batch    Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
   host     User                @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  group    Group?              @relation(fields: [groupId], references: [id], onDelete: SetNull)
   requests OfficeHourRequest[]
 
   @@index([batchId, startTime, status])
   @@index([hostId])
+  @@index([groupId])
   @@map("office_hour_slots")
 }
 
@@ -367,10 +371,11 @@ model Group {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  batch    Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  creator  User          @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  members  GroupMember[]
-  posts    Post[]
+  batch           Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator         User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  members         GroupMember[]
+  posts           Post[]
+  officeHourSlots OfficeHourSlot[]
 
   @@map("groups")
 }

@@ -17,6 +17,7 @@ const InviteUserSchema = z.object({
   batchId: z.string().uuid(),
   linkedInUrl: z.string().optional(),
   founderId: z.string().uuid().optional(), // Required when role is co_founder
+  groupId: z.string().uuid().optional(),
 });
 
 export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
@@ -36,13 +37,14 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     batchId: formData.get("batchId"),
     linkedInUrl: formData.get("linkedInUrl") || undefined,
     founderId: formData.get("founderId") || undefined,
+    groupId: formData.get("groupId") || undefined,
   });
 
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  const { email, name, role, batchId, linkedInUrl, founderId } = parsed.data;
+  const { email, name, role, batchId, linkedInUrl, founderId, groupId } = parsed.data;
 
   // Validate founderId is provided for co-founders
   if (role === "co_founder" && !founderId) {
@@ -147,6 +149,24 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     },
   });
 
+  // Auto-assign to group if groupId provided
+  if (groupId) {
+    const groupExists = await prisma.group.findFirst({
+      where: { id: groupId, batchId },
+    });
+    if (groupExists) {
+      await prisma.groupMember.create({
+        data: {
+          groupId: groupId,
+          userId: invitedUser.id,
+        },
+      });
+      // Revalidate group cache
+      revalidateTag(`group-${groupId}`);
+      revalidateTag(`groups-${batchId}`);
+    }
+  }
+
   // Send invitation email (non-blocking - don't fail invite if email fails)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${appUrl}/invite/${token}`;
@@ -214,8 +234,31 @@ export async function removeUserFromBatch(
     return { success: false, error: "Unauthorized" };
   }
 
-  await prisma.userBatch.delete({
-    where: { userId_batchId: { userId, batchId } },
+  // Prevent self-deletion
+  if (userId === user.id) {
+    return { success: false, error: "Cannot remove yourself from a batch" };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Clean up group memberships for this user in this batch
+    await tx.groupMember.deleteMany({
+      where: { userId, group: { batchId } },
+    });
+
+    // Delete the batch relationship
+    await tx.userBatch.delete({
+      where: { userId_batchId: { userId, batchId } },
+    });
+
+    // If no remaining batch memberships, delete the user entirely
+    const remainingBatches = await tx.userBatch.count({
+      where: { userId },
+    });
+
+    if (remainingBatches === 0) {
+      await tx.invitationToken.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
+    }
   });
 
   revalidatePath("/admin/users");

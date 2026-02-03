@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUserFromHeaders } from "@/lib/auth";
@@ -25,6 +26,16 @@ const getCachedUserByEmail = (email: string, batchId?: string) =>
   )();
 
 export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBatch | null> => {
+  // Read batch preference from cookie if not explicitly provided
+  if (!batchId) {
+    try {
+      const cookieStore = await cookies();
+      batchId = cookieStore.get("selected_batch_id")?.value;
+    } catch {
+      // cookies() may throw in some contexts (e.g., during build)
+    }
+  }
+
   let authEmail: string | null = null;
 
   const headerAuth = await getAuthUserFromHeaders();
@@ -39,9 +50,21 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
 
   if (!authEmail) return null;
 
-  const user = await getCachedUserByEmail(authEmail, batchId);
+  let user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
+
+  // Fallback: if cookie pointed to an invalid batch, clear it and retry
+  if (batchId && user.userBatches.length === 0) {
+    try {
+      const cookieStore = await cookies();
+      cookieStore.delete("selected_batch_id");
+    } catch {
+      // ignore
+    }
+    user = await getCachedUserByEmail(authEmail);
+    if (!user) return null;
+  }
 
   if (user.userBatches.length === 0) {
     const globalRole = user.role as UserRole | null;
