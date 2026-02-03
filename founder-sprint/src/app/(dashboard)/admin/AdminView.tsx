@@ -46,7 +46,6 @@ export function AdminView({ batches }: AdminViewProps) {
             className="px-4 py-2 text-sm font-medium transition-colors"
             style={{
               color: activeTab === tab.id ? "var(--color-accent)" : "var(--color-foreground-secondary)",
-              borderBottom: activeTab === tab.id ? "2px solid var(--color-accent)" : "2px solid transparent",
               marginBottom: "-1px",
               background: "none",
               border: "none",
