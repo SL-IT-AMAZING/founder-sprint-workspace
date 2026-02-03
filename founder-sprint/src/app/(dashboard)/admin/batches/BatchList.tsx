@@ -34,8 +34,6 @@ export function BatchList({ batches }: BatchListProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const hasActiveBatch = batches.some((b) => b.status === "active");
-
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -89,12 +87,7 @@ export function BatchList({ batches }: BatchListProps) {
   return (
     <>
       <div className="flex items-center justify-end gap-3">
-        {hasActiveBatch && (
-          <span className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-            Archive the active batch to create a new one
-          </span>
-        )}
-        <Button onClick={() => setShowCreateModal(true)} disabled={hasActiveBatch}>
+        <Button onClick={() => setShowCreateModal(true)}>
           Create Batch
         </Button>
       </div>
@@ -103,7 +96,7 @@ export function BatchList({ batches }: BatchListProps) {
         <EmptyState
           title="No batches yet"
           description="Create your first batch to get started."
-          action={<Button onClick={() => setShowCreateModal(true)} disabled={hasActiveBatch}>Create Batch</Button>}
+          action={<Button onClick={() => setShowCreateModal(true)}>Create Batch</Button>}
         />
       ) : (
         <div className="space-y-4">
