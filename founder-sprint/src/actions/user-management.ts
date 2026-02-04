@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { randomUUID } from "crypto";
@@ -51,10 +52,13 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: "founderId is required when inviting a co-founder" };
   }
 
-  // Check batch exists and is active
+  // Check batch exists and is active (date-aware)
+  const batchCheck = await requireActiveBatch(batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string; inviteLink: string }>;
+
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
-  if (!batch || batch.status !== "active") {
-    return { success: false, error: "Batch not found or archived" };
+  if (!batch) {
+    return { success: false, error: "Batch not found" };
   }
 
   // Check founder limit (30 per batch)

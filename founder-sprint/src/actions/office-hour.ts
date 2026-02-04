@@ -2,13 +2,18 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 import { isCalendarConfigured, createCalendarEventWithMeet } from "@/lib/google-calendar";
 import { fromZonedTime } from "date-fns-tz";
+import { sendOfficeHourRequestEmail, sendOfficeHourApprovalEmail } from "@/lib/email";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
+
+// Target email for founder-initiated office hour requests — easy to change
+const OFFICE_HOUR_TARGET_EMAIL = "hanjisang0914@gmail.com";
 
 const TIMEZONE_MAP: Record<string, string> = {
   UTC: "UTC",
@@ -51,6 +56,9 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     if (!user || !isStaff(user.role)) {
       return { success: false, error: "Unauthorized: staff access required" };
     }
+
+    const batchCheck = await requireActiveBatch(user.batchId);
+    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const groupId = (formData.get("groupId") as string) || null;
 
@@ -99,6 +107,9 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Authentication required" };
   if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck;
 
   // 2. Parse formData
   const groupId = formData.get("groupId") as string;
@@ -197,7 +208,115 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   }
 }
 
-export async function getOfficeHourSlots(batchId: string) {
+export async function proposeOfficeHour(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !isFounder(user.role)) {
+      return { success: false, error: "Unauthorized: founder access required" };
+    }
+
+    const batchCheck = await requireActiveBatch(user.batchId);
+    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
+
+    const groupId = formData.get("groupId") as string;
+    if (!groupId) {
+      return { success: false, error: "Group is required" };
+    }
+
+    // Validate group membership
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: user.id },
+    });
+    if (!membership) {
+      return { success: false, error: "You must be a member of this group to request office hours" };
+    }
+
+    const data = {
+      startTime: formData.get("startTime") as string,
+      endTime: formData.get("endTime") as string,
+      timezone: (formData.get("timezone") as string) || "KST",
+    };
+
+    const validated = slotSchema.parse(data);
+
+    const ianaTimezone = toIanaTimezone(validated.timezone);
+    const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
+    const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
+
+    if (startTimeUtc < new Date()) {
+      return { success: false, error: "Cannot request office hours in the past" };
+    }
+
+    // Look up the target host
+    const targetHost = await prisma.user.findFirst({
+      where: {
+        email: OFFICE_HOUR_TARGET_EMAIL,
+        userBatches: {
+          some: { batchId: user.batchId, status: "active" },
+        },
+      },
+    });
+
+    if (!targetHost) {
+      return { success: false, error: "Office hour host not found in this batch" };
+    }
+
+    // Create the slot with host as the target
+    const slot = await prisma.officeHourSlot.create({
+      data: {
+        batchId: user.batchId,
+        hostId: targetHost.id,
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
+        timezone: validated.timezone,
+        status: "requested",
+        groupId,
+      },
+    });
+
+    // Create the request from this founder
+    const request = await prisma.officeHourRequest.create({
+      data: {
+        slotId: slot.id,
+        requesterId: user.id,
+        message: (formData.get("message") as string) || null,
+        status: "pending",
+      },
+    });
+
+    revalidatePath("/office-hours");
+    revalidateTag(`office-hours-${user.batchId}`);
+
+    // Notify host via email (non-blocking)
+    try {
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        select: { name: true },
+      });
+      sendOfficeHourRequestEmail({
+        to: targetHost.email,
+        hostName: targetHost.name,
+        requesterName: user.name,
+        groupName: group?.name,
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
+        message: (formData.get("message") as string) || undefined,
+      }).catch((err) => console.error("[Office Hour] Email notification failed:", err));
+    } catch (emailErr) {
+      console.error("[Office Hour] Failed to send notification:", emailErr);
+    }
+
+    return { success: true, data: { id: request.id } };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.issues[0].message };
+    }
+    console.error("Failed to propose office hour:", error);
+    return { success: false, error: "Failed to propose office hour" };
+  }
+}
+
+export async function getOfficeHourSlots(batchId: string, userId?: string, userRole?: string) {
   try {
     const slots = await unstable_cache(
       () =>
@@ -259,9 +378,23 @@ export async function getOfficeHourSlots(batchId: string) {
     }
 
     // Return slots with updated status applied locally
-    return slots.map((s) =>
+    let filteredSlots = slots.map((s) =>
       expiredSlotIds.includes(s.id) ? { ...s, status: "completed" as const } : s
     );
+
+    // Filter for founders — only show their group's slots + ungrouped slots
+    if (userId && userRole && (userRole === "founder" || userRole === "co_founder")) {
+      const userGroups = await prisma.groupMember.findMany({
+        where: { userId },
+        select: { groupId: true },
+      });
+      const groupIds = new Set(userGroups.map((g) => g.groupId));
+      filteredSlots = filteredSlots.filter(
+        (s) => s.groupId === null || groupIds.has(s.groupId)
+      );
+    }
+
+    return filteredSlots;
   } catch (error) {
     console.error("Failed to fetch office hour slots:", error);
     return [];
@@ -274,6 +407,9 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
     if (!user || !isFounder(user.role)) {
       return { success: false, error: "Unauthorized: founder access required" };
     }
+
+    const batchCheck = await requireActiveBatch(user.batchId);
+    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     // Validate group membership
     const membership = await prisma.groupMember.findFirst({
@@ -326,6 +462,31 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
 
     revalidatePath("/office-hours");
     revalidateTag(`office-hours-${slot.batchId}`);
+
+    // Notify host via email (non-blocking)
+    try {
+      const slotWithHost = await prisma.officeHourSlot.findUnique({
+        where: { id: validated.slotId },
+        include: {
+          host: { select: { email: true, name: true } },
+          group: { select: { name: true } },
+        },
+      });
+      if (slotWithHost?.host) {
+        sendOfficeHourRequestEmail({
+          to: slotWithHost.host.email,
+          hostName: slotWithHost.host.name,
+          requesterName: user.name,
+          groupName: slotWithHost.group?.name,
+          startTime: slotWithHost.startTime,
+          endTime: slotWithHost.endTime,
+          message: validated.message,
+        }).catch((err) => console.error("[Office Hour] Email notification failed:", err));
+      }
+    } catch (emailErr) {
+      console.error("[Office Hour] Failed to send notification:", emailErr);
+    }
+
     return { success: true, data: { id: request.id } };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -466,6 +627,57 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         }
       }
 
+      // Send approval email to all attendees (non-blocking)
+      try {
+        const [host, requester] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: request.slot.hostId },
+            select: { email: true, name: true },
+          }),
+          prisma.user.findUnique({
+            where: { id: request.requesterId },
+            select: { email: true, name: true },
+          }),
+        ]);
+
+        let recipientEmails: string[] = [];
+        let groupName: string | undefined;
+
+        if (request.slot.groupId) {
+          const group = await prisma.group.findUnique({
+            where: { id: request.slot.groupId },
+            include: {
+              members: { include: { user: { select: { email: true } } } },
+            },
+          });
+          if (group) {
+            recipientEmails = group.members.map((m) => m.user.email);
+            groupName = group.name;
+          }
+        } else if (requester) {
+          recipientEmails = [requester.email];
+        }
+
+        // Get the updated slot to check for meet link
+        const updatedSlot = await prisma.officeHourSlot.findUnique({
+          where: { id: request.slotId },
+          select: { googleMeetLink: true },
+        });
+
+        if (recipientEmails.length > 0 && host) {
+          sendOfficeHourApprovalEmail({
+            to: recipientEmails,
+            hostName: host.name || "Host",
+            startTime: request.slot.startTime,
+            endTime: request.slot.endTime,
+            meetLink: updatedSlot?.googleMeetLink || undefined,
+            groupName,
+          }).catch((err) => console.error("Failed to send approval email:", err));
+        }
+      } catch (err) {
+        console.error("Failed to send approval email:", err);
+      }
+
       revalidatePath("/office-hours");
       revalidateTag(`office-hours-${request.slot.batchId}`);
       return { success: true, data: undefined, warning };
@@ -597,7 +809,7 @@ export async function deleteSlot(slotId: string): Promise<ActionResult> {
       return { success: false, error: "Unauthorized: only host or admin can delete slot" };
     }
 
-    if (slot.status !== "completed" && slot.requests.length > 0) {
+    if (!isAdminUser && slot.status !== "completed" && slot.requests.length > 0) {
       return { success: false, error: "Cannot delete slot with pending or approved requests" };
     }
 

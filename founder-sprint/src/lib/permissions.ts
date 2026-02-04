@@ -97,6 +97,8 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     role: ub.role as UserRole,
     batchId: ub.batchId,
     batchName: ub.batch.name,
+    batchEndDate: ub.batch.endDate,
+    batchStatus: ub.batch.status as import("@/types").BatchStatus,
   };
 });
 

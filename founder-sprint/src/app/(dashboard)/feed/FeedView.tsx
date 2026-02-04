@@ -28,6 +28,7 @@ interface Post {
   content: string;
   isPinned: boolean;
   isHidden?: boolean;
+  batchId?: string;
   createdAt: Date;
   author: User;
   images: PostImage[];
@@ -42,31 +43,40 @@ interface FeedViewProps {
   archivedPosts?: Post[];
   currentUser: User;
   isAdmin?: boolean;
+  batches?: Array<{ batchId: string; batchName: string }>;
+  readOnly?: boolean;
 }
 
 type FeedFilter = "all" | "latest" | "pinned";
 
-export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false }: FeedViewProps) {
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, batches, readOnly = false }: FeedViewProps) {
   const [postContent, setPostContent] = useState("");
   const [commentContent, setCommentContent] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
+  const [activeBatch, setActiveBatch] = useState<string | "all">("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editContent, setEditContent] = useState("");
 
+  // Batch filtering
+  const batchPosts = useMemo(() => {
+    if (activeBatch === "all") return posts;
+    return posts.filter((p) => p.batchId === activeBatch);
+  }, [posts, activeBatch]);
+
   const filteredPosts = useMemo(() => {
     switch (feedFilter) {
       case "latest":
-        return [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return [...batchPosts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       case "pinned":
-        return posts.filter((p) => p.isPinned);
+        return batchPosts.filter((p) => p.isPinned);
       default:
-        return posts;
+        return batchPosts;
     }
-  }, [posts, feedFilter]);
+  }, [batchPosts, feedFilter]);
 
   const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -218,6 +228,54 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         )}
       </div>
 
+      {/* Batch Tabs (only for multi-batch users) */}
+      {batches && batches.length > 1 && (
+        <div style={{
+          display: "flex",
+          gap: "6px",
+          marginBottom: "16px",
+          flexWrap: "wrap",
+        }}>
+          <button
+            onClick={() => setActiveBatch("all")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "20px",
+              border: activeBatch === "all" ? "1.5px solid var(--color-accent, #1A1A1A)" : "1px solid var(--color-card-border, #e0d6c8)",
+              background: activeBatch === "all" ? "var(--color-accent, #1A1A1A)" : "transparent",
+              color: activeBatch === "all" ? "white" : "var(--color-foreground, #2F2C26)",
+              fontSize: "13px",
+              fontFamily: "inherit",
+              cursor: "pointer",
+              fontWeight: activeBatch === "all" ? 600 : 400,
+              transition: "all 0.2s ease",
+            }}
+          >
+            All Batches
+          </button>
+          {batches.map((batch) => (
+            <button
+              key={batch.batchId}
+              onClick={() => setActiveBatch(batch.batchId)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                border: activeBatch === batch.batchId ? "1.5px solid var(--color-accent, #1A1A1A)" : "1px solid var(--color-card-border, #e0d6c8)",
+                background: activeBatch === batch.batchId ? "var(--color-accent, #1A1A1A)" : "transparent",
+                color: activeBatch === batch.batchId ? "white" : "var(--color-foreground, #2F2C26)",
+                fontSize: "13px",
+                fontFamily: "inherit",
+                cursor: "pointer",
+                fontWeight: activeBatch === batch.batchId ? 600 : 400,
+                transition: "all 0.2s ease",
+              }}
+            >
+              {batch.batchName}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex gap-2">
         {(["all", "latest", "pinned"] as const).map((filter) => (
           <button
@@ -232,43 +290,58 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       </div>
 
       {/* Post Creation Form */}
-      <div
-        className="card"
-        style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-          border: "1px solid #e0e0e0"
-        }}
-      >
-        <form onSubmit={handleCreatePost} className="space-y-3">
-          {error && (
-            <div className="form-error p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+      {readOnly ? (
+        <div
+          className="card text-center text-sm"
+          style={{
+            backgroundColor: "#f9f9f9",
+            borderRadius: "8px",
+            border: "1px solid #e0e0e0",
+            padding: "16px",
+            color: "var(--color-foreground-secondary)",
+          }}
+        >
+          This batch has ended. New posts cannot be created.
+        </div>
+      ) : (
+        <div
+          className="card"
+          style={{
+            backgroundColor: "white",
+            borderRadius: "8px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            border: "1px solid #e0e0e0"
+          }}
+        >
+          <form onSubmit={handleCreatePost} className="space-y-3">
+            {error && (
+              <div className="form-error p-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
 
-          <div className="flex items-start gap-3">
-            <Avatar
-              src={currentUser.profileImage}
-              name={currentUser.name}
-            />
-            <div className="flex-1 space-y-3">
-              <Textarea
-                placeholder="What's on your mind?"
-                rows={3}
-                value={postContent}
-                onChange={(e) => setPostContent(e.target.value)}
+            <div className="flex items-start gap-3">
+              <Avatar
+                src={currentUser.profileImage}
+                name={currentUser.name}
               />
-              <div className="flex justify-end">
-                <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
-                  Post
-                </Button>
+              <div className="flex-1 space-y-3">
+                <Textarea
+                  placeholder="What's on your mind?"
+                  rows={3}
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
+                    Post
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
 
       {/* Posts Feed */}
       {filteredPosts.length === 0 ? (

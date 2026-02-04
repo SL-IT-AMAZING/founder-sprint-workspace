@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -16,6 +17,9 @@ const CreatePostSchema = z.object({
 export async function createPost(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   const parsed = CreatePostSchema.safeParse({
     content: formData.get("content"),
@@ -42,6 +46,31 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
   revalidateTag(`posts-${user.batchId}`);
 
   return { success: true, data: { id: post.id } };
+}
+
+export async function getPostsForBatches(batchIds: string[]) {
+  return unstable_cache(
+    () =>
+      prisma.post.findMany({
+        where: {
+          batchId: { in: batchIds },
+          isHidden: false,
+        },
+        include: {
+          author: true,
+          images: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+            },
+          },
+        },
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      }),
+    [`posts-multi-${batchIds.sort().join("-")}`],
+    { revalidate: 60, tags: batchIds.map((id) => `posts-${id}`) }
+  )();
 }
 
 export async function getPosts(batchId: string, groupId?: string) {
@@ -128,6 +157,9 @@ export async function createComment(
 ): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!content.trim()) {
     return { success: false, error: "Comment content is required" };

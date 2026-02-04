@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatRelativeTime, formatDate, getRoleDisplayName } from "@/lib/utils";
+import { getBatchStatusLabel, getBatchStatusVariant, isBatchActive } from "@/lib/batch-utils";
 import Link from "next/link";
 
 export const revalidate = 30;
@@ -41,9 +42,17 @@ export default async function DashboardPage() {
     prisma.event.count({
       where: { batchId: user.batchId, startTime: { gt: now }, eventType: "office_hour" },
     }),
-    prisma.userBatch.count({
-      where: { batchId: user.batchId, status: "active" },
-    }),
+    prisma.groupMember.findMany({
+      where: {
+        group: {
+          members: {
+            some: { userId: user.id },
+          },
+        },
+      },
+      select: { userId: true },
+      distinct: ['userId'],
+    }).then(members => members.length),
     // Recent Questions (last 5)
     prisma.question.findMany({
       where: { batchId: user.batchId },
@@ -102,11 +111,16 @@ export default async function DashboardPage() {
                 </p>
               </div>
               <div>
-                <Badge variant={batchInfo.status === "active" ? "success" : "default"}>
-                  {batchInfo.status === "active" ? "Active" : "Archived"}
+                <Badge variant={getBatchStatusVariant(batchInfo)}>
+                  {getBatchStatusLabel(batchInfo)}
                 </Badge>
               </div>
             </div>
+            {!isBatchActive(batchInfo) && (
+              <p className="text-sm mt-2" style={{ opacity: 0.8 }}>
+                This batch has ended. Content is read-only.
+              </p>
+            )}
           </div>
         )}
 

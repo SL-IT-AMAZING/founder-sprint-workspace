@@ -24,6 +24,8 @@ export interface UserWithBatch {
   role: UserRole;
   batchId: string;
   batchName: string;
+  batchEndDate?: Date;
+  batchStatus?: BatchStatus;
 }
 
 // Action result type for server actions

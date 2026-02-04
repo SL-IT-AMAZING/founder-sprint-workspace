@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { createBatch, updateBatch, archiveBatch, deleteBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
+import { getEffectiveBatchStatus, getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
 import type { BatchStatus } from "@/types";
 
 interface Batch {
@@ -117,8 +118,8 @@ export function BatchList({ batches }: BatchListProps) {
                 <div className="space-y-1">
                   <div className="flex items-center gap-3">
                     <h3 className="text-lg font-medium font-serif">{batch.name}</h3>
-                    <Badge variant={batch.status === "active" ? "success" : "error"}>
-                      {batch.status}
+                    <Badge variant={getBatchStatusVariant(batch)}>
+                      {getBatchStatusLabel(batch)}
                     </Badge>
                   </div>
                   {batch.description && (
@@ -132,7 +133,7 @@ export function BatchList({ batches }: BatchListProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {batch.status === "active" && (
+                  {getEffectiveBatchStatus(batch) === "active" && (
                     <>
                       <Button
                         variant="ghost"
