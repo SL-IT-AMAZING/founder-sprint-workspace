@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/types";
 
 export async function getUserBatches(): Promise<
-  ActionResult<Array<{ batchId: string; batchName: string; role: string; batchStatus: string }>>
+  ActionResult<Array<{ batchId: string; batchName: string; role: string; batchStatus: string; endDate: Date }>>
 > {
   try {
     let authEmail: string | null = null;
@@ -45,6 +45,7 @@ export async function getUserBatches(): Promise<
       batchName: ub.batch.name,
       role: ub.role,
       batchStatus: ub.batch.status,
+      endDate: ub.batch.endDate,
     }));
 
     return { success: true, data: batches };

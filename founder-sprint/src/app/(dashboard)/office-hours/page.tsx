@@ -12,7 +12,7 @@ export default async function OfficeHoursPage() {
     redirect("/auth/login");
   }
 
-  const slots = await getOfficeHourSlots(user.batchId);
+  const slots = await getOfficeHourSlots(user.batchId, user.id, user.role);
   const groups = await getGroups(user.batchId);
 
   return (

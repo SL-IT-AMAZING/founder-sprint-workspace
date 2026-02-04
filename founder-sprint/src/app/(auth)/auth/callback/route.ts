@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const authUser = sessionData.user;
-  const email = authUser.email;
+  const email = authUser.email?.toLowerCase().trim();
 
   if (!email) {
     return NextResponse.redirect(`${errorRedirect}no_email`);
@@ -33,8 +33,8 @@ export async function GET(request: Request) {
 
   try {
     // Check if user exists in our database
-    let user = await prisma.user.findUnique({
-      where: { email },
+    let user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
       include: {
         userBatches: {
           where: { status: "invited" },
@@ -121,8 +121,8 @@ export async function GET(request: Request) {
     }
 
     // Refresh user data after updates
-    user = await prisma.user.findUnique({
-      where: { email },
+    user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
       include: {
         userBatches: {
           where: { status: "active" },
@@ -138,6 +138,21 @@ export async function GET(request: Request) {
     if (!user || (!hasActiveBatch && !userIsGlobalAdmin)) {
       await supabase.auth.signOut();
       return NextResponse.redirect(`${origin}/no-batch`);
+    }
+
+    // Auto-populate company from group membership
+    if (!user.company) {
+      const groupMembership = await prisma.groupMember.findFirst({
+        where: { userId: user.id },
+        include: { group: { select: { name: true } } },
+      });
+      if (groupMembership) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { company: groupMembership.group.name },
+        });
+        user = { ...user, company: groupMembership.group.name };
+      }
     }
 
     // Check if profile is incomplete (needs onboarding)

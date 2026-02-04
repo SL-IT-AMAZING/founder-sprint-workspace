@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -16,6 +17,9 @@ const CreateGroupSchema = z.object({
 export async function createGroup(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!isAdmin(user.role)) {
     return { success: false, error: "Unauthorized: admin only" };
@@ -61,6 +65,24 @@ export async function getGroups(batchId: string) {
         orderBy: { createdAt: "desc" },
       }),
     [`groups-${batchId}`],
+    { revalidate: 60, tags: [`groups-${batchId}`] }
+  )();
+}
+
+export async function getUserGroups(batchId: string, userId: string) {
+  return unstable_cache(
+    () =>
+      prisma.group.findMany({
+        where: {
+          batchId,
+          members: { some: { userId } },
+        },
+        include: {
+          _count: { select: { members: true, posts: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    [`user-groups-${batchId}-${userId}`],
     { revalidate: 60, tags: [`groups-${batchId}`] }
   )();
 }
@@ -150,7 +172,7 @@ export async function addMembersToGroup(
   // Validate group exists and get its batchId
   const group = await prisma.group.findUnique({
     where: { id: groupId },
-    select: { batchId: true },
+    select: { batchId: true, name: true },
   });
 
   if (!group) {
@@ -196,6 +218,17 @@ export async function addMembersToGroup(
       userId,
     })),
   });
+
+  // Auto-set company from group name for new members who don't have one
+  if (group.name) {
+    await prisma.user.updateMany({
+      where: {
+        id: { in: newUserIds },
+        company: null,
+      },
+      data: { company: group.name },
+    });
+  }
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
@@ -301,6 +334,10 @@ export async function removeGroupMember(
 
   if (!isAdmin(user.role)) {
     return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  if (userId === user.id) {
+    return { success: false, error: "Cannot remove yourself from a group" };
   }
 
   const member = await prisma.groupMember.findUnique({

@@ -5,8 +5,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { useState, useEffect } from "react";
-import BatchSwitcher from "@/components/layout/BatchSwitcher";
-
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -19,11 +17,9 @@ interface NavbarProps {
     profileImage?: string | null;
   };
   isAdmin?: boolean;
-  batches?: Array<{ batchId: string; batchName: string }>;
-  currentBatchId?: string;
 }
 
-export default function Navbar({ user, isAdmin = false, batches = [], currentBatchId = "" }: NavbarProps) {
+export default function Navbar({ user, isAdmin = false }: NavbarProps) {
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -111,9 +107,6 @@ export default function Navbar({ user, isAdmin = false, batches = [], currentBat
             </Link>
           );
         })}
-        {batches.length > 1 && (
-          <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
-        )}
       </div>
 
       <div className="hidden lg:block" style={{
@@ -311,11 +304,6 @@ export default function Navbar({ user, isAdmin = false, batches = [], currentBat
               />
             </div>
 
-            {batches.length > 1 && (
-              <div style={{ paddingBottom: '8px', borderBottom: '1px solid #404040' }}>
-                <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
-              </div>
-            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {allLinks.map((link) => {
                 const isActive = pathname === link.href;

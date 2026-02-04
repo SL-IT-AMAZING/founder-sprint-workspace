@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour } from "@/actions/office-hour";
+import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 
 interface GroupMember {
@@ -116,12 +116,14 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [proposeModalOpen, setProposeModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endTimeRef = useRef<HTMLInputElement>(null);
   const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
+  const proposeEndTimeRef = useRef<HTMLInputElement>(null);
 
   // Auto-select if only one group
   useEffect(() => {
@@ -158,6 +160,20 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     }
   };
 
+  const handleProposeStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const startVal = e.target.value;
+    if (startVal && proposeEndTimeRef.current) {
+      const startDate = new Date(startVal);
+      startDate.setMinutes(startDate.getMinutes() + 30);
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, "0");
+      const day = String(startDate.getDate()).padStart(2, "0");
+      const hours = String(startDate.getHours()).padStart(2, "0");
+      const minutes = String(startDate.getMinutes()).padStart(2, "0");
+      proposeEndTimeRef.current.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+  };
+
   const handleScheduleGroupOH = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -171,6 +187,24 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
       (e.target as HTMLFormElement).reset();
     } else {
       setError(result.error || "Failed to schedule");
+    }
+
+    setLoading(false);
+  };
+
+  const handleProposeOH = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await proposeOfficeHour(formData);
+
+    if (result.success) {
+      setProposeModalOpen(false);
+      (e.target as HTMLFormElement).reset();
+    } else {
+      setError(result.error || "Failed to request office hour");
     }
 
     setLoading(false);
@@ -260,6 +294,11 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end gap-2">
+        {isFounderUser && groups.length > 0 && (
+          <Button onClick={() => setProposeModalOpen(true)} size="sm">
+            Request Office Hour
+          </Button>
+        )}
         {isStaffUser && (
           <>
             <button
@@ -339,7 +378,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                       <Badge variant="warning">Request Pending</Badge>
                     )}
                     {(isHost || user.role === "super_admin" || user.role === "admin") &&
-                     (slot.status === "completed" || (pendingRequests.length === 0 && !approvedRequest)) && (
+                     (user.role === "super_admin" || user.role === "admin" || slot.status === "completed" || (pendingRequests.length === 0 && !approvedRequest)) && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -625,6 +664,83 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
             </Button>
             <Button type="submit" loading={loading}>
               Schedule & Send Invites
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={proposeModalOpen} onClose={() => { setProposeModalOpen(false); setError(null); }} title="Request Office Hour">
+        <form onSubmit={handleProposeOH} className="space-y-4">
+          {error && (
+            <div
+              className="p-3 rounded text-sm"
+              style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
+            >
+              {error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Group</label>
+            <select
+              name="groupId"
+              required
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="">Select your group</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+          <Input
+            label="Start Time"
+            name="startTime"
+            type="datetime-local"
+            required
+            onChange={handleProposeStartTimeChange}
+          />
+          <Input
+            label="End Time"
+            name="endTime"
+            type="datetime-local"
+            required
+            ref={proposeEndTimeRef}
+          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Timezone</label>
+            <select
+              name="timezone"
+              defaultValue="KST"
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="KST">KST (Korea Standard Time)</option>
+              <option value="PST">PST (Pacific Standard Time)</option>
+              <option value="EST">EST (Eastern Standard Time)</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+          <Textarea
+            label="Message (Optional)"
+            name="message"
+            placeholder="What would you like to discuss?"
+            rows={3}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => { setProposeModalOpen(false); setError(null); }}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Send Request
             </Button>
           </div>
         </form>

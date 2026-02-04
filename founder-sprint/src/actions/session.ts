@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -21,6 +22,9 @@ const UpdateSessionSchema = CreateSessionSchema.partial();
 export async function createSession(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!isAdmin(user.role)) {
     return { success: false, error: "Unauthorized: admin only" };

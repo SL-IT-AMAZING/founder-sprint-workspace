@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { switchBatch } from "@/actions/batch-switcher";
+import { getEffectiveBatchStatus } from "@/lib/batch-utils";
 
 interface BatchSwitcherProps {
-  batches: Array<{ batchId: string; batchName: string }>;
+  batches: Array<{ batchId: string; batchName: string; batchStatus?: string; endDate?: Date }>;
   currentBatchId: string;
 }
 
@@ -56,16 +57,17 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
           display: "flex",
           alignItems: "center",
           gap: "6px",
-          backgroundColor: "#404040",
-          border: "1px solid #555",
-          borderRadius: "4px",
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
+          borderRadius: "var(--radius-sm, 4px)",
           padding: "4px 10px",
           color: "white",
           fontSize: "13px",
+          fontFamily: "inherit",
           cursor: switching ? "wait" : "pointer",
           opacity: switching ? 0.6 : 1,
-          whiteSpace: "nowrap",
-          transition: "opacity 0.2s",
+          whiteSpace: "nowrap" as const,
+          transition: "all 0.2s ease",
         }}
       >
         <span>{switching ? "Switching..." : currentBatch?.batchName || "Select Batch"}</span>
@@ -89,17 +91,21 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
             position: "absolute",
             top: "calc(100% + 4px)",
             left: 0,
-            backgroundColor: "#333",
-            border: "1px solid #555",
-            borderRadius: "6px",
+            backgroundColor: "var(--color-card-bg, #ffffff)",
+            border: "1px solid var(--color-card-border, #e0e0e0)",
+            borderRadius: "8px",
             padding: "4px 0",
-            minWidth: "180px",
+            minWidth: "200px",
             zIndex: 200,
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+            boxShadow: "var(--shadow-lg, 0 4px 12px rgba(0, 0, 0, 0.15))",
           }}
         >
           {batches.map((batch) => {
             const isCurrent = batch.batchId === currentBatchId;
+            const effectiveStatus = batch.batchStatus && batch.endDate
+              ? getEffectiveBatchStatus({ status: batch.batchStatus as "active" | "archived", endDate: new Date(batch.endDate) })
+              : "active";
+            const isEnded = effectiveStatus !== "active";
             return (
               <button
                 key={batch.batchId}
@@ -109,22 +115,23 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
                   alignItems: "center",
                   gap: "8px",
                   width: "100%",
-                  padding: "8px 12px",
+                  padding: "10px 14px",
                   border: "none",
                   background: "none",
-                  color: "white",
-                  fontSize: "13px",
+                  color: isCurrent ? "var(--color-accent, #1A1A1A)" : "var(--color-foreground, #2F2C26)",
+                  fontSize: "14px",
+                  fontFamily: "inherit",
                   cursor: "pointer",
                   textAlign: "left",
-                  opacity: isCurrent ? 1 : 0.8,
                   fontWeight: isCurrent ? 500 : 400,
-                  transition: "background-color 0.15s",
+                  opacity: isEnded ? 0.6 : 1,
+                  transition: "background-color 0.2s ease",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#444")}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.05)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
-                <span style={{ width: "16px", flexShrink: 0 }}>{isCurrent ? "✓" : ""}</span>
-                <span>{batch.batchName}</span>
+                <span style={{ width: "16px", flexShrink: 0, color: "var(--color-accent, #1A1A1A)" }}>{isCurrent ? "✓" : ""}</span>
+                <span>{batch.batchName}{isEnded ? ` (${effectiveStatus === "expired" ? "Ended" : "Archived"})` : ""}</span>
               </button>
             );
           })}

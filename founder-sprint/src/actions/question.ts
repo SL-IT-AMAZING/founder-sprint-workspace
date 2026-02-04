@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -16,6 +17,9 @@ const CreateQuestionSchema = z.object({
 export async function createQuestion(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (user.role !== "founder" && user.role !== "co_founder") {
     return { success: false, error: "Only Founders can create questions" };
@@ -50,6 +54,9 @@ export async function createAnswer(
 ): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!["super_admin", "admin", "mentor"].includes(user.role)) {
     return { success: false, error: "Only staff can answer questions" };
@@ -151,6 +158,32 @@ export async function getQuestion(id: string) {
     [`question-${id}`],
     { revalidate: 60, tags: [`question-${id}`] }
   )();
+}
+
+export async function deleteQuestion(questionId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (user.role !== "super_admin" && user.role !== "admin") {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  const question = await prisma.question.findUnique({
+    where: { id: questionId },
+  });
+
+  if (!question) {
+    return { success: false, error: "Question not found" };
+  }
+
+  await prisma.question.delete({
+    where: { id: questionId },
+  });
+
+  revalidatePath("/questions");
+  revalidateTag(`questions-${user.batchId}`);
+  revalidateTag(`question-${questionId}`);
+  return { success: true, data: undefined };
 }
 
 const UpdateQuestionSchema = z.object({

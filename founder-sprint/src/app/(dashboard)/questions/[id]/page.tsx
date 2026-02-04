@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
 import { AnswerForm } from "./AnswerForm";
 import { SummaryForm } from "./SummaryForm";
+import { DeleteQuestionButton } from "./DeleteQuestionButton";
 import Link from "next/link";
 
 export default async function QuestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,7 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
 
   const canAnswer = user.role === "super_admin" || user.role === "admin" || user.role === "mentor";
   const canCreateSummary = user.role === "super_admin" || user.role === "admin";
+  const canDelete = user.role === "super_admin" || user.role === "admin";
   const isClosed = question.status === "closed";
 
   return (
@@ -38,9 +40,12 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
       <div className="card mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <h1 className="text-3xl font-bold">{question.title}</h1>
-          <Badge variant={question.status === "open" ? "success" : "warning"}>
-            {question.status === "open" ? "Open" : "Closed"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={question.status === "open" ? "success" : "warning"}>
+              {question.status === "open" ? "Open" : "Closed"}
+            </Badge>
+            {canDelete && <DeleteQuestionButton questionId={question.id} />}
+          </div>
         </div>
 
         <div className="flex items-center gap-3 mb-6">

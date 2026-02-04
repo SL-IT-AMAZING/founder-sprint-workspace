@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult, EventType } from "@/types";
@@ -25,6 +26,9 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     if (!user || !isAdmin(user.role)) {
       return { success: false, error: "Unauthorized: admin access required" };
     }
+
+    const batchCheck = await requireActiveBatch(user.batchId);
+    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const data = {
       title: formData.get("title") as string,
