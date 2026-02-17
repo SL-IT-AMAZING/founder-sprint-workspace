@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -78,7 +79,16 @@ export function EventsList({ user, events }: EventsListProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const searchParams = useSearchParams();
+  const prefillDate = searchParams.get("date");
+
   const canCreate = isAdmin(user.role);
+
+  useEffect(() => {
+    if (prefillDate && canCreate) {
+      setCreateModalOpen(true);
+    }
+  }, [prefillDate, canCreate]);
 
   const filteredEvents = selectedType === "all"
     ? events
@@ -309,18 +319,20 @@ export function EventsList({ user, events }: EventsListProps) {
             options={eventTypeOptions}
             required
           />
-          <Input
-            label="Start Time"
-            name="startTime"
-            type="datetime-local"
-            required
-          />
-          <Input
-            label="End Time"
-            name="endTime"
-            type="datetime-local"
-            required
-          />
+           <Input
+             label="Start Time"
+             name="startTime"
+             type="datetime-local"
+             required
+             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+           />
+           <Input
+             label="End Time"
+             name="endTime"
+             type="datetime-local"
+             required
+             defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+           />
           <Select
             label="Timezone"
             name="timezone"

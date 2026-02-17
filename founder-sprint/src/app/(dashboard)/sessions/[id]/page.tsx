@@ -9,16 +9,10 @@ import { formatDate } from "@/lib/utils";
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/auth/login");
 
-  const session = await getSession(id);
-  if (!session) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl">Session not found</h1>
-      </div>
-    );
-  }
+  const session = await getSession(id, user.batchId);
+  if (!session || session.batchId !== user.batchId) redirect("/sessions");
 
   const isUserAdmin = isAdmin(user.role);
   const isPastSession = new Date(session.sessionDate) < new Date();

@@ -135,7 +135,7 @@
 | 이메일 매칭 | LinkedIn 계정 이메일 기준 (초대 이메일은 알림용) |
 | 초대 취소 | Admin/Super Admin이 가능 (초대 대기 상태에서만) |
 | 중복 초대 | 동일 이메일로 중복 초대 불가 |
-| 역할 변경 | 같은 Batch 내 역할 변경 불가 |
+| 역할 변경 | Super Admin/Admin이 가능 |
 
 ---
 
@@ -160,16 +160,16 @@
 | --- | --- |
 | Batch 생성 | Super Admin/Admin이 새 기수 생성 (이름, 기간, 설명) |
 | Batch 종료 | Super Admin/Admin이 수동으로 Archived 상태로 전환 |
-| 동시 운영 | **불가** - 한 번에 1개의 Active Batch만 존재 |
+| 동시 운영 | **가능** - 여러 Active Batch 동시 운영 가능 |
 | Archived 열람 | 해당 기수 참여자 + Admin/Super Admin만 열람 가능 |
 
 #### **4.1.4 Batch 제약 사항**
 
 | **제약** | **설명** |
 | --- | --- |
-| 생성 제한 | Active Batch가 존재하면 새 Batch 생성 버튼 비활성화 |
-| 삭제 | **불가** (잘못 생성 시 DB 직접 처리) |
-| 재활성화 | **불가** (Archived → Active 전환 불가) |
+| 생성 제한 | 없음 |
+| 삭제 | Super Admin만 가능 (모든 관련 데이터 영구 삭제) |
+| 재활성화 | Super Admin이 가능 |
 | 이름 | 최대 100자, 중복 허용 |
 
 #### **4.1.5 Batch 정보 항목**
@@ -287,7 +287,7 @@ Founder/Co-founder가 질문을 작성하면, Mentor/Admin이 답변하고, 최�
 | 개수 | 질문 1개당 요약 1개 |
 | 효과 | 요약 작성 시 해당 질문은 **Closed** 처리 |
 | 수정 | Super Admin/Admin만 가능 |
-| 삭제 | **불가** |
+| 삭제 | Super Admin/Admin만 가능 (요약 삭제 시 질문이 Open 상태로 복귀) |
 
 ---
 

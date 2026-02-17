@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItemData[] = [
   { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions', prefetch: true },
   { id: 'submissions', label: 'Submissions', iconSrc: '/images/icon-interface-arrow-up-right.svg', href: '/submissions' },
   { id: 'groups', label: 'Groups', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
+  { id: 'schedule', label: 'Schedule', iconSrc: '/images/icon-decorative-calendar.svg', href: '/schedule', prefetch: true },
   { id: 'events', label: 'Events', iconSrc: '/images/icon-decorative-calendar.svg', href: '/events', prefetch: true },
   { id: 'sessions', label: 'Sessions', iconSrc: '/images/icon-interface-play.svg', href: '/sessions', prefetch: true },
   { id: 'office-hours', label: 'Office Hours', iconSrc: '/images/icon-decorative-clock.svg', href: '/office-hours', prefetch: true },

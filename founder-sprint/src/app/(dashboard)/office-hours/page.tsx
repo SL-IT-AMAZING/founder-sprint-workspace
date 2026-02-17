@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/permissions";
-import { getOfficeHourSlots } from "@/actions/office-hour";
+import { completeExpiredSlots, getOfficeHourSlots } from "@/actions/office-hour";
 import { getGroups } from "@/actions/group";
 import { redirect } from "next/navigation";
 import { OfficeHoursList } from "./OfficeHoursList";
@@ -12,6 +12,7 @@ export default async function OfficeHoursPage() {
     redirect("/auth/login");
   }
 
+  await completeExpiredSlots(user.batchId);
   const slots = await getOfficeHourSlots(user.batchId, user.id, user.role);
   const groups = await getGroups(user.batchId);
 

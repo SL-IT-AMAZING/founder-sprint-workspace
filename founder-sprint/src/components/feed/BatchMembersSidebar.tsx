@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
-import { switchBatch } from "@/actions/batch-switcher";
+import { Badge } from "@/components/ui/Badge";
+import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
+import type { BatchStatus } from "@/types";
 
 interface BatchMember {
   user: {
@@ -18,8 +18,9 @@ interface BatchMember {
 
 interface BatchMembersSidebarProps {
   members: BatchMember[];
-  batches?: Array<{ batchId: string; batchName: string }>;
-  currentBatchId?: string;
+  batchName?: string;
+  batchStatus?: BatchStatus;
+  batchEndDate?: Date;
 }
 
 const roleLabels: Record<string, string> = {
@@ -38,42 +39,7 @@ const rolePriority: Record<string, number> = {
   co_founder: 4,
 };
 
-export function BatchMembersSidebar({ members, batches = [], currentBatchId = "" }: BatchMembersSidebarProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [switching, setSwitching] = useState(false);
-  const router = useRouter();
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const currentBatch = batches.find((b) => b.batchId === currentBatchId);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isOpen]);
-
-  const handleSwitch = async (batchId: string) => {
-    if (batchId === currentBatchId) {
-      setIsOpen(false);
-      return;
-    }
-    setSwitching(true);
-    setIsOpen(false);
-    const result = await switchBatch(batchId);
-    if (result.success) {
-      router.refresh();
-    } else {
-      alert(result.error);
-    }
-    setSwitching(false);
-  };
-
+export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate }: BatchMembersSidebarProps) {
   const activeMembers = members
     .filter((m) => m.status === "active")
     .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
@@ -100,98 +66,58 @@ export function BatchMembersSidebar({ members, batches = [], currentBatchId = ""
         padding: "16px",
       }}
     >
-      {/* Batch Switcher (only for multi-batch users) */}
-      {batches.length > 1 && (
-        <div ref={dropdownRef} style={{ position: "relative", marginBottom: "12px" }}>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            disabled={switching}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              padding: "8px 10px",
-              backgroundColor: "var(--color-background, #fefaf3)",
-              border: "1px solid var(--color-card-border, #e0d6c8)",
-              borderRadius: "6px",
+      {/* Batch Info Card */}
+      {batchName && (
+        <div style={{
+          marginBottom: "16px",
+          paddingBottom: "16px",
+          borderBottom: "1px solid var(--color-card-border, #e0e0e0)",
+        }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+          }}>
+            <h3 style={{
+              fontSize: "15px",
+              fontWeight: 600,
               color: "var(--color-foreground, #2F2C26)",
-              fontSize: "13px",
-              fontFamily: "inherit",
-              fontWeight: 500,
-              cursor: switching ? "wait" : "pointer",
-              opacity: switching ? 0.6 : 1,
-              transition: "all 0.2s ease",
-            }}
-          >
-            <span>{switching ? "Switching..." : currentBatch?.batchName || "Select Batch"}</span>
-            <svg
-              width="10"
-              height="6"
-              viewBox="0 0 10 6"
-              fill="none"
-              style={{
-                transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s",
-                flexShrink: 0,
-              }}
-            >
-              <path d="M1 1L5 5L9 1" stroke="var(--color-foreground, #2F2C26)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          {isOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                right: 0,
-                backgroundColor: "white",
-                border: "1px solid var(--color-card-border, #e0d6c8)",
-                borderRadius: "6px",
-                padding: "4px 0",
-                zIndex: 200,
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-              }}
-            >
-              {batches.map((batch) => {
-                const isCurrent = batch.batchId === currentBatchId;
-                return (
-                  <button
-                    key={batch.batchId}
-                    onClick={() => handleSwitch(batch.batchId)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      width: "100%",
-                      padding: "8px 12px",
-                      border: "none",
-                      background: "none",
-                      color: isCurrent ? "var(--color-accent, #1A1A1A)" : "var(--color-foreground, #2F2C26)",
-                      fontSize: "13px",
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                      textAlign: "left" as const,
-                      fontWeight: isCurrent ? 500 : 400,
-                      transition: "background-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.04)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    <span style={{ width: "14px", flexShrink: 0, color: "var(--color-accent, #1A1A1A)", fontSize: "12px" }}>{isCurrent ? "✓" : ""}</span>
-                    <span>{batch.batchName}</span>
-                  </button>
-                );
-              })}
-            </div>
+              margin: 0,
+              fontFamily: "var(--font-serif, Georgia, serif)",
+            }}>
+              {batchName}
+            </h3>
+            {batchStatus && batchEndDate && (
+              <Badge variant={getBatchStatusVariant({ status: batchStatus, endDate: new Date(batchEndDate) })}>
+                {getBatchStatusLabel({ status: batchStatus, endDate: new Date(batchEndDate) })}
+              </Badge>
+            )}
+          </div>
+          {batchEndDate && (
+            <p style={{
+              fontSize: "12px",
+              color: "var(--color-foreground-muted, #999)",
+              margin: "6px 0 0 0",
+            }}>
+              {new Date(batchEndDate) > new Date()
+                ? `Ends ${new Date(batchEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                : `Ended ${new Date(batchEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+              }
+            </p>
           )}
+          <p style={{
+            fontSize: "12px",
+            color: "var(--color-foreground-muted, #999)",
+            margin: "2px 0 0 0",
+          }}>
+            {activeMembers.length} active members
+          </p>
         </div>
       )}
 
       <h3 className="font-medium mb-4" style={{ color: "var(--color-foreground)" }}>
-        Batch Members ({activeMembers.length})
+        Members ({activeMembers.length})
       </h3>
 
       <div className="space-y-4">

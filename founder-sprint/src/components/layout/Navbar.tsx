@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { useState, useEffect } from "react";
+import BatchSwitcher from "@/components/layout/BatchSwitcher";
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -17,9 +18,11 @@ interface NavbarProps {
     profileImage?: string | null;
   };
   isAdmin?: boolean;
+  batches?: Array<{ batchId: string; batchName: string; batchStatus?: string; endDate?: Date }>;
+  currentBatchId?: string;
 }
 
-export default function Navbar({ user, isAdmin = false }: NavbarProps) {
+export default function Navbar({ user, isAdmin = false, batches = [], currentBatchId = "" }: NavbarProps) {
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -86,28 +89,33 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
         flex: 1,
       }}>
         {allLinks.map((link) => {
-          const isActive = pathname === link.href;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                color: 'white',
-                fontSize: '14px',
-                opacity: isActive ? 1.0 : 0.9,
-                fontWeight: isActive ? 500 : 400,
-                textDecoration: 'none',
-                transition: 'opacity 0.2s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = isActive ? '1.0' : '0.9'}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </div>
+           const isActive = pathname === link.href;
+           return (
+             <Link
+               key={link.href}
+               href={link.href}
+               style={{
+                 color: 'white',
+                 fontSize: '14px',
+                 opacity: isActive ? 1.0 : 0.9,
+                 fontWeight: isActive ? 500 : 400,
+                 textDecoration: 'none',
+                 transition: 'opacity 0.2s',
+                 whiteSpace: 'nowrap',
+               }}
+               onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
+               onMouseLeave={(e) => e.currentTarget.style.opacity = isActive ? '1.0' : '0.9'}
+             >
+               {link.label}
+             </Link>
+           );
+         })}
+        {batches.length > 1 && (
+          <div style={{ marginLeft: '8px', flexShrink: 0 }}>
+            <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
+          </div>
+        )}
+       </div>
 
       <div className="hidden lg:block" style={{
         position: 'relative',
@@ -303,6 +311,12 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
                 }}
               />
             </div>
+
+            {batches.length > 1 && (
+              <div style={{ padding: '0 0 8px 0', borderBottom: '1px solid #404040' }}>
+                <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {allLinks.map((link) => {

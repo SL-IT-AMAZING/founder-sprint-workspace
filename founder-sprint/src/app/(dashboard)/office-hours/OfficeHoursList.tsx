@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -113,24 +114,34 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
 }
 
 export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [requestModalOpen, setRequestModalOpen] = useState(false);
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [proposeModalOpen, setProposeModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const endTimeRef = useRef<HTMLInputElement>(null);
-  const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
-  const proposeEndTimeRef = useRef<HTMLInputElement>(null);
+   const [createModalOpen, setCreateModalOpen] = useState(false);
+   const [requestModalOpen, setRequestModalOpen] = useState(false);
+   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+   const [proposeModalOpen, setProposeModalOpen] = useState(false);
+   const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
+   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const endTimeRef = useRef<HTMLInputElement>(null);
+   const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
+   const proposeEndTimeRef = useRef<HTMLInputElement>(null);
 
-  // Auto-select if only one group
-  useEffect(() => {
-    if (groups.length === 1) {
-      setSelectedGroupId(groups[0].id);
-    }
-  }, [groups]);
+   const searchParams = useSearchParams();
+   const prefillDate = searchParams.get("date");
+
+   // Auto-select if only one group
+   useEffect(() => {
+     if (groups.length === 1) {
+       setSelectedGroupId(groups[0].id);
+     }
+   }, [groups]);
+
+   // Auto-open create modal if date is pre-filled
+   useEffect(() => {
+     if (prefillDate && isStaff(user.role)) {
+       setCreateModalOpen(true);
+     }
+   }, [prefillDate, user.role]);
 
   const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const startVal = e.target.value;
@@ -500,13 +511,14 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               {error}
             </div>
           )}
-          <Input
-            label="Start Time"
-            name="startTime"
-            type="datetime-local"
-            required
-            onChange={handleStartTimeChange}
-          />
+           <Input
+             label="Start Time"
+             name="startTime"
+             type="datetime-local"
+             required
+             onChange={handleStartTimeChange}
+             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+           />
           <Input
             label="End Time"
             name="endTime"
