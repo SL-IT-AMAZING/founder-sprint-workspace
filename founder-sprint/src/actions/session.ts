@@ -151,6 +151,10 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
 }
 
 export async function getSessions(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.session.findMany({

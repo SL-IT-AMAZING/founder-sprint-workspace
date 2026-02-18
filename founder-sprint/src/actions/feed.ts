@@ -74,11 +74,12 @@ export async function getPostsForBatches(batchIds: string[]) {
 }
 
 export async function getPosts(batchId: string, groupId?: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   // If groupId is provided, check group membership
   if (groupId) {
-    const user = await getCurrentUser();
-    if (!user) return [];
-
     // Check if user is a member of the group
     const membership = await prisma.groupMember.findUnique({
       where: {
@@ -126,6 +127,10 @@ export async function getPosts(batchId: string, groupId?: string) {
 }
 
 export async function getArchivedPosts(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.post.findMany({
@@ -291,32 +296,34 @@ export async function toggleLike(
     return { success: false, error: "Comment ID required for comment likes" };
   }
 
-  // Check if like exists
-  const existingLike = await prisma.like.findFirst({
-    where: {
-      userId: user.id,
-      targetType,
-      postId: targetType === "post" ? postId : null,
-      commentId: targetType === "comment" ? commentId : null,
-    },
-  });
-
-  if (existingLike) {
-    // Unlike
-    await prisma.like.delete({
-      where: { id: existingLike.id },
-    });
-  } else {
-    // Like
-    await prisma.like.create({
-      data: {
+  // Check if like exists and toggle atomically to prevent race conditions
+  await prisma.$transaction(async (tx) => {
+    const existingLike = await tx.like.findFirst({
+      where: {
         userId: user.id,
         targetType,
         postId: targetType === "post" ? postId : null,
         commentId: targetType === "comment" ? commentId : null,
       },
     });
-  }
+
+    if (existingLike) {
+      // Unlike
+      await tx.like.delete({
+        where: { id: existingLike.id },
+      });
+    } else {
+      // Like
+      await tx.like.create({
+        data: {
+          userId: user.id,
+          targetType,
+          postId: targetType === "post" ? postId : null,
+          commentId: targetType === "comment" ? commentId : null,
+        },
+      });
+    }
+  });
 
   revalidatePath("/feed");
   let targetPostId = postId;

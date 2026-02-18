@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
@@ -14,7 +14,7 @@ import { revalidateSchedule } from "@/lib/cache-helpers";
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 // Target email for founder-initiated office hour requests — easy to change
-const OFFICE_HOUR_TARGET_EMAIL = "hanjisang0914@gmail.com";
+const OFFICE_HOUR_TARGET_EMAIL = process.env.OFFICE_HOUR_TARGET_EMAIL || "";
 
 const TIMEZONE_MAP: Record<string, string> = {
   UTC: "UTC",
@@ -322,6 +322,10 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
 
 export async function getOfficeHourSlots(batchId: string, userId?: string, userRole?: string) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
     const slots = await unstable_cache(
       () =>
         prisma.officeHourSlot.findMany({

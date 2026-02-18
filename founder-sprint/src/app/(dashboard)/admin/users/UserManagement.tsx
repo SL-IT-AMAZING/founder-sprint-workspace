@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { getBatchUsers, inviteUser, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
 import { getGroups } from "@/actions/group";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getRoleDisplayName, formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import type { UserRole } from "@/types";
 
 interface Batch {
@@ -55,6 +56,7 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [users, setUsers] = useState<BatchUser[]>([]);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const toast = useToast();
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [formError, setFormError] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -62,6 +64,13 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; _count: { members: number; posts: number } }>>([]);
   const [selectedRole, setSelectedRole] = useState("founder");
+  const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
+    };
+  }, []);
 
   // Handle batch selection change
   const handleBatchChange = (batchId: string) => {
@@ -107,6 +116,9 @@ export function UserManagement({ batches }: UserManagementProps) {
         setLinkCopied(false);
         loadUsers(selectedBatchId);
         (e.target as HTMLFormElement).reset();
+        if (result.warning) {
+          toast.warning(result.warning);
+        }
       } else {
         setFormError(result.error);
       }
@@ -143,7 +155,7 @@ export function UserManagement({ batches }: UserManagementProps) {
       if (result.success) {
         loadUsers(selectedBatchId);
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -486,7 +498,8 @@ export function UserManagement({ batches }: UserManagementProps) {
               onClick={() => {
                 navigator.clipboard.writeText(inviteLink || "");
                 setLinkCopied(true);
-                setTimeout(() => setLinkCopied(false), 2000);
+                if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
+                linkCopiedTimerRef.current = setTimeout(() => setLinkCopied(false), 2000);
               }}
             >
               {linkCopied ? "Copied!" : "Copy Link"}

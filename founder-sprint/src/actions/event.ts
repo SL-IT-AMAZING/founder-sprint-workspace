@@ -130,6 +130,10 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
 export async function getEvents(batchId: string) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
     const events = await unstable_cache(
       () =>
         prisma.event.findMany({

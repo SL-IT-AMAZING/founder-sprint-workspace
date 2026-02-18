@@ -24,7 +24,6 @@ interface NavbarProps {
 
 export default function Navbar({ user, isAdmin = false, batches = [], currentBatchId = "" }: NavbarProps) {
   const pathname = usePathname();
-  const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -116,47 +115,6 @@ export default function Navbar({ user, isAdmin = false, batches = [], currentBat
           </div>
         )}
        </div>
-
-      <div className="hidden lg:block" style={{
-        position: 'relative',
-        marginLeft: 'auto',
-        marginRight: '24px',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          backgroundColor: '#404040',
-          borderRadius: '4px',
-          padding: '6px 12px',
-          width: '240px',
-          border: '1px solid transparent',
-        }}>
-          <Image
-            src="/images/icon-interface-search.svg"
-            alt=""
-            width={14}
-            height={14}
-            style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
-          />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'white',
-              fontSize: '14px',
-              width: '100%',
-              padding: 0,
-            }}
-            onFocus={(e) => e.currentTarget.parentElement!.style.borderColor = '#666'}
-            onBlur={(e) => e.currentTarget.parentElement!.style.borderColor = 'transparent'}
-          />
-        </div>
-      </div>
 
       <div style={{
         display: 'flex',
@@ -280,38 +238,6 @@ export default function Navbar({ user, isAdmin = false, batches = [], currentBat
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             animation: 'slideDown 0.2s ease-out'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: '#404040',
-              borderRadius: '4px',
-              padding: '8px 12px',
-              width: '100%',
-            }}>
-              <Image
-                src="/images/icon-interface-search.svg"
-                alt=""
-                width={14}
-                height={14}
-                style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
-              />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'white',
-                  fontSize: '14px',
-                  width: '100%',
-                  padding: 0,
-                }}
-              />
-            </div>
-
             {batches.length > 1 && (
               <div style={{ padding: '0 0 8px 0', borderBottom: '1px solid #404040' }}>
                 <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />

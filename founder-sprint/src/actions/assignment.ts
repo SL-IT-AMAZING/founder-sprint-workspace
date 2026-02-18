@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isStaff, isFounder, canCreateAssignment } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isFounder, canCreateAssignment, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
@@ -177,6 +177,10 @@ export async function deleteAssignment(assignmentId: string): Promise<ActionResu
 }
 
 export async function getAssignments(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.assignment.findMany({
@@ -303,6 +307,10 @@ export async function getSubmission(id: string) {
 }
 
 export async function getSubmissions(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.submission.findMany({

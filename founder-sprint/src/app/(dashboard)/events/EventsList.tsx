@@ -13,6 +13,7 @@ import { Calendar } from "@/components/ui/Calendar";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
+import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, EventType } from "@/types";
 
 type ViewMode = "list" | "calendar";
@@ -78,6 +79,7 @@ export function EventsList({ user, events }: EventsListProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const searchParams = useSearchParams();
   const prefillDate = searchParams.get("date");
@@ -120,7 +122,7 @@ export function EventsList({ user, events }: EventsListProps) {
     if (result.success) {
       setCreateModalOpen(false);
       (e.target as HTMLFormElement).reset();
-      if (result.warning) alert(result.warning);
+      if (result.warning) toast.warning(result.warning);
     } else {
       setError(result.error);
     }
@@ -133,7 +135,7 @@ export function EventsList({ user, events }: EventsListProps) {
 
     const result = await deleteEvent(eventId);
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
   };
 
@@ -281,6 +283,7 @@ export function EventsList({ user, events }: EventsListProps) {
                     variant="danger"
                     size="sm"
                     onClick={() => handleDeleteEvent(event.id)}
+                    disabled={loading}
                   >
                     Delete
                   </Button>

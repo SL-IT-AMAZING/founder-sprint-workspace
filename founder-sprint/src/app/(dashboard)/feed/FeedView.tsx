@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 
 interface User {
   id: string;
@@ -56,6 +57,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const toast = useToast();
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editContent, setEditContent] = useState("");
 
@@ -121,7 +123,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await restorePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -138,7 +140,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         setEditingPost(null);
         setEditContent("");
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -149,7 +151,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await deletePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -158,7 +160,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await pinPost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -167,7 +169,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await hidePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -277,7 +279,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   onChange={(e) => setPostContent(e.target.value)}
                 />
                 <div className="flex justify-end">
-                  <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
+                  <Button type="submit" loading={isPending} disabled={isPending || !postContent.trim()}>
                     Post
                   </Button>
                 </div>
@@ -350,12 +352,13 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 <div className="flex items-center gap-4 pt-2 border-t" style={{ borderColor: "#e0e0e0" }}>
                   <button
                     onClick={() => handleToggleLike(post.id)}
+                    disabled={isPending}
                     className="text-sm"
                     style={{
                       background: "none",
                       border: "none",
                       color: "#666666",
-                      cursor: "pointer",
+                      cursor: isPending ? "not-allowed" : "pointer",
                       padding: "4px 8px",
                       borderRadius: "4px",
                       transition: "all 0.2s",

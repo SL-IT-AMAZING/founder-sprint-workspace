@@ -12,6 +12,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
 import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
+import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 
 interface GroupMember {
@@ -122,6 +123,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
    const [selectedGroupId, setSelectedGroupId] = useState<string>("");
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
+   const toast = useToast();
    const endTimeRef = useRef<HTMLInputElement>(null);
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
@@ -270,9 +272,9 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
   const handleApproveRequest = async (requestId: string) => {
     const result = await respondToRequest(requestId, "approved");
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     } else if (result.warning) {
-      alert(result.warning);
+      toast.warning(result.warning);
     }
   };
 
@@ -281,7 +283,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
 
     const result = await respondToRequest(requestId, "rejected");
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
   };
 
@@ -291,7 +293,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setLoading(true);
     const result = await deleteSlot(slotId);
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
     setLoading(false);
   };
@@ -376,6 +378,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                       <Button
                         size="sm"
                         onClick={() => openRequestModal(slot)}
+                        disabled={loading}
                       >
                         Request
                       </Button>
@@ -480,6 +483,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                           <Button
                             size="sm"
                             onClick={() => handleApproveRequest(request.id)}
+                            disabled={loading}
                           >
                             Approve
                           </Button>
@@ -487,6 +491,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                             size="sm"
                             variant="secondary"
                             onClick={() => handleRejectRequest(request.id)}
+                            disabled={loading}
                           >
                             Reject
                           </Button>
