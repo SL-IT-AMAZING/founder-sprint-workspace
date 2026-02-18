@@ -139,7 +139,7 @@ export default async function globalSetup() {
   const prisma = new PrismaClient({ adapter });
   try {
     let batch = await prisma.batch.findFirst({
-      where: { status: "active" },
+      where: { status: "active", endDate: { gte: new Date() } },
     });
 
     if (!batch) {

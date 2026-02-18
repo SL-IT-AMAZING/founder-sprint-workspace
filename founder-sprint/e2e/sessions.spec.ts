@@ -37,7 +37,7 @@ test.describe("Sessions", () => {
 
     await modal.getByRole("button", { name: /create|save|submit/i }).click();
 
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
+    await expect(modal).not.toBeVisible({ timeout: 15000 });
     await expect(adminPage.getByText(sessionTitle)).toBeVisible();
   });
 

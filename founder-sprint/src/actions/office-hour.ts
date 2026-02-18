@@ -99,8 +99,9 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message };
     }
+    const message = error instanceof Error ? error.message : "Failed to create office hour slot";
     console.error("Failed to create office hour slot:", error);
-    return { success: false, error: "Failed to create office hour slot" };
+    return { success: false, error: message };
   }
 }
 

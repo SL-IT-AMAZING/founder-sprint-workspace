@@ -12,7 +12,7 @@ test.describe("Feed & Posts", () => {
     const postContent = `Test Post ${Date.now()}`;
     const contentInput = founderPage.getByLabel(/content|post|write/i).or(
       founderPage.getByPlaceholder(/write|share|what/i)
-    );
+    ).first();
 
     if (await contentInput.isVisible()) {
       await contentInput.fill(postContent);

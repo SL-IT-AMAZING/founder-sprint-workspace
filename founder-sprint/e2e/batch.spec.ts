@@ -49,8 +49,8 @@ test.describe("Batch Management", () => {
   }) => {
     await adminPage.goto("/admin/batches");
 
-    const activeBadges = adminPage.locator("main .card").getByText(/^active$/i);
-    expect(await activeBadges.count()).toBeGreaterThan(0);
+    const activeBadges = adminPage.locator("main .card").getByText(/^active$/i).first();
+    await expect(activeBadges).toBeVisible({ timeout: 10000 });
   });
 
   test("admin can archive a batch", async ({ adminPage }) => {

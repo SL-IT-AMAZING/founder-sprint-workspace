@@ -51,7 +51,8 @@ test.describe("Events", () => {
     const readOnlyAfterSubmit = (await modal.locator("text=This batch has ended").count()) > 0;
     test.skip(readOnlyAfterSubmit, "Batch is read-only (ended), so event creation is unavailable.");
 
-    await expect(modal).not.toBeVisible({ timeout: 10000 });
+    // Google Calendar API call can take 10+ seconds, allow 30s total
+    await expect(modal).not.toBeVisible({ timeout: 30000 });
   });
 
   test("event limit is enforced (기획서: max 20 per batch)", async ({ adminPage }) => {

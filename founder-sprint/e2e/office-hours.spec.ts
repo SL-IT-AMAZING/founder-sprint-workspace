@@ -34,12 +34,14 @@ test.describe("Office Hours", () => {
 
     await modal.getByRole("button", { name: /create|save|submit/i }).click();
 
-    const readOnlyAfterSubmit = (await modal.locator("text=This batch has ended").count()) > 0;
-    test.skip(readOnlyAfterSubmit, "Batch is read-only (ended), so slot creation is unavailable.");
+    const batchEnded = (await mentorPage.locator("text=This batch has ended").count()) > 0;
+    if (batchEnded) {
+      test.skip(true, "Batch is read-only (ended)");
+      return;
+    }
 
     await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-    await expect(mentorPage.getByText(/14:00|2:00.*pm/i)).toBeVisible();
+    await expect(mentorPage.getByText(/14:00|2:00.*pm/i).first()).toBeVisible();
   });
 
   test("cannot create office hour slot in the past", async ({ mentorPage }) => {
@@ -66,7 +68,7 @@ test.describe("Office Hours", () => {
     await modal.getByLabel(/end.*time/i).fill(endStr);
     await modal.getByRole("button", { name: /create|save|submit/i }).click();
 
-    const errorMessage = mentorPage.getByText(/past|cannot.*create/i);
+    const errorMessage = mentorPage.getByText(/past|cannot.*create/i).first();
     await expect(errorMessage).toBeVisible();
   });
 
