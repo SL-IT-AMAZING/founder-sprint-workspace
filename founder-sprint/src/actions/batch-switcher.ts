@@ -3,7 +3,6 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUserFromHeaders } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/types";
 
@@ -11,21 +10,12 @@ export async function getUserBatches(): Promise<
   ActionResult<Array<{ batchId: string; batchName: string; role: string; batchStatus: string; endDate: Date }>>
 > {
   try {
-    let authEmail: string | null = null;
-
-    const headerAuth = await getAuthUserFromHeaders();
-    if (headerAuth) {
-      authEmail = headerAuth.email;
-    } else {
-      const supabase = await createClient();
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (!authUser) return { success: false, error: "Not authenticated" };
-      authEmail = authUser.email!;
-    }
-
-    if (!authEmail) return { success: false, error: "Not authenticated" };
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser?.email) return { success: false, error: "Not authenticated" };
+    const authEmail = authUser.email;
 
     const user = await prisma.user.findUnique({
       where: { email: authEmail },
@@ -57,21 +47,12 @@ export async function getUserBatches(): Promise<
 
 export async function switchBatch(batchId: string): Promise<ActionResult<undefined>> {
   try {
-    let authEmail: string | null = null;
-
-    const headerAuth = await getAuthUserFromHeaders();
-    if (headerAuth) {
-      authEmail = headerAuth.email;
-    } else {
-      const supabase = await createClient();
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (!authUser) return { success: false, error: "Not authenticated" };
-      authEmail = authUser.email!;
-    }
-
-    if (!authEmail) return { success: false, error: "Not authenticated" };
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser?.email) return { success: false, error: "Not authenticated" };
+    const authEmail = authUser.email;
 
     // Verify user belongs to this batch
     const user = await prisma.user.findUnique({

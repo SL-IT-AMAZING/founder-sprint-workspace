@@ -3,7 +3,6 @@ import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromHeaders } from "@/lib/auth";
 import type { UserRole, UserWithBatch } from "@/types";
 
 const getCachedUserByEmail = (email: string, batchId?: string) =>
@@ -49,19 +48,10 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     }
   }
 
-  let authEmail: string | null = null;
-
-  const headerAuth = await getAuthUserFromHeaders();
-  if (headerAuth) {
-    authEmail = headerAuth.email;
-  } else {
-    const supabase = await createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return null;
-    authEmail = authUser.email!;
-  }
-
-  if (!authEmail) return null;
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  if (!authUser?.email) return null;
+  const authEmail = authUser.email;
 
   let user = await getCachedUserByEmail(authEmail, batchId);
 

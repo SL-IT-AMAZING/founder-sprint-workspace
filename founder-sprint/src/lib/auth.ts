@@ -1,9 +1,3 @@
-import { headers } from "next/headers";
-
-export async function getAuthUserFromHeaders(): Promise<{ id: string; email: string } | null> {
-  const headerStore = await headers();
-  const userId = headerStore.get("x-auth-user-id");
-  const userEmail = headerStore.get("x-auth-user-email");
-  if (!userId || !userEmail) return null;
-  return { id: userId, email: userEmail };
-}
+// This module previously provided getAuthUserFromHeaders() which read
+// spoofable x-auth-user-id/x-auth-user-email headers from middleware.
+// Removed for security (#33). All callers now use Supabase session directly.

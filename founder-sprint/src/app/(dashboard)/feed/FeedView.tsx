@@ -333,17 +333,17 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 {/* Post Content */}
                 <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
 
-                {/* Post Images Placeholder */}
                 {post.images.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className={`grid gap-2 ${post.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                     {post.images.map((image) => (
-                      <div
+                      <img
                         key={image.id}
-                        className="aspect-video rounded-lg"
-                        style={{ backgroundColor: "var(--color-card-border)" }}
-                      >
-                        {/* Image placeholder */}
-                      </div>
+                        src={image.imageUrl}
+                        alt=""
+                        className="rounded-lg object-cover w-full"
+                        style={{ maxHeight: post.images.length === 1 ? 480 : 280 }}
+                        loading="lazy"
+                      />
                     ))}
                   </div>
                 )}

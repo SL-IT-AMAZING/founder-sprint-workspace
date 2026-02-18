@@ -193,6 +193,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await scheduleGroupOfficeHour(formData);
 
     if (result.success) {
@@ -211,6 +218,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await proposeOfficeHour(formData);
 
     if (result.success) {
@@ -234,6 +248,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await createOfficeHourSlot(formData);
 
     if (result.success) {
