@@ -11,6 +11,11 @@ const transporter =
       })
     : null;
 
+function hasUndeliverableRecipient(to: string | string[]): boolean {
+  const addresses = Array.isArray(to) ? to : [to];
+  return addresses.some((addr) => addr.endsWith("@example.com"));
+}
+
 interface InvitationEmailParams {
   to: string;
   inviteeName: string;
@@ -30,6 +35,7 @@ export async function sendInvitationEmail({
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
+  if (hasUndeliverableRecipient(to)) return { success: true };
 
   const roleDisplayName = {
     admin: "Admin",
@@ -121,6 +127,7 @@ export async function sendOfficeHourRequestEmail({
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
+  if (hasUndeliverableRecipient(to)) return { success: true };
 
   const dateStr = startTime.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -188,6 +195,7 @@ export async function sendOfficeHourApprovalEmail({
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
+  if (hasUndeliverableRecipient(to)) return { success: true };
 
   const dateStr = startTime.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",

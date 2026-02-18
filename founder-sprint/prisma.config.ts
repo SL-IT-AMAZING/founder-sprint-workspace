@@ -8,6 +8,6 @@ export default defineConfig({
   },
   datasource: {
     url: env("DATABASE_URL"),
-    directUrl: env("DIRECT_URL"),
+    directUrl: process.env.DIRECT_URL || undefined,
   } as { url?: string; directUrl?: string },
 });
