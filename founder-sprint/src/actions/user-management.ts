@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireRole } from "@/lib/permissions";
+import { getCurrentUser, requireRole, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
@@ -132,7 +132,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     data: {
       userId: invitedUser.id,
       batchId,
-      role: role as any,
+      role: role as import("@prisma/client").$Enums.UserRole,
       founderId: role === "co_founder" ? founderId : undefined,
       status: "invited",
     },
@@ -185,7 +185,15 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 
   if (!emailResult.success) {
     console.warn(`Failed to send invitation email to ${email}:`, emailResult.error);
-    // Continue anyway - user is created, they can be re-invited
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/batches");
+    revalidateTag(`batch-users-${batchId}`);
+    revalidateTag("current-user");
+    return {
+      success: true,
+      data: { id: userBatch.id, inviteLink },
+      warning: "User was invited but the email could not be sent. Please share the invite link directly.",
+    };
   }
 
   revalidatePath("/admin/users");
@@ -216,7 +224,7 @@ export async function updateUserRole(
 
   await prisma.userBatch.update({
     where: { userId_batchId: { userId, batchId } },
-    data: { role: newRole as any },
+    data: { role: newRole as import("@prisma/client").$Enums.UserRole },
   });
 
   revalidatePath("/admin/users");
@@ -310,6 +318,10 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
 }
 
 export async function getBatchUsers(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.userBatch.findMany({

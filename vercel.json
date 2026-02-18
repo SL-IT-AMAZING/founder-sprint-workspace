@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "installCommand": "cd founder-sprint && npm install",
+  "buildCommand": "cd founder-sprint && npm run build",
+  "outputDirectory": "founder-sprint/.next"
+}

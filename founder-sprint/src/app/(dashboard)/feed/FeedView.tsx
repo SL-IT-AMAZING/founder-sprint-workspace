@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 
 interface User {
   id: string;
@@ -43,40 +44,33 @@ interface FeedViewProps {
   archivedPosts?: Post[];
   currentUser: User;
   isAdmin?: boolean;
-  batches?: Array<{ batchId: string; batchName: string }>;
   readOnly?: boolean;
 }
 
 type FeedFilter = "all" | "latest" | "pinned";
 
-export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, batches, readOnly = false }: FeedViewProps) {
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false }: FeedViewProps) {
   const [postContent, setPostContent] = useState("");
   const [commentContent, setCommentContent] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
-  const [activeBatch, setActiveBatch] = useState<string | "all">("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const toast = useToast();
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editContent, setEditContent] = useState("");
-
-  // Batch filtering
-  const batchPosts = useMemo(() => {
-    if (activeBatch === "all") return posts;
-    return posts.filter((p) => p.batchId === activeBatch);
-  }, [posts, activeBatch]);
 
   const filteredPosts = useMemo(() => {
     switch (feedFilter) {
       case "latest":
-        return [...batchPosts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       case "pinned":
-        return batchPosts.filter((p) => p.isPinned);
+        return posts.filter((p) => p.isPinned);
       default:
-        return batchPosts;
+        return posts;
     }
-  }, [batchPosts, feedFilter]);
+  }, [posts, feedFilter]);
 
   const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -129,7 +123,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await restorePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -146,7 +140,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         setEditingPost(null);
         setEditContent("");
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -157,7 +151,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await deletePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -166,7 +160,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await pinPost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -175,7 +169,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     startTransition(async () => {
       const result = await hidePost(postId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -227,54 +221,6 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
           </Button>
         )}
       </div>
-
-      {/* Batch Tabs (only for multi-batch users) */}
-      {batches && batches.length > 1 && (
-        <div style={{
-          display: "flex",
-          gap: "6px",
-          marginBottom: "16px",
-          flexWrap: "wrap",
-        }}>
-          <button
-            onClick={() => setActiveBatch("all")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "20px",
-              border: activeBatch === "all" ? "1.5px solid var(--color-accent, #1A1A1A)" : "1px solid var(--color-card-border, #e0d6c8)",
-              background: activeBatch === "all" ? "var(--color-accent, #1A1A1A)" : "transparent",
-              color: activeBatch === "all" ? "white" : "var(--color-foreground, #2F2C26)",
-              fontSize: "13px",
-              fontFamily: "inherit",
-              cursor: "pointer",
-              fontWeight: activeBatch === "all" ? 600 : 400,
-              transition: "all 0.2s ease",
-            }}
-          >
-            All Batches
-          </button>
-          {batches.map((batch) => (
-            <button
-              key={batch.batchId}
-              onClick={() => setActiveBatch(batch.batchId)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "20px",
-                border: activeBatch === batch.batchId ? "1.5px solid var(--color-accent, #1A1A1A)" : "1px solid var(--color-card-border, #e0d6c8)",
-                background: activeBatch === batch.batchId ? "var(--color-accent, #1A1A1A)" : "transparent",
-                color: activeBatch === batch.batchId ? "white" : "var(--color-foreground, #2F2C26)",
-                fontSize: "13px",
-                fontFamily: "inherit",
-                cursor: "pointer",
-                fontWeight: activeBatch === batch.batchId ? 600 : 400,
-                transition: "all 0.2s ease",
-              }}
-            >
-              {batch.batchName}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="flex gap-2">
         {(["all", "latest", "pinned"] as const).map((filter) => (
@@ -333,7 +279,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   onChange={(e) => setPostContent(e.target.value)}
                 />
                 <div className="flex justify-end">
-                  <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
+                  <Button type="submit" loading={isPending} disabled={isPending || !postContent.trim()}>
                     Post
                   </Button>
                 </div>
@@ -387,17 +333,17 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 {/* Post Content */}
                 <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
 
-                {/* Post Images Placeholder */}
                 {post.images.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className={`grid gap-2 ${post.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
                     {post.images.map((image) => (
-                      <div
+                      <img
                         key={image.id}
-                        className="aspect-video rounded-lg"
-                        style={{ backgroundColor: "var(--color-card-border)" }}
-                      >
-                        {/* Image placeholder */}
-                      </div>
+                        src={image.imageUrl}
+                        alt=""
+                        className="rounded-lg object-cover w-full"
+                        style={{ maxHeight: post.images.length === 1 ? 480 : 280 }}
+                        loading="lazy"
+                      />
                     ))}
                   </div>
                 )}
@@ -406,12 +352,13 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 <div className="flex items-center gap-4 pt-2 border-t" style={{ borderColor: "#e0e0e0" }}>
                   <button
                     onClick={() => handleToggleLike(post.id)}
+                    disabled={isPending}
                     className="text-sm"
                     style={{
                       background: "none",
                       border: "none",
                       color: "#666666",
-                      cursor: "pointer",
+                      cursor: isPending ? "not-allowed" : "pointer",
                       padding: "4px 8px",
                       borderRadius: "4px",
                       transition: "all 0.2s",

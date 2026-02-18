@@ -3,7 +3,6 @@ import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUserFromHeaders } from "@/lib/auth";
 import type { UserRole, UserWithBatch } from "@/types";
 
 const getCachedUserByEmail = (email: string, batchId?: string) =>
@@ -25,30 +24,34 @@ const getCachedUserByEmail = (email: string, batchId?: string) =>
     { revalidate: 30, tags: ["current-user"] }
   )();
 
+/**
+ * Returns the authenticated user with their active batch context.
+ *
+ * SECURITY NOTE: The `selected_batch_id` cookie is client-modifiable, but this is safe because:
+ * 1. `getCachedUserByEmail()` filters userBatches by `status: "active"`, so a user can only
+ *    access batches where they have an active membership.
+ * 2. If the cookie points to a batch the user doesn't belong to, `userBatches` returns empty,
+ *    triggering the fallback (lines 58-67) which clears the invalid cookie and retries.
+ * 3. Non-admin users without any active batch membership get `null` (no access).
+ *
+ * This means manipulating the cookie can only switch between the user's OWN active batches,
+ * never grant access to unauthorized batches.
+ */
 export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBatch | null> => {
   // Read batch preference from cookie if not explicitly provided
   if (!batchId) {
     try {
       const cookieStore = await cookies();
-      batchId = cookieStore.get("selected_batch_id")?.value;
+      batchId = cookieStore.get("selected_batch_id")?.value; // Client-modifiable; validated by getCachedUserByEmail()
     } catch {
       // cookies() may throw in some contexts (e.g., during build)
     }
   }
 
-  let authEmail: string | null = null;
-
-  const headerAuth = await getAuthUserFromHeaders();
-  if (headerAuth) {
-    authEmail = headerAuth.email;
-  } else {
-    const supabase = await createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return null;
-    authEmail = authUser.email!;
-  }
-
-  if (!authEmail) return null;
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  if (!authUser?.email) return null;
+  const authEmail = authUser.email;
 
   let user = await getCachedUserByEmail(authEmail, batchId);
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { useState, useEffect } from "react";
+import BatchSwitcher from "@/components/layout/BatchSwitcher";
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -17,11 +18,12 @@ interface NavbarProps {
     profileImage?: string | null;
   };
   isAdmin?: boolean;
+  batches?: Array<{ batchId: string; batchName: string; batchStatus?: string; endDate?: Date }>;
+  currentBatchId?: string;
 }
 
-export default function Navbar({ user, isAdmin = false }: NavbarProps) {
+export default function Navbar({ user, isAdmin = false, batches = [], currentBatchId = "" }: NavbarProps) {
   const pathname = usePathname();
-  const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -86,69 +88,33 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
         flex: 1,
       }}>
         {allLinks.map((link) => {
-          const isActive = pathname === link.href;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                color: 'white',
-                fontSize: '14px',
-                opacity: isActive ? 1.0 : 0.9,
-                fontWeight: isActive ? 500 : 400,
-                textDecoration: 'none',
-                transition: 'opacity 0.2s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = isActive ? '1.0' : '0.9'}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      <div className="hidden lg:block" style={{
-        position: 'relative',
-        marginLeft: 'auto',
-        marginRight: '24px',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          backgroundColor: '#404040',
-          borderRadius: '4px',
-          padding: '6px 12px',
-          width: '240px',
-          border: '1px solid transparent',
-        }}>
-          <Image
-            src="/images/icon-interface-search.svg"
-            alt=""
-            width={14}
-            height={14}
-            style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
-          />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'white',
-              fontSize: '14px',
-              width: '100%',
-              padding: 0,
-            }}
-            onFocus={(e) => e.currentTarget.parentElement!.style.borderColor = '#666'}
-            onBlur={(e) => e.currentTarget.parentElement!.style.borderColor = 'transparent'}
-          />
-        </div>
-      </div>
+           const isActive = pathname === link.href;
+           return (
+             <Link
+               key={link.href}
+               href={link.href}
+               style={{
+                 color: 'white',
+                 fontSize: '14px',
+                 opacity: isActive ? 1.0 : 0.9,
+                 fontWeight: isActive ? 500 : 400,
+                 textDecoration: 'none',
+                 transition: 'opacity 0.2s',
+                 whiteSpace: 'nowrap',
+               }}
+               onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
+               onMouseLeave={(e) => e.currentTarget.style.opacity = isActive ? '1.0' : '0.9'}
+             >
+               {link.label}
+             </Link>
+           );
+         })}
+        {batches.length > 1 && (
+          <div style={{ marginLeft: '8px', flexShrink: 0 }}>
+            <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
+          </div>
+        )}
+       </div>
 
       <div style={{
         display: 'flex',
@@ -272,37 +238,11 @@ export default function Navbar({ user, isAdmin = false }: NavbarProps) {
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             animation: 'slideDown 0.2s ease-out'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: '#404040',
-              borderRadius: '4px',
-              padding: '8px 12px',
-              width: '100%',
-            }}>
-              <Image
-                src="/images/icon-interface-search.svg"
-                alt=""
-                width={14}
-                height={14}
-                style={{ marginRight: '8px', flexShrink: 0, opacity: 0.6 }}
-              />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'white',
-                  fontSize: '14px',
-                  width: '100%',
-                  padding: 0,
-                }}
-              />
-            </div>
+            {batches.length > 1 && (
+              <div style={{ padding: '0 0 8px 0', borderBottom: '1px solid #404040' }}>
+                <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {allLinks.map((link) => {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -12,6 +13,7 @@ import { Calendar } from "@/components/ui/Calendar";
 import { formatDateTime, formatDate } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
+import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, EventType } from "@/types";
 
 type ViewMode = "list" | "calendar";
@@ -77,8 +79,18 @@ export function EventsList({ user, events }: EventsListProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  const searchParams = useSearchParams();
+  const prefillDate = searchParams.get("date");
 
   const canCreate = isAdmin(user.role);
+
+  useEffect(() => {
+    if (prefillDate && canCreate) {
+      setCreateModalOpen(true);
+    }
+  }, [prefillDate, canCreate]);
 
   const filteredEvents = selectedType === "all"
     ? events
@@ -105,12 +117,19 @@ export function EventsList({ user, events }: EventsListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await createEvent(formData);
 
     if (result.success) {
       setCreateModalOpen(false);
       (e.target as HTMLFormElement).reset();
-      if (result.warning) alert(result.warning);
+      if (result.warning) toast.warning(result.warning);
     } else {
       setError(result.error);
     }
@@ -123,7 +142,7 @@ export function EventsList({ user, events }: EventsListProps) {
 
     const result = await deleteEvent(eventId);
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
   };
 
@@ -271,6 +290,7 @@ export function EventsList({ user, events }: EventsListProps) {
                     variant="danger"
                     size="sm"
                     onClick={() => handleDeleteEvent(event.id)}
+                    disabled={loading}
                   >
                     Delete
                   </Button>
@@ -309,18 +329,20 @@ export function EventsList({ user, events }: EventsListProps) {
             options={eventTypeOptions}
             required
           />
-          <Input
-            label="Start Time"
-            name="startTime"
-            type="datetime-local"
-            required
-          />
-          <Input
-            label="End Time"
-            name="endTime"
-            type="datetime-local"
-            required
-          />
+           <Input
+             label="Start Time"
+             name="startTime"
+             type="datetime-local"
+             required
+             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+           />
+           <Input
+             label="End Time"
+             name="endTime"
+             type="datetime-local"
+             required
+             defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+           />
           <Select
             label="Timezone"
             name="timezone"

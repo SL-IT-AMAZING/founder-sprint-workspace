@@ -11,24 +11,35 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       dialog.showModal();
+      const firstFocusable = dialog.querySelector<HTMLElement>(
+        'input, select, textarea, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      );
+      if (firstFocusable) {
+        firstFocusable.focus();
+      }
     } else {
       dialog.close();
+      previousFocusRef.current?.focus();
     }
   }, [open]);
 
   return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      className="p-0 backdrop:bg-black/40"
-      style={{ maxWidth: 560, width: "100%", margin: "auto", border: "1px solid var(--color-card-border)", borderRadius: 9 }}
-    >
+     <dialog
+       ref={dialogRef}
+       onClose={onClose}
+       aria-modal="true"
+       role="dialog"
+       className="p-0 backdrop:bg-black/40"
+       style={{ maxWidth: 560, width: "100%", margin: "auto", border: "1px solid var(--color-card-border)", borderRadius: 9 }}
+     >
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl">{title}</h2>

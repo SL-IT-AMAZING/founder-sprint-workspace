@@ -50,6 +50,10 @@ export async function createGroup(formData: FormData): Promise<ActionResult<{ id
 }
 
 export async function getGroups(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.group.findMany({
@@ -70,6 +74,10 @@ export async function getGroups(batchId: string) {
 }
 
 export async function getUserGroups(batchId: string, userId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.group.findMany({

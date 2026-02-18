@@ -40,11 +40,13 @@ async function getCalendarClient(): Promise<calendar_v3.Calendar | null> {
 interface CreateCalendarEventParams {
   summary: string;
   description?: string;
-  startTime: Date;
-  endTime: Date;
+  startTime?: Date;
+  endTime?: Date;
   attendeeEmails: string[];
   timezone?: string;
   location?: string;
+  isAllDay?: boolean;
+  allDayDate?: string;
 }
 
 interface CalendarEventResult {
@@ -65,6 +67,8 @@ export async function createCalendarEvent({
   attendeeEmails,
   timezone = "UTC",
   location,
+  isAllDay = false,
+  allDayDate,
 }: CreateCalendarEventParams): Promise<CalendarEventResult | null> {
   if (!isCalendarConfigured()) {
     console.warn(
@@ -82,17 +86,38 @@ export async function createCalendarEvent({
   }
 
   try {
+    if (isAllDay && !allDayDate) {
+      console.error("[Google Calendar] allDayDate is required for all-day events");
+      return null;
+    }
+
+    if (!isAllDay && (!startTime || !endTime)) {
+      console.error("[Google Calendar] startTime and endTime are required for timed events");
+      return null;
+    }
+
+    let endAllDayDate: string | undefined;
+    if (isAllDay && allDayDate) {
+      const [y, m, d] = allDayDate.split("-").map(Number);
+      const nextDay = new Date(Date.UTC(y, m - 1, d + 1));
+      endAllDayDate = nextDay.toISOString().slice(0, 10);
+    }
+
     const event: calendar_v3.Schema$Event = {
       summary,
       description: description || undefined,
-      start: {
-        dateTime: startTime.toISOString(),
-        timeZone: timezone,
-      },
-      end: {
-        dateTime: endTime.toISOString(),
-        timeZone: timezone,
-      },
+      start: isAllDay
+        ? { date: allDayDate }
+        : {
+            dateTime: startTime!.toISOString(),
+            timeZone: timezone,
+          },
+      end: isAllDay
+        ? { date: endAllDayDate }
+        : {
+            dateTime: endTime!.toISOString(),
+            timeZone: timezone,
+          },
       attendees: attendeeEmails.map((email) => ({ email })),
       location: location || undefined,
     };
@@ -144,6 +169,11 @@ export async function createCalendarEventWithMeet({
 
   if (!calendar || !calendarId) {
     console.warn("[Google Calendar] Failed to initialize client");
+    return null;
+  }
+
+  if (!startTime || !endTime) {
+    console.error("[Google Calendar] startTime and endTime are required for Meet events");
     return null;
   }
 

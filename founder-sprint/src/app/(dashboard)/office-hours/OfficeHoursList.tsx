@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -11,6 +12,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
 import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
+import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 
 interface GroupMember {
@@ -113,24 +115,35 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
 }
 
 export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [requestModalOpen, setRequestModalOpen] = useState(false);
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [proposeModalOpen, setProposeModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const endTimeRef = useRef<HTMLInputElement>(null);
-  const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
-  const proposeEndTimeRef = useRef<HTMLInputElement>(null);
+   const [createModalOpen, setCreateModalOpen] = useState(false);
+   const [requestModalOpen, setRequestModalOpen] = useState(false);
+   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+   const [proposeModalOpen, setProposeModalOpen] = useState(false);
+   const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
+   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const toast = useToast();
+   const endTimeRef = useRef<HTMLInputElement>(null);
+   const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
+   const proposeEndTimeRef = useRef<HTMLInputElement>(null);
 
-  // Auto-select if only one group
-  useEffect(() => {
-    if (groups.length === 1) {
-      setSelectedGroupId(groups[0].id);
-    }
-  }, [groups]);
+   const searchParams = useSearchParams();
+   const prefillDate = searchParams.get("date");
+
+   // Auto-select if only one group
+   useEffect(() => {
+     if (groups.length === 1) {
+       setSelectedGroupId(groups[0].id);
+     }
+   }, [groups]);
+
+   // Auto-open create modal if date is pre-filled
+   useEffect(() => {
+     if (prefillDate && isStaff(user.role)) {
+       setCreateModalOpen(true);
+     }
+   }, [prefillDate, user.role]);
 
   const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const startVal = e.target.value;
@@ -180,6 +193,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await scheduleGroupOfficeHour(formData);
 
     if (result.success) {
@@ -198,6 +218,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await proposeOfficeHour(formData);
 
     if (result.success) {
@@ -221,6 +248,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      setLoading(false);
+      return;
+    }
     const result = await createOfficeHourSlot(formData);
 
     if (result.success) {
@@ -259,9 +293,9 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
   const handleApproveRequest = async (requestId: string) => {
     const result = await respondToRequest(requestId, "approved");
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     } else if (result.warning) {
-      alert(result.warning);
+      toast.warning(result.warning);
     }
   };
 
@@ -270,7 +304,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
 
     const result = await respondToRequest(requestId, "rejected");
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
   };
 
@@ -280,7 +314,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     setLoading(true);
     const result = await deleteSlot(slotId);
     if (!result.success) {
-      alert(result.error);
+      toast.error(result.error);
     }
     setLoading(false);
   };
@@ -365,6 +399,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                       <Button
                         size="sm"
                         onClick={() => openRequestModal(slot)}
+                        disabled={loading}
                       >
                         Request
                       </Button>
@@ -469,6 +504,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                           <Button
                             size="sm"
                             onClick={() => handleApproveRequest(request.id)}
+                            disabled={loading}
                           >
                             Approve
                           </Button>
@@ -476,6 +512,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                             size="sm"
                             variant="secondary"
                             onClick={() => handleRejectRequest(request.id)}
+                            disabled={loading}
                           >
                             Reject
                           </Button>
@@ -500,13 +537,14 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               {error}
             </div>
           )}
-          <Input
-            label="Start Time"
-            name="startTime"
-            type="datetime-local"
-            required
-            onChange={handleStartTimeChange}
-          />
+           <Input
+             label="Start Time"
+             name="startTime"
+             type="datetime-local"
+             required
+             onChange={handleStartTimeChange}
+             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+           />
           <Input
             label="End Time"
             name="endTime"

@@ -264,15 +264,19 @@ model OfficeHourRequest {
 
 // 10. Session - Program sessions
 model Session {
-  id           String   @id @default(uuid()) @db.Uuid
-  batchId      String   @map("batch_id") @db.Uuid
-  title        String   @db.VarChar(200)
-  description  String?  @db.Text
-  sessionDate  DateTime @map("session_date") @db.Date
-  slidesUrl    String?  @map("slides_url")
-  recordingUrl String?  @map("recording_url")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(uuid()) @db.Uuid
+  batchId       String    @map("batch_id") @db.Uuid
+  title         String    @db.VarChar(200)
+  description   String?   @db.Text
+  sessionDate   DateTime  @map("session_date") @db.Date
+  startTime     DateTime? @map("start_time")
+  endTime       DateTime? @map("end_time")
+  timezone      String    @default("UTC")
+  slidesUrl     String?   @map("slides_url")
+  recordingUrl  String?   @map("recording_url")
+  googleEventId String?   @map("google_event_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Relations
   batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)

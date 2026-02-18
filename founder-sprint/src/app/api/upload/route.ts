@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
 const BUCKET_CONFIG = {
@@ -87,6 +88,20 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 }
+      );
+    }
+
+    const activeMembership = await prisma.userBatch.findFirst({
+      where: {
+        user: { email: user.email! },
+        status: "active",
+      },
+    });
+
+    if (!activeMembership) {
+      return NextResponse.json(
+        { success: false, error: "No active batch membership", code: "FORBIDDEN" },
+        { status: 403 }
       );
     }
 

@@ -1,6 +1,11 @@
 import { test, expect } from "./fixtures";
 
 test.describe("Questions", () => {
+  test.describe.configure({ mode: "serial" });
+
+  let createdQuestionTitle: string | null = null;
+  let createdQuestionUrl: string | null = null;
+
   test("founder can view questions page", async ({ founderPage }) => {
     await founderPage.goto("/questions");
     await expect(founderPage.locator("h1")).toContainText(/question/i);
@@ -9,88 +14,74 @@ test.describe("Questions", () => {
   test("founder can create a new question", async ({ founderPage }) => {
     await founderPage.goto("/questions/new");
 
-    const titleInput = founderPage.getByLabel(/title|subject/i);
-    await titleInput.fill(`Test Question ${Date.now()}`);
+    const isReadOnlyBatch = (await founderPage.locator("text=This batch has ended").count()) > 0;
+    test.skip(isReadOnlyBatch, "Batch is read-only (ended), so question creation is unavailable.");
 
-    const contentInput = founderPage.getByLabel(/content|body|description/i);
-    if (await contentInput.isVisible()) {
-      await contentInput.fill("This is a test question for E2E testing. What are your thoughts?");
-    }
+    const titleInput = founderPage.getByLabel(/title|subject/i);
+    const questionTitle = `Test Question ${Date.now()}`;
+    createdQuestionTitle = questionTitle;
+    await titleInput.fill(questionTitle);
+
+    await founderPage.getByLabel(/details|content|body|description/i).fill(
+      "This is a test question for E2E testing. What are your thoughts?"
+    );
 
     const submitButton = founderPage.getByRole("button", { name: /submit|create|post/i });
+    await expect(submitButton).toBeEnabled();
     await submitButton.click();
 
-    await founderPage.waitForURL(/\/questions(\/[^/]+)?$/);
-    await expect(founderPage.getByText(/test question/i)).toBeVisible();
+    const batchEnded = (await founderPage.locator("text=This batch has ended").count()) > 0;
+    if (batchEnded) {
+      test.skip(true, "Batch is read-only (ended)");
+      return;
+    }
+
+    await founderPage.waitForURL(/\/questions\/(?!new)[^/]+$/);
+    createdQuestionUrl = new URL(founderPage.url()).pathname;
+    await expect(founderPage.getByText(questionTitle)).toBeVisible();
   });
 
   test("mentor can answer a question", async ({ mentorPage }) => {
-    await mentorPage.goto("/questions");
+    test.skip(!createdQuestionUrl, "No question was created in this run.");
 
-    const questionLink = mentorPage.getByRole("link").filter({ hasText: /question/i }).first();
+    await mentorPage.goto(createdQuestionUrl!);
 
-    if (await questionLink.isVisible()) {
-      await questionLink.click();
-      await mentorPage.waitForURL(/\/questions\/[^/]+$/);
+    const answerInput = mentorPage.getByPlaceholder(/write your answer/i);
+    await expect(answerInput).toBeVisible({ timeout: 15000 });
 
-      const answerInput = mentorPage.getByLabel(/answer|response|reply/i);
-      if (await answerInput.isVisible()) {
-        await answerInput.fill("This is a test answer from mentor for E2E testing.");
+    await answerInput.fill("This is a test answer from mentor for E2E testing.");
 
-        const submitButton = mentorPage.getByRole("button", { name: /submit|post|answer/i });
-        await submitButton.click();
-
-        await expect(mentorPage.getByText(/test answer from mentor/i)).toBeVisible({
-          timeout: 5000,
-        });
-      }
-    }
+    await mentorPage.getByRole("button", { name: /submit answer|submit|answer/i }).click();
+    await expect(mentorPage.getByText(/test answer from mentor/i)).toBeVisible({ timeout: 10000 });
   });
 
   test("admin can close a question", async ({ adminPage }) => {
-    await adminPage.goto("/questions");
+    test.skip(!createdQuestionUrl, "No question was created in this run.");
 
-    const questionLink = adminPage.getByRole("link").filter({ hasText: /question/i }).first();
+    await adminPage.goto(createdQuestionUrl!);
+    await adminPage.waitForLoadState("domcontentloaded");
 
-    if (await questionLink.isVisible()) {
-      await questionLink.click();
-      await adminPage.waitForURL(/\/questions\/[^/]+$/);
+    await adminPage.getByPlaceholder(/write a summary that closes this question/i).fill(
+      "Closing this test question via summary from admin."
+    );
+    await adminPage.getByRole("button", { name: /create summary.*close question/i }).click();
 
-      const closeButton = adminPage.getByRole("button", { name: /close/i });
-      if (await closeButton.isVisible()) {
-        await closeButton.click();
-
-        const confirmButton = adminPage.getByRole("button", { name: /confirm|yes/i });
-        if (await confirmButton.isVisible()) {
-          await confirmButton.click();
-        }
-
-        await expect(adminPage.getByText(/closed/i)).toBeVisible({ timeout: 5000 });
-      }
-    }
+    await expect(adminPage.getByText(/closed/i).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("admin can add summary to question", async ({ adminPage }) => {
     await adminPage.goto("/questions");
 
-    const questionLink = adminPage.getByRole("link").filter({ hasText: /question/i }).first();
+    const closedQuestionLink = adminPage
+      .locator('main a[href^="/questions/"]')
+      .filter({ hasText: /closed/i })
+      .first();
 
-    if (await questionLink.isVisible()) {
-      await questionLink.click();
-      await adminPage.waitForURL(/\/questions\/[^/]+$/);
+    const closedCount = await adminPage.locator('main a[href^="/questions/"]').filter({ hasText: /closed/i }).count();
+    test.skip(closedCount === 0, "No closed questions with summaries are available.");
 
-      const summaryButton = adminPage.getByRole("button", { name: /summary|summarize/i });
-      if (await summaryButton.isVisible()) {
-        await summaryButton.click();
-
-        const summaryInput = adminPage.getByLabel(/summary/i);
-        if (await summaryInput.isVisible()) {
-          await summaryInput.fill("Test summary for the question discussion.");
-          await adminPage.getByRole("button", { name: /save|submit/i }).click();
-
-          await expect(adminPage.getByText(/test summary/i)).toBeVisible({ timeout: 5000 });
-        }
-      }
-    }
+    await closedQuestionLink.click();
+    await adminPage.waitForURL(/\/questions\/[^/]+$/);
+    await expect(adminPage.getByText(/summary/i)).toBeVisible();
   });
 });

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
@@ -118,6 +118,10 @@ export async function createSummary(
 }
 
 export async function getQuestions(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
   return unstable_cache(
     () =>
       prisma.question.findMany({

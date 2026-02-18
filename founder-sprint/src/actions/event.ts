@@ -7,6 +7,9 @@ import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } fr
 import { z } from "zod";
 import type { ActionResult, EventType } from "@/types";
 import { isCalendarConfigured, createCalendarEvent, createCalendarEventWithMeet, deleteCalendarEvent, updateCalendarEvent } from "@/lib/google-calendar";
+import { revalidateSchedule } from "@/lib/cache-helpers";
+import { toIanaTimezone } from "@/lib/timezone";
+import { fromZonedTime } from "date-fns-tz";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -42,21 +45,25 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
      const validated = eventSchema.parse(data);
 
-     const eventCount = await prisma.event.count({ where: { batchId: user.batchId } });
-     if (eventCount >= 20) {
-       return { success: false, error: "Maximum 20 events per batch reached" };
-     }
+    const eventCount = await prisma.event.count({ where: { batchId: user.batchId } });
+    if (eventCount >= 20) {
+      return { success: false, error: "Maximum 20 events per batch reached" };
+    }
 
-     const event = await prisma.event.create({
+    const ianaTimezone = toIanaTimezone(validated.timezone);
+    const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
+    const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
+
+    const event = await prisma.event.create({
       data: {
         batchId: user.batchId,
         creatorId: user.id,
         title: validated.title,
         description: validated.description || null,
         eventType: validated.eventType,
-        startTime: new Date(validated.startTime),
-        endTime: new Date(validated.endTime),
-        timezone: validated.timezone,
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
+        timezone: ianaTimezone,
         location: validated.location || null,
       },
     });
@@ -76,18 +83,18 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
           ? await createCalendarEventWithMeet({
               summary: validated.title,
               description: validated.description || undefined,
-              startTime: new Date(validated.startTime),
-              endTime: new Date(validated.endTime),
+              startTime: startTimeUtc,
+              endTime: endTimeUtc,
               attendeeEmails,
-              timezone: validated.timezone,
+              timezone: ianaTimezone,
             })
           : await createCalendarEvent({
               summary: validated.title,
               description: validated.description || undefined,
-              startTime: new Date(validated.startTime),
-              endTime: new Date(validated.endTime),
+              startTime: startTimeUtc,
+              endTime: endTimeUtc,
               attendeeEmails,
-              timezone: validated.timezone,
+              timezone: ianaTimezone,
               location: validated.location || undefined,
             });
 
@@ -110,6 +117,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     revalidatePath("/events");
     revalidateTag(`events-${user.batchId}`);
     revalidateTag(`event-${event.id}`);
+    revalidateSchedule(user.batchId);
     return { success: true, data: { id: event.id }, warning };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -122,6 +130,10 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
 export async function getEvents(batchId: string) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
     const events = await unstable_cache(
       () =>
         prisma.event.findMany({
@@ -149,7 +161,7 @@ export async function getEvents(batchId: string) {
   }
 }
 
-export async function getEvent(eventId: string) {
+export async function getEvent(eventId: string, batchId?: string) {
   try {
     const event = await unstable_cache(
       () =>
@@ -170,6 +182,10 @@ export async function getEvent(eventId: string) {
       { revalidate: 60, tags: [`event-${eventId}`] }
     )();
 
+    if (batchId && event?.batchId !== batchId) {
+      return null;
+    }
+
     return event;
   } catch (error) {
     console.error("Failed to fetch event:", error);
@@ -187,8 +203,12 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
     // Get the event to check if it has a Google Calendar event ID
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { googleEventId: true },
+      select: { googleEventId: true, batchId: true },
     });
+
+    if (!event || event.batchId !== user.batchId) {
+      return { success: false, error: "Event not found" };
+    }
 
     // Attempt to delete from Google Calendar if googleEventId exists
     if (event?.googleEventId) {
@@ -207,6 +227,7 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
     revalidatePath("/events");
     revalidateTag(`events-${user.batchId}`);
     revalidateTag(`event-${eventId}`);
+    revalidateSchedule(user.batchId);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Failed to delete event:", error);
@@ -236,8 +257,16 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     // Get the event to check if it has a Google Calendar event ID
     const existingEvent = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { googleEventId: true },
+      select: { googleEventId: true, batchId: true },
     });
+
+    if (!existingEvent || existingEvent.batchId !== user.batchId) {
+      return { success: false, error: "Event not found" };
+    }
+
+    const ianaTimezone = toIanaTimezone(validated.timezone);
+    const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
+    const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
 
     await prisma.event.update({
       where: { id: eventId },
@@ -245,9 +274,9 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
         title: validated.title,
         description: validated.description || null,
         eventType: validated.eventType,
-        startTime: new Date(validated.startTime),
-        endTime: new Date(validated.endTime),
-        timezone: validated.timezone,
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
+        timezone: ianaTimezone,
         location: validated.location || null,
       },
     });
@@ -264,10 +293,10 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
         await updateCalendarEvent(existingEvent.googleEventId, {
           summary: validated.title,
           description: validated.description || undefined,
-          startTime: new Date(validated.startTime),
-          endTime: new Date(validated.endTime),
+          startTime: startTimeUtc,
+          endTime: endTimeUtc,
           attendeeEmails,
-          timezone: validated.timezone,
+          timezone: ianaTimezone,
           location: validated.location || undefined,
         });
       } catch (err) {
@@ -279,6 +308,7 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     revalidatePath("/events");
     revalidateTag(`events-${user.batchId}`);
     revalidateTag(`event-${eventId}`);
+    revalidateSchedule(user.batchId);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {

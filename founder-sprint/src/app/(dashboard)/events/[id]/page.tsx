@@ -10,16 +10,10 @@ import { formatDate } from "@/lib/utils";
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/auth/login");
 
-  const event = await getEvent(id);
-  if (!event) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl">Event not found</h1>
-      </div>
-    );
-  }
+  const event = await getEvent(id, user.batchId);
+  if (!event || event.batchId !== user.batchId) redirect("/events");
 
   const isUserAdmin = isAdmin(user.role);
   const isPastEvent = new Date(event.endTime) < new Date();
