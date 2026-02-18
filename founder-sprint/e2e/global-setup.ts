@@ -1,11 +1,19 @@
+import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import fs from "fs";
 import path from "path";
 
+// Load .env.local (Next.js convention) since Playwright runs outside Next.js
+config({ path: path.resolve(__dirname, "../.env.local") });
+config({ path: path.resolve(__dirname, "../.env") });
+
 const TEST_USERS = {
-  admin: "test-admin@example.com",
-  founder: "test-founder@example.com",
-  mentor: "test-mentor@example.com",
+  admin: { email: "test-admin@example.com", role: "admin" as const },
+  founder: { email: "test-founder@example.com", role: "founder" as const },
+  mentor: { email: "test-mentor@example.com", role: "mentor" as const },
 } as const;
 
 const E2E_PASSWORD = "e2e-test-secure-Pw-991!";
@@ -35,7 +43,8 @@ export default async function globalSetup() {
   });
   const existingUsers = listData?.users ?? [];
 
-  for (const [role, email] of Object.entries(TEST_USERS)) {
+  // Step 1: Create Supabase Auth users and generate session cookies
+  for (const [role, { email }] of Object.entries(TEST_USERS)) {
     const existing = existingUsers.find((u) => u.email === email);
 
     if (existing) {
@@ -122,5 +131,49 @@ export default async function globalSetup() {
       path.join(authDir, `${role}.json`),
       JSON.stringify({ cookies, origins: [] }, null, 2)
     );
+  }
+
+  // Step 2: Create database records (User + UserBatch) so getCurrentUser() works
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
+  const prisma = new PrismaClient({ adapter });
+  try {
+    let batch = await prisma.batch.findFirst({
+      where: { status: "active" },
+    });
+
+    if (!batch) {
+      batch = await prisma.batch.create({
+        data: {
+          name: "E2E Test Batch",
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+          status: "active",
+        },
+      });
+    }
+
+    for (const [, { email, role }] of Object.entries(TEST_USERS)) {
+      const user = await prisma.user.upsert({
+        where: { email },
+        create: { email, name: `Test ${role}` },
+        update: {},
+      });
+
+      await prisma.userBatch.upsert({
+        where: { userId_batchId: { userId: user.id, batchId: batch.id } },
+        create: {
+          userId: user.id,
+          batchId: batch.id,
+          role,
+          status: "active",
+          joinedAt: new Date(),
+        },
+        update: { status: "active", role },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+    await pool.end();
   }
 }

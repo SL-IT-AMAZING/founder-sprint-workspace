@@ -49,16 +49,15 @@ test.describe("Feed & Posts", () => {
   test("founder can like a post", async ({ founderPage }) => {
     await founderPage.goto("/feed");
 
-    const likeButton = founderPage.getByRole("button", { name: /like/i }).first();
+    const likeButton = founderPage.locator("main button").filter({ hasText: /\d+\s+likes?/i }).first();
 
     if (await likeButton.isVisible()) {
-      const initialState = await likeButton.getAttribute("data-liked");
+      const initialText = (await likeButton.textContent())?.trim() ?? "";
 
       await likeButton.click();
-      await founderPage.waitForResponse((r) => r.url().includes("like") && r.ok());
-
-      const newState = await likeButton.getAttribute("data-liked");
-      expect(newState).not.toBe(initialState);
+      await expect
+        .poll(async () => (await likeButton.textContent())?.trim() ?? "", { timeout: 10000 })
+        .not.toBe(initialText);
     }
   });
 
@@ -74,13 +73,20 @@ test.describe("Feed & Posts", () => {
   test("admin can pin a post", async ({ adminPage }) => {
     await adminPage.goto("/feed");
 
-    const pinButton = adminPage.getByRole("button", { name: /pin/i }).first();
+    await adminPage.getByRole("button", { name: "All" }).click();
+
+    const postActionsButton = adminPage.getByRole("button", { name: /more options/i }).first();
+    const actionsButtonCount = await adminPage.getByRole("button", { name: /more options/i }).count();
+    test.skip(actionsButtonCount === 0, "No posts are available to pin.");
+
+    await postActionsButton.click();
+
+    const pinButton = adminPage.getByRole("button", { name: /^pin$/i }).first();
 
     if (await pinButton.isVisible()) {
       await pinButton.click();
-      await adminPage.waitForResponse((r) => r.url().includes("pin") && r.ok());
-
-      await expect(adminPage.getByText(/pinned/i)).toBeVisible({ timeout: 5000 });
+      await adminPage.getByRole("button", { name: "Pinned" }).click();
+      await expect(adminPage.locator("main .card").first()).toBeVisible({ timeout: 10000 });
     }
   });
 
