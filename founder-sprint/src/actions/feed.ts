@@ -126,6 +126,52 @@ export async function getPosts(batchId: string, groupId?: string) {
   )();
 }
 
+export async function getPaginatedPosts(
+  batchId: string,
+  page: number = 1,
+  limit: number = 20
+) {
+  const user = await getCurrentUser();
+  if (!user) return { items: [], total: 0, page, limit, totalPages: 0 };
+  if (!isAdmin(user.role) && user.batchId !== batchId) return { items: [], total: 0, page, limit, totalPages: 0 };
+
+  const where = { batchId, isHidden: false };
+
+  return unstable_cache(
+    async () => {
+      const [items, total] = await Promise.all([
+        prisma.post.findMany({
+          where,
+          include: {
+            author: true,
+            images: true,
+            _count: {
+              select: {
+                comments: true,
+                likes: true,
+              },
+            },
+          },
+          orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.post.count({ where }),
+      ]);
+
+      return {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    },
+    [`posts-${batchId}-page-${page}-limit-${limit}`],
+    { revalidate: 60, tags: [`posts-${batchId}`] }
+  )();
+}
+
 export async function getArchivedPosts(batchId: string) {
   const user = await getCurrentUser();
   if (!user) return [];
