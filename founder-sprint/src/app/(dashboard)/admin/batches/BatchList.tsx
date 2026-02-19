@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { createBatch, updateBatch, archiveBatch, deleteBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
 import { getEffectiveBatchStatus, getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
+import { useToast } from "@/hooks/useToast";
 import type { BatchStatus } from "@/types";
 
 interface Batch {
@@ -34,6 +35,7 @@ export function BatchList({ batches }: BatchListProps) {
   const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const toast = useToast();
 
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -58,7 +60,7 @@ export function BatchList({ batches }: BatchListProps) {
     startTransition(async () => {
       const result = await archiveBatch(batchId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   }
@@ -69,7 +71,7 @@ export function BatchList({ batches }: BatchListProps) {
     startTransition(async () => {
       const result = await deleteBatch(batchId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   }

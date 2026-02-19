@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { createAssignment, updateAssignment, deleteAssignment } from "@/actions/assignment";
 import { formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 
 interface Assignment {
   id: string;
@@ -32,6 +33,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -70,7 +72,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
   const handleDelete = (e: React.MouseEvent, assignmentId: string, title: string, hasSubmissions: boolean) => {
     e.stopPropagation();
     if (hasSubmissions) {
-      alert("Cannot delete assignment with existing submissions");
+      toast.error("Cannot delete assignment with existing submissions");
       return;
     }
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
@@ -78,7 +80,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
     startTransition(async () => {
       const result = await deleteAssignment(assignmentId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
