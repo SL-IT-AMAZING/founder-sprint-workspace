@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -52,9 +53,10 @@ interface GroupDetailProps {
   group: Group;
   currentUserId: string;
   currentUser: User;
+  isAdmin: boolean;
 }
 
-export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailProps) {
+export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: GroupDetailProps) {
   const [isPending, startTransition] = useTransition();
   const [postContent, setPostContent] = useState("");
   const [error, setError] = useState("");
@@ -114,9 +116,16 @@ export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailPr
               <span>{group.posts.length} posts</span>
             </div>
           </div>
-          <Button onClick={handleJoinLeave} loading={isPending} variant={isMember ? "secondary" : "primary"}>
-            {isMember ? "Leave Group" : "Join Group"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {(isAdmin || isMember) && (
+              <Link href={`/groups/${group.id}/manage`}>
+                <Button variant="secondary" type="button">Manage</Button>
+              </Link>
+            )}
+            <Button onClick={handleJoinLeave} loading={isPending} variant={isMember ? "secondary" : "primary"}>
+              {isMember ? "Leave Group" : "Join Group"}
+            </Button>
+          </div>
         </div>
       </div>
 

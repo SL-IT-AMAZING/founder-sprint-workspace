@@ -8,10 +8,6 @@ export default async function GroupManagePage({ params }: { params: Promise<{ id
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  if (!isAdmin(user.role)) {
-    redirect(`/groups/${id}`);
-  }
-
   const group = await getGroup(id);
   if (!group) {
     return (
@@ -21,5 +17,12 @@ export default async function GroupManagePage({ params }: { params: Promise<{ id
     );
   }
 
-  return <GroupManage group={group} />;
+  const userIsAdmin = isAdmin(user.role);
+  const isMember = group.members.some((m) => m.user.id === user.id);
+
+  if (!userIsAdmin && !isMember) {
+    redirect(`/groups/${id}`);
+  }
+
+  return <GroupManage group={group} isAdmin={userIsAdmin} />;
 }

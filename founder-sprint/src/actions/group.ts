@@ -319,7 +319,12 @@ export async function updateGroup(
   if (!user) return { success: false, error: "Not authenticated" };
 
   if (!isAdmin(user.role)) {
-    return { success: false, error: "Unauthorized: admin only" };
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: user.id },
+    });
+    if (!membership) {
+      return { success: false, error: "Unauthorized" };
+    }
   }
 
   const parsed = CreateGroupSchema.safeParse({

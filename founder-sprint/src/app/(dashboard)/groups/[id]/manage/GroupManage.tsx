@@ -32,9 +32,10 @@ interface Group {
 
 interface GroupManageProps {
   group: Group;
+  isAdmin: boolean;
 }
 
-export function GroupManage({ group }: GroupManageProps) {
+export function GroupManage({ group, isAdmin }: GroupManageProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(group.name);
@@ -130,7 +131,7 @@ export function GroupManage({ group }: GroupManageProps) {
         </form>
       </div>
 
-      {/* Members Management */}
+      {/* Members (visible to all, remove button admin-only) */}
       <div className="card">
         <h3 className="text-lg font-medium mb-4">Members ({group.members.length})</h3>
         <div className="space-y-3">
@@ -149,59 +150,62 @@ export function GroupManage({ group }: GroupManageProps) {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleRemoveMember(member.user.id)}
-                loading={isPending}
-              >
-                Remove
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleRemoveMember(member.user.id)}
+                  loading={isPending}
+                >
+                  Remove
+                </Button>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Danger Zone */}
-      <div className="card" style={{ borderColor: "var(--color-error)" }}>
-        <h3 className="text-lg font-medium mb-2" style={{ color: "var(--color-error)" }}>
-          Danger Zone
-        </h3>
-        <p className="text-sm mb-4" style={{ color: "var(--color-foreground-secondary)" }}>
-          Deleting a group is permanent and cannot be undone. All posts and data associated with this group will be removed.
-        </p>
+      {isAdmin && (
+        <div className="card" style={{ borderColor: "var(--color-error)" }}>
+          <h3 className="text-lg font-medium mb-2" style={{ color: "var(--color-error)" }}>
+            Danger Zone
+          </h3>
+          <p className="text-sm mb-4" style={{ color: "var(--color-foreground-secondary)" }}>
+            Deleting a group is permanent and cannot be undone. All posts and data associated with this group will be removed.
+          </p>
 
-        {!showDeleteConfirm ? (
-          <Button
-            variant="secondary"
-            onClick={() => setShowDeleteConfirm(true)}
-            style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
-          >
-            Delete Group
-          </Button>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm font-medium" style={{ color: "var(--color-error)" }}>
-              Are you sure you want to delete this group? This action cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setShowDeleteConfirm(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDeleteGroup}
-                loading={isPending}
-                style={{ backgroundColor: "var(--color-error)" }}
-              >
-                Yes, Delete Group
-              </Button>
+          {!showDeleteConfirm ? (
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
+            >
+              Delete Group
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-medium" style={{ color: "var(--color-error)" }}>
+                Are you sure you want to delete this group? This action cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDeleteGroup}
+                  loading={isPending}
+                  style={{ backgroundColor: "var(--color-error)" }}
+                >
+                  Yes, Delete Group
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
