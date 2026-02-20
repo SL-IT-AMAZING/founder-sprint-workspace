@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { updateGroup, deleteGroup, removeGroupMember } from "@/actions/group";
+import { getDisplayName } from "@/lib/utils";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
 }
 
@@ -137,11 +139,11 @@ export function GroupManage({ group }: GroupManageProps) {
               <div className="flex items-center gap-3">
                 <Avatar
                   src={member.user.profileImage}
-                  name={member.user.name}
+                  name={getDisplayName(member.user)}
                   size={40}
                 />
                 <div>
-                  <p className="font-medium">{member.user.name}</p>
+                  <p className="font-medium">{getDisplayName(member.user)}</p>
                   <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     Joined {new Date(member.joinedAt).toLocaleDateString()}
                   </p>

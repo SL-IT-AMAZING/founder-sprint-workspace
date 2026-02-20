@@ -18,7 +18,7 @@ function hasUndeliverableRecipient(to: string | string[]): boolean {
 
 interface InvitationEmailParams {
   to: string;
-  inviteeName: string;
+  inviteeName?: string;
   batchName: string;
   role: string;
   inviteLink: string;
@@ -64,7 +64,7 @@ export async function sendInvitationEmail({
             </div>
 
             <div style="background: #ffffff; padding: 32px; border: 1px solid #e0d6c8; border-top: none; border-radius: 0 0 12px 12px;">
-              <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Hello ${inviteeName}!</h2>
+              <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Hello${inviteeName ? ` ${inviteeName}` : ""}!</h2>
 
               <p style="font-size: 15px; color: #2F2C26; line-height: 1.6; margin-bottom: 12px;">
                 You've been invited to join <strong>${batchName}</strong> as a <strong>${roleDisplayName}</strong>.

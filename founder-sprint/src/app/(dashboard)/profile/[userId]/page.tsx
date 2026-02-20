@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getUserProfile } from "@/actions/profile";
 import { Avatar } from "@/components/ui/Avatar";
 import Link from "next/link";
+import { getDisplayName } from "@/lib/utils";
 
 const roleLabels: Record<string, string> = {
   super_admin: "Super Admin",
@@ -73,7 +74,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userId
             gap: "20px",
           }}
         >
-          <Avatar src={profile.profileImage} name={profile.name} size={80} />
+          <Avatar src={profile.profileImage} name={getDisplayName(profile)} size={80} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
               <h1
@@ -85,7 +86,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userId
                   fontFamily: "var(--font-serif, Georgia, serif)",
                 }}
               >
-                {profile.name}
+                {getDisplayName(profile)}
                 {isOwnProfile && (
                   <span style={{ fontSize: "14px", fontWeight: 400, color: "var(--color-foreground-muted)" }}>
                     {" "}(You)

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
 import { getAssignment } from "@/actions/assignment";
 import { Badge } from "@/components/ui/Badge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getDisplayName } from "@/lib/utils";
 import { SubmissionForm } from "./SubmissionForm";
 import { SubmissionsList } from "./SubmissionsList";
 
@@ -106,7 +106,7 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
                 <p className="text-sm font-medium">Feedback</p>
                 {userSubmission.feedbacks.map((feedback) => (
                   <div key={feedback.id} className="space-y-1">
-                    <p className="text-sm font-medium">{feedback.author.name}</p>
+                     <p className="text-sm font-medium">{getDisplayName(feedback.author)}</p>
                     <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                       {feedback.content}
                     </p>

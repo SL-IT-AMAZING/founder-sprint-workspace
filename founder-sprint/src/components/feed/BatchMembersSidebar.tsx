@@ -4,12 +4,13 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
+import { getDisplayName } from "@/lib/utils";
 import type { BatchStatus } from "@/types";
 
 interface BatchMember {
   user: {
     id: string;
-    name: string;
+    name: string | null;
     email: string;
     profileImage: string | null;
   };
@@ -140,11 +141,11 @@ export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndD
                    <Link key={member.user.id} href={`/profile/${member.user.id}`} className="hover:bg-gray-50 rounded px-1 -mx-1" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
                      <Avatar
                        src={member.user.profileImage}
-                       name={member.user.name}
+                       name={getDisplayName(member.user)}
                        size={28}
-                     />
-                     <div className="text-sm truncate" style={{ maxWidth: "140px" }}>
-                       {member.user.name}
+                      />
+                      <div className="text-sm truncate" style={{ maxWidth: "140px" }}>
+                       {getDisplayName(member.user)}
                        {member.user.id === currentUserId && <span style={{ color: "var(--color-foreground-muted)" }}> (You)</span>}
                      </div>
                    </Link>

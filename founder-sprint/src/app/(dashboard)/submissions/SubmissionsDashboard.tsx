@@ -5,11 +5,12 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getDisplayName } from "@/lib/utils";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
 }
 
@@ -123,10 +124,10 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
                       <div className="flex items-center gap-2">
                         <Avatar
                           src={submission.author.profileImage}
-                          name={submission.author.name}
+                          name={getDisplayName(submission.author)}
                           size={32}
                         />
-                        <span className="text-sm font-medium">{submission.author.name}</span>
+                        <span className="text-sm font-medium">{getDisplayName(submission.author)}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4">

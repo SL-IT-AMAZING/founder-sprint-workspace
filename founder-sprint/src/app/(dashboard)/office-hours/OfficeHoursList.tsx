@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, getDisplayName } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
 import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
@@ -18,7 +18,7 @@ import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } fro
 interface GroupMember {
   user: {
     id: string;
-    name: string;
+    name: string | null;
     email: string;
     profileImage: string | null;
   };
@@ -47,7 +47,7 @@ interface OfficeHourRequest {
   createdAt: Date;
   requester: {
     id: string;
-    name: string;
+    name: string | null;
     email: string;
     profileImage: string | null;
   };
@@ -62,7 +62,7 @@ interface OfficeHourSlot {
   googleMeetLink: string | null;
   host: {
     id: string;
-    name: string;
+    name: string | null;
     email: string;
     profileImage: string | null;
   };
@@ -371,10 +371,10 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               <div key={slot.id} className="card space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <Avatar src={slot.host.profileImage} name={slot.host.name} size={48} />
+                    <Avatar src={slot.host.profileImage} name={getDisplayName(slot.host)} size={48} />
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{slot.host.name}</span>
+                        <span className="font-medium">{getDisplayName(slot.host)}</span>
                         <Badge variant={getStatusBadgeVariant(slot.status)}>
                           {getStatusLabel(slot.status)}
                         </Badge>
@@ -446,11 +446,11 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                     <div className="flex items-center gap-2">
                       <Avatar
                         src={approvedRequest.requester.profileImage}
-                        name={approvedRequest.requester.name}
+                        name={getDisplayName(approvedRequest.requester)}
                         size={32}
                       />
                       <div className="text-sm">
-                        <div className="font-medium">{approvedRequest.requester.name}</div>
+                        <div className="font-medium">{getDisplayName(approvedRequest.requester)}</div>
                         {approvedRequest.message && (
                           <div style={{ color: "var(--color-foreground-secondary)" }}>
                             {approvedRequest.message}
@@ -467,8 +467,8 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                     <div className="flex flex-wrap gap-2">
                       {slot.group.members.slice(0, 5).map((m) => (
                         <div key={m.user.id} className="flex items-center gap-1">
-                          <Avatar src={m.user.profileImage} name={m.user.name} size={24} />
-                          <span className="text-xs">{m.user.name}</span>
+                           <Avatar src={m.user.profileImage} name={getDisplayName(m.user)} size={24} />
+                           <span className="text-xs">{getDisplayName(m.user)}</span>
                         </div>
                       ))}
                       {slot.group.members.length > 5 && (
@@ -486,13 +486,13 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                     {pendingRequests.map((request) => (
                       <div key={request.id} className="flex items-start justify-between gap-4 p-3 rounded" style={{ backgroundColor: "var(--color-background-secondary)" }}>
                         <div className="flex items-start gap-3">
-                          <Avatar
+                           <Avatar
                             src={request.requester.profileImage}
-                            name={request.requester.name}
+                            name={getDisplayName(request.requester)}
                             size={36}
                           />
                           <div className="space-y-1">
-                            <div className="font-medium text-sm">{request.requester.name}</div>
+                            <div className="font-medium text-sm">{getDisplayName(request.requester)}</div>
                             {request.message && (
                               <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                                 {request.message}
@@ -594,9 +594,9 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
           {selectedSlot && (
             <div className="p-3 rounded" style={{ backgroundColor: "var(--color-background-secondary)" }}>
               <div className="flex items-center gap-3">
-                <Avatar src={selectedSlot.host.profileImage} name={selectedSlot.host.name} size={40} />
+                <Avatar src={selectedSlot.host.profileImage} name={getDisplayName(selectedSlot.host)} size={40} />
                 <div>
-                  <div className="font-medium">{selectedSlot.host.name}</div>
+                  <div className="font-medium">{getDisplayName(selectedSlot.host)}</div>
                   <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     {formatDateTime(selectedSlot.startTime)} - {formatDateTime(selectedSlot.endTime)}
                   </div>

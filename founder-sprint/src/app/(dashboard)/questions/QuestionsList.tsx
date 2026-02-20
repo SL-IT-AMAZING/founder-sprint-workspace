@@ -6,7 +6,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatRelativeTime, truncate } from "@/lib/utils";
+import { formatRelativeTime, truncate, getDisplayName } from "@/lib/utils";
 
 interface Question {
   id: string;
@@ -16,7 +16,8 @@ interface Question {
   createdAt: Date;
   author: {
     id: string;
-    name: string;
+    name: string | null;
+    email: string;
     profileImage: string | null;
   };
   _count: {
@@ -41,7 +42,7 @@ export function QuestionsList({ questions }: QuestionsListProps) {
         }}
       >
         <div className="flex gap-4">
-          <Avatar src={question.author.profileImage} name={question.author.name} size={48} />
+          <Avatar src={question.author.profileImage} name={getDisplayName(question.author)} size={48} />
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-2">
               <h3 className="text-lg font-semibold">{question.title}</h3>
@@ -52,7 +53,7 @@ export function QuestionsList({ questions }: QuestionsListProps) {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mb-3 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-              <span className="font-medium">{question.author.name}</span>
+              <span className="font-medium">{getDisplayName(question.author)}</span>
               <span>•</span>
               <span>{formatRelativeTime(question.createdAt)}</span>
             </div>

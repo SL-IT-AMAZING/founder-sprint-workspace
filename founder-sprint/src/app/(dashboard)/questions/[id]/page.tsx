@@ -3,7 +3,7 @@ import { getQuestion } from "@/actions/question";
 import { redirect, notFound } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { formatDate, getRoleDisplayName } from "@/lib/utils";
+import { formatDate, getRoleDisplayName, getDisplayName } from "@/lib/utils";
 import { AnswerForm } from "./AnswerForm";
 import { SummaryForm } from "./SummaryForm";
 import { DeleteQuestionButton } from "./DeleteQuestionButton";
@@ -49,9 +49,9 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
         </div>
 
         <div className="flex items-center gap-3 mb-6">
-          <Avatar src={question.author.profileImage} name={question.author.name} size={48} />
+          <Avatar src={question.author.profileImage} name={getDisplayName(question.author)} size={48} />
           <div>
-            <p className="font-semibold">{question.author.name}</p>
+            <p className="font-semibold">{getDisplayName(question.author)}</p>
             <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
               {question.author.jobTitle && <span>{question.author.jobTitle}</span>}
               {question.author.jobTitle && question.author.company && <span>•</span>}
@@ -107,8 +107,8 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
               {question.summary.content}
             </div>
             <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-              <Avatar src={question.summary.author.profileImage} name={question.summary.author.name} size={24} />
-              <span>{question.summary.author.name}</span>
+              <Avatar src={question.summary.author.profileImage} name={getDisplayName(question.summary.author)} size={24} />
+              <span>{getDisplayName(question.summary.author)}</span>
               <span>•</span>
               <span>{formatDate(question.summary.createdAt)}</span>
             </div>
@@ -131,9 +131,9 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
             {question.answers.map((answer) => (
               <div key={answer.id} className="card">
                 <div className="flex items-start gap-3 mb-4">
-                  <Avatar src={answer.author.profileImage} name={answer.author.name} size={40} />
+                  <Avatar src={answer.author.profileImage} name={getDisplayName(answer.author)} size={40} />
                   <div className="flex-1">
-                    <p className="font-semibold">{answer.author.name}</p>
+                    <p className="font-semibold">{getDisplayName(answer.author)}</p>
                     <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                       {formatDate(answer.createdAt)}
                     </p>

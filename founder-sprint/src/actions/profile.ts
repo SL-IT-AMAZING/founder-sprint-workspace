@@ -19,7 +19,7 @@ const UpdateProfileSchema = z.object({
 export async function getProfile(): Promise<ActionResult<{
   id: string;
   email: string;
-  name: string;
+  name: string | null;
   profileImage: string | null;
   jobTitle: string | null;
   company: string | null;
@@ -87,7 +87,7 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
 export async function getUserProfile(userId: string): Promise<ActionResult<{
   id: string;
   email: string;
-  name: string;
+  name: string | null;
   profileImage: string | null;
   jobTitle: string | null;
   company: string | null;

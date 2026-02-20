@@ -134,9 +134,7 @@ export async function joinGroup(groupId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  if (!isAdmin(user.role)) {
-    return { success: false, error: "Unauthorized: admin only" };
-  }
+  // Allow admins and founders to join groups
 
   // Check if already a member
   const existing = await prisma.groupMember.findUnique({
@@ -251,10 +249,6 @@ export async function leaveGroup(groupId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  if (!isAdmin(user.role)) {
-    return { success: false, error: "Unauthorized: admin only" };
-  }
-
   const member = await prisma.groupMember.findUnique({
     where: {
       groupId_userId: {
@@ -276,6 +270,44 @@ export async function leaveGroup(groupId: string): Promise<ActionResult> {
   revalidatePath(`/groups/${groupId}`);
   revalidateTag(`groups-${user.batchId}`);
   revalidateTag(`group-${groupId}`);
+  return { success: true, data: undefined };
+}
+
+export async function selectGroup(groupId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const group = await prisma.group.findFirst({
+    where: { id: groupId, batchId: user.batchId },
+  });
+  if (!group) return { success: false, error: "Group not found in your batch" };
+
+  const existing = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId: user.id } },
+  });
+  if (existing) return { success: false, error: "Already a member of this group" };
+
+  await prisma.groupMember.deleteMany({
+    where: { userId: user.id, group: { batchId: user.batchId } },
+  });
+
+  await prisma.groupMember.create({
+    data: { groupId, userId: user.id },
+  });
+
+  if (!user.company && group.name) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { company: group.name },
+    });
+  }
+
+  revalidatePath("/groups");
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath("/settings");
+  revalidateTag(`groups-${user.batchId}`);
+  revalidateTag(`group-${groupId}`);
+  revalidateTag("current-user");
   return { success: true, data: undefined };
 }
 

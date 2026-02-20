@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { createComment, updateComment, deleteComment, toggleLike, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
   role?: string | null;
 }
@@ -251,11 +252,11 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
             <div className="flex items-start gap-3">
               <Avatar
                 src={post.author.profileImage}
-                name={post.author.name}
+                name={getDisplayName(post.author)}
                 size={48}
               />
               <div>
-                <p style={{ fontWeight: 600 }}>{post.author.name}</p>
+                <p style={{ fontWeight: 600 }}>{getDisplayName(post.author)}</p>
                 <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                   {formatRelativeTime(post.createdAt)}
                 </p>
@@ -376,7 +377,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
             <div className="flex items-start gap-3">
               <Avatar
                 src={currentUser.profileImage}
-                name={currentUser.name}
+                name={getDisplayName(currentUser)}
                 size={40}
               />
               <div className="flex-1 space-y-2">
@@ -432,13 +433,13 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                   <div className="flex items-start gap-3">
                     <Avatar
                       src={comment.author.profileImage}
-                      name={comment.author.name}
+                      name={getDisplayName(comment.author)}
                       size={40}
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p style={{ fontWeight: 600 }}>{comment.author.name}</p>
+                          <p style={{ fontWeight: 600 }}>{getDisplayName(comment.author)}</p>
                           <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                             {formatRelativeTime(comment.createdAt)}
                             {isEdited(comment.createdAt, comment.updatedAt) && (
@@ -535,7 +536,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                     <div className="flex items-start gap-3 pt-3 border-t" style={{ borderColor: "#e0e0e0" }}>
                       <Avatar
                         src={currentUser.profileImage}
-                        name={currentUser.name}
+                        name={getDisplayName(currentUser)}
                         size={32}
                       />
                       <div className="flex-1 space-y-2">
@@ -574,13 +575,13 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                         <div key={reply.id} className="flex items-start gap-3">
                           <Avatar
                             src={reply.author.profileImage}
-                            name={reply.author.name}
+                            name={getDisplayName(reply.author)}
                             size={32}
                           />
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-2">
-                                <p className="text-sm" style={{ fontWeight: 600 }}>{reply.author.name}</p>
+                                <p className="text-sm" style={{ fontWeight: 600 }}>{getDisplayName(reply.author)}</p>
                                 <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                                   {formatRelativeTime(reply.createdAt)}
                                   {isEdited(reply.createdAt, reply.updatedAt) && (

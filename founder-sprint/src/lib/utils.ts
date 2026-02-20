@@ -59,6 +59,11 @@ export function getQuestionStatusColor(status: string): string {
   return status === "open" ? "badge-success" : "badge-warning";
 }
 
+// Get display name with email fallback (for nullable user.name)
+export function getDisplayName(user: { name?: string | null; email: string }): string {
+  return user.name || user.email;
+}
+
 // Truncate text
 export function truncate(text: string, length: number): string {
   if (text.length <= length) return text;

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 
 interface ProfileFormProps {
   initialData: {
-    name: string;
+    name: string | null;
     email: string;
     jobTitle: string;
     company: string;
@@ -87,7 +87,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           label="Name"
           name="name"
           type="text"
-          defaultValue={initialData.name}
+          defaultValue={initialData.name || ""}
           required
           maxLength={100}
           placeholder="Enter your name"

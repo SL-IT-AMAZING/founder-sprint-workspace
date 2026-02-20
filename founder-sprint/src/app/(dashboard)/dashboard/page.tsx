@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatRelativeTime, formatDate, getRoleDisplayName } from "@/lib/utils";
+import { formatRelativeTime, formatDate, getRoleDisplayName, getDisplayName } from "@/lib/utils";
 import { getBatchStatusLabel, getBatchStatusVariant, isBatchActive } from "@/lib/batch-utils";
 import Link from "next/link";
 
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
     prisma.question.findMany({
       where: { batchId: user.batchId },
       include: {
-        author: { select: { id: true, name: true, profileImage: true } },
+        author: { select: { id: true, name: true, email: true, profileImage: true } },
         _count: { select: { answers: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -127,7 +127,7 @@ export default async function DashboardPage() {
         {/* Welcome Header */}
         <div className="space-y-2">
           <h1 className="text-3xl" style={{ color: "var(--color-foreground)" }}>
-            Welcome back, {user.name}
+            Welcome back, {getDisplayName(user)}
           </h1>
           <Badge variant="role">{getRoleDisplayName(user.role)}</Badge>
         </div>
@@ -205,8 +205,8 @@ export default async function DashboardPage() {
                   <div className="space-y-2">
                     <h3 className="font-medium line-clamp-1">{question.title}</h3>
                     <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-                      <Avatar src={question.author.profileImage} name={question.author.name} size={24} />
-                      <span>{question.author.name}</span>
+                      <Avatar src={question.author.profileImage} name={getDisplayName(question.author)} size={24} />
+                      <span>{getDisplayName(question.author)}</span>
                       <span>•</span>
                       <span>{formatRelativeTime(question.createdAt)}</span>
                       <span>•</span>
