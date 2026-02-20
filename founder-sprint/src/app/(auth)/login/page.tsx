@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -99,7 +98,7 @@ export default async function LoginPage({
           </div>
         )}
 
-        <Link href="/auth/login" style={{ width: "100%", textDecoration: "none" }}>
+        <a href="/auth/login" style={{ width: "100%", textDecoration: "none" }}>
           <Button variant="linkedin" size="lg" style={{ width: "100%" }}>
             <Image
               src="/images/icon-social-linkedin.svg"
@@ -110,7 +109,7 @@ export default async function LoginPage({
             />
             Sign in with LinkedIn
           </Button>
-        </Link>
+        </a>
 
         <p
           style={{
