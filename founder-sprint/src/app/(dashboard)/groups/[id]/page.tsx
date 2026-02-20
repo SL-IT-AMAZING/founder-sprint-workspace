@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { getGroup } from "@/actions/group";
 import { GroupDetail } from "./GroupDetail";
 
@@ -17,5 +17,5 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  return <GroupDetail group={group} currentUserId={user.id} currentUser={user} />;
+  return <GroupDetail group={group} currentUserId={user.id} currentUser={user} isAdmin={isAdmin(user.role)} />;
 }

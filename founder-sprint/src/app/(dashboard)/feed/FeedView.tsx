@@ -10,12 +10,13 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
 }
 
@@ -269,7 +270,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
             <div className="flex items-start gap-3">
               <Avatar
                 src={currentUser.profileImage}
-                name={currentUser.name}
+                name={getDisplayName(currentUser)}
               />
               <div className="flex-1 space-y-3">
                 <Textarea
@@ -313,10 +314,10 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   <div className="flex items-start gap-3">
                     <Avatar
                       src={post.author.profileImage}
-                      name={post.author.name}
+                      name={getDisplayName(post.author)}
                     />
                     <div>
-                      <p className="font-medium">{post.author.name}</p>
+                      <p className="font-medium">{getDisplayName(post.author)}</p>
                       <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                         {formatRelativeTime(post.createdAt)}
                       </p>
@@ -405,7 +406,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                     <div className="flex items-start gap-3">
                       <Avatar
                         src={currentUser.profileImage}
-                        name={currentUser.name}
+                        name={getDisplayName(currentUser)}
                         size={32}
                       />
                       <div className="flex-1 space-y-2">
@@ -458,10 +459,10 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   <div className="flex items-start gap-3">
                     <Avatar
                       src={post.author.profileImage}
-                      name={post.author.name}
+                      name={getDisplayName(post.author)}
                     />
                     <div>
-                      <p className="font-medium">{post.author.name}</p>
+                      <p className="font-medium">{getDisplayName(post.author)}</p>
                       <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                         {formatRelativeTime(post.createdAt)}
                       </p>

@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { revalidateTag as revalidateTagBase } from "next/cache";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -42,6 +45,47 @@ export async function GET(request: Request) {
         },
       },
     });
+
+    // Ghost user fallback: user found by email but has zero batch memberships anywhere
+    if (user && user.userBatches.length === 0) {
+      // IMPORTANT: count ALL statuses, not just invited (the include above filters to invited only)
+      const totalBatchCount = await prisma.userBatch.count({
+        where: { userId: user.id },
+      });
+
+      if (totalBatchCount === 0) {
+        const cookieStore = await cookies();
+        const inviteToken = cookieStore.get("invite_token")?.value;
+
+        if (inviteToken) {
+          const invitation = await prisma.invitationToken.findUnique({
+            where: { token: inviteToken, usedAt: null },
+            select: { userId: true, expiresAt: true },
+          });
+
+          if (invitation && invitation.expiresAt > new Date() && invitation.userId !== user.id) {
+            // InvitationToken has no onDelete cascade — must delete manually before user
+            await prisma.invitationToken.deleteMany({ where: { userId: user.id } });
+            await prisma.user.delete({ where: { id: user.id } });
+
+            await prisma.user.update({
+              where: { id: invitation.userId },
+              data: { email },
+            });
+
+            user = await prisma.user.findFirst({
+              where: { id: invitation.userId },
+              include: {
+                userBatches: {
+                  where: { status: "invited" },
+                  include: { batch: true },
+                },
+              },
+            });
+          }
+        }
+      }
+    }
 
     // If no user found by OAuth email, check invite_token cookie to match by invitation
     if (!user) {
@@ -110,6 +154,15 @@ export async function GET(request: Request) {
         },
       });
 
+      // Invalidate caches so the user appears in feed sidebar immediately
+      const activatedBatchIds = new Set(
+        validInvitations.map((ub: { batchId: string }) => ub.batchId)
+      );
+      for (const bid of activatedBatchIds) {
+        revalidateTag(`batch-users-${bid}`);
+      }
+      revalidateTag("current-user");
+
       // Mark invitation token as used (if present in cookie)
       const cookieStore = await cookies();
       const inviteToken = cookieStore.get("invite_token")?.value;
@@ -140,7 +193,26 @@ export async function GET(request: Request) {
     } = {};
 
     if (!user.linkedinId && linkedinId) {
-      updateData.linkedinId = linkedinId;
+      const conflictingUser = await prisma.user.findFirst({
+        where: { linkedinId, id: { not: user.id } },
+      });
+
+      if (conflictingUser) {
+        const conflictBatchCount = await prisma.userBatch.count({
+          where: { userId: conflictingUser.id },
+        });
+
+        if (conflictBatchCount === 0) {
+          // InvitationToken has no onDelete cascade — must delete manually before user
+          await prisma.invitationToken.deleteMany({ where: { userId: conflictingUser.id } });
+          await prisma.user.delete({ where: { id: conflictingUser.id } });
+          updateData.linkedinId = linkedinId;
+        } else {
+          console.warn(`LinkedIn ID conflict: user ${user.id} vs ${conflictingUser.id}, skipping`);
+        }
+      } else {
+        updateData.linkedinId = linkedinId;
+      }
     }
     if (fullName && (!user.name || user.name === email.split("@")[0])) {
       updateData.name = fullName;

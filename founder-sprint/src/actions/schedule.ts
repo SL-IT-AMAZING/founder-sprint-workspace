@@ -115,7 +115,7 @@ export async function getScheduleItems(params: {
         timezone: oh.timezone,
         isAllDay: false,
         status: oh.status as ScheduleItem["status"],
-        hostName: oh.host.name,
+        hostName: oh.host.name || undefined,
         groupName: oh.group?.name || undefined,
         googleMeetLink: oh.googleMeetLink || undefined,
         deepLink: "/office-hours",

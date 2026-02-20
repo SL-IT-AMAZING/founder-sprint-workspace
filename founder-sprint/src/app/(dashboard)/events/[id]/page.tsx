@@ -5,7 +5,7 @@ import { getEvent } from "@/actions/event";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getDisplayName } from "@/lib/utils";
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -89,11 +89,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <div className="flex items-center gap-3">
                 <Avatar
                   src={event.creator.profileImage}
-                  name={event.creator.name}
+                  name={getDisplayName(event.creator)}
                   size={40}
                 />
                 <div>
-                  <p className="font-medium">{event.creator.name}</p>
+                  <p className="font-medium">{getDisplayName(event.creator)}</p>
                   <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     {event.creator.email}
                   </p>

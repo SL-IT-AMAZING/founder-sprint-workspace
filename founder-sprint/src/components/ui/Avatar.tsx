@@ -2,7 +2,7 @@ type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
   src?: string | null;
-  name: string;
+  name?: string | null;
   size?: AvatarSize | number;
   badge?: string;
 }
@@ -15,7 +15,8 @@ const sizeMap: Record<AvatarSize, number> = {
   xl: 64,
 };
 
-function getInitials(name: string): string {
+function getInitials(name?: string | null): string {
+  if (!name) return "?";
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
@@ -29,7 +30,7 @@ export function Avatar({ src, name, size = "md", badge }: AvatarProps) {
   const avatarElement = src ? (
     <img
       src={src}
-      alt={name}
+      alt={name || ""}
       className="rounded-full object-cover"
       style={{
         width: sizeValue,

@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Textarea";
 import { joinGroup, leaveGroup } from "@/actions/group";
 import { createPost, toggleLike } from "@/actions/feed";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
 }
 
@@ -51,9 +53,10 @@ interface GroupDetailProps {
   group: Group;
   currentUserId: string;
   currentUser: User;
+  isAdmin: boolean;
 }
 
-export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailProps) {
+export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: GroupDetailProps) {
   const [isPending, startTransition] = useTransition();
   const [postContent, setPostContent] = useState("");
   const [error, setError] = useState("");
@@ -113,9 +116,16 @@ export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailPr
               <span>{group.posts.length} posts</span>
             </div>
           </div>
-          <Button onClick={handleJoinLeave} loading={isPending} variant={isMember ? "secondary" : "primary"}>
-            {isMember ? "Leave Group" : "Join Group"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {(isAdmin || isMember) && (
+              <Link href={`/groups/${group.id}/manage`}>
+                <Button variant="secondary" type="button">Manage</Button>
+              </Link>
+            )}
+            <Button onClick={handleJoinLeave} loading={isPending} variant={isMember ? "secondary" : "primary"}>
+              {isMember ? "Leave Group" : "Join Group"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -125,9 +135,9 @@ export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailPr
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {group.members.map((member) => (
             <div key={member.id} className="flex items-center gap-3">
-              <Avatar src={member.user.profileImage} name={member.user.name} size={32} />
+              <Avatar src={member.user.profileImage} name={getDisplayName(member.user)} size={32} />
               <div>
-                <p className="text-sm font-medium">{member.user.name}</p>
+                <p className="text-sm font-medium">{getDisplayName(member.user)}</p>
                 <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                   Joined {formatRelativeTime(member.joinedAt)}
                 </p>
@@ -148,7 +158,7 @@ export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailPr
       )}
 
             <div className="flex items-start gap-3">
-              <Avatar src={currentUser.profileImage} name={currentUser.name} />
+              <Avatar src={currentUser.profileImage} name={getDisplayName(currentUser)} />
               <div className="flex-1 space-y-3">
                 <Textarea
                   placeholder="Share with the group..."
@@ -184,9 +194,9 @@ export function GroupDetail({ group, currentUserId, currentUser }: GroupDetailPr
                 {/* Post Header */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    <Avatar src={post.author.profileImage} name={post.author.name} />
+                    <Avatar src={post.author.profileImage} name={getDisplayName(post.author)} />
                     <div>
-                      <p className="font-medium">{post.author.name}</p>
+                      <p className="font-medium">{getDisplayName(post.author)}</p>
                       <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                         {formatRelativeTime(post.createdAt)}
                       </p>

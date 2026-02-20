@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Calendar } from "@/components/ui/Calendar";
-import { formatDateTime, formatDate } from "@/lib/utils";
+import { formatDateTime, formatDate, getDisplayName } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
 import { useToast } from "@/hooks/useToast";
@@ -29,7 +29,7 @@ interface Event {
   location: string | null;
   creator: {
     id: string;
-    name: string;
+    name: string | null;
     email: string;
     profileImage: string | null;
   };
@@ -282,7 +282,7 @@ export function EventsList({ user, events }: EventsListProps) {
                     )}
                   </div>
                   <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                    Created by {event.creator.name}
+                    Created by {getDisplayName(event.creator)}
                   </div>
                 </div>
                 {canCreate && (

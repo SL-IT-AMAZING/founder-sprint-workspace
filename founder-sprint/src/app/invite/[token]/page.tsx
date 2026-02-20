@@ -140,12 +140,12 @@ export default async function InvitePage({ params }: InvitePageProps) {
           as a {role}
         </p>
 
-        <Link
+        <a
           href={`/api/invite/accept?token=${token}`}
           style={{ display: "inline-block", padding: "14px 32px", backgroundColor: "#1A1A1A", color: "#fff", borderRadius: "8px", fontSize: "14px", fontWeight: "bold", textDecoration: "none" }}
         >
           Join Now
-        </Link>
+        </a>
 
         <p style={{ fontSize: "13px", color: "#666666", marginTop: "24px" }}>
           Click the button above to accept your invitation and get started.

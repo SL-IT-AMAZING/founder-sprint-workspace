@@ -4,7 +4,7 @@ import { getCurrentUser, isStaff } from "@/lib/permissions";
 import { getSubmission } from "@/actions/assignment";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getDisplayName } from "@/lib/utils";
 import { FeedbackForm } from "./FeedbackForm";
 
 export default async function SubmissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -54,11 +54,11 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
             <div className="flex items-center gap-3">
               <Avatar
                 src={submission.author.profileImage}
-                name={submission.author.name}
+                name={getDisplayName(submission.author)}
                 size={40}
               />
               <div>
-                <p className="font-medium">{submission.author.name}</p>
+                <p className="font-medium">{getDisplayName(submission.author)}</p>
                 <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                   {formatDate(submission.submittedAt)}
                 </p>
@@ -110,10 +110,10 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                     <div className="flex items-center gap-2 mb-2">
                       <Avatar
                         src={feedback.author.profileImage}
-                        name={feedback.author.name}
+                        name={getDisplayName(feedback.author)}
                         size={24}
                       />
-                      <p className="text-sm font-medium">{feedback.author.name}</p>
+                      <p className="text-sm font-medium">{getDisplayName(feedback.author)}</p>
                       <span className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                         {formatDate(feedback.createdAt)}
                       </span>

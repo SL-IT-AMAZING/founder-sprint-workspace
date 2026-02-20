@@ -13,7 +13,7 @@ const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const InviteUserSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).max(100),
+  name: z.string().max(100).optional().transform((v) => v || undefined),
   role: z.enum(["admin", "mentor", "founder", "co_founder"]),
   batchId: z.string().uuid(),
   linkedInUrl: z.string().optional(),
@@ -21,38 +21,31 @@ const InviteUserSchema = z.object({
   groupId: z.string().uuid().optional(),
 });
 
-export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
-  const user = await getCurrentUser();
-  if (!user) return { success: false, error: "Not authenticated" };
+const BulkInviteSchema = z.object({
+  emails: z.string().min(1),
+  role: z.enum(["admin", "mentor", "founder", "co_founder"]),
+  batchId: z.string().uuid(),
+});
 
-  try {
-    requireRole(user.role, ["super_admin", "admin"]);
-  } catch {
-    return { success: false, error: "Unauthorized" };
-  }
+interface InviteUserParams {
+  email: string;
+  name?: string;
+  role: "admin" | "mentor" | "founder" | "co_founder";
+  batchId: string;
+  linkedInUrl?: string;
+  founderId?: string;
+  groupId?: string;
+}
 
-  const parsed = InviteUserSchema.safeParse({
-    email: formData.get("email"),
-    name: formData.get("name"),
-    role: formData.get("role"),
-    batchId: formData.get("batchId"),
-    linkedInUrl: formData.get("linkedInUrl") || undefined,
-    founderId: formData.get("founderId") || undefined,
-    groupId: formData.get("groupId") || undefined,
-  });
+async function inviteUserCore(
+  params: InviteUserParams
+): Promise<ActionResult<{ id: string; inviteLink: string }>> {
+  const { email, name, role, batchId, linkedInUrl, founderId, groupId } = params;
 
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
-  }
-
-  const { email, name, role, batchId, linkedInUrl, founderId, groupId } = parsed.data;
-
-  // Validate founderId is provided for co-founders
   if (role === "co_founder" && !founderId) {
     return { success: false, error: "founderId is required when inviting a co-founder" };
   }
 
-  // Check batch exists and is active (date-aware)
   const batchCheck = await requireActiveBatch(batchId);
   if (batchCheck) return batchCheck as ActionResult<{ id: string; inviteLink: string }>;
 
@@ -61,7 +54,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: "Batch not found" };
   }
 
-  // Check founder limit (30 per batch)
   if (role === "founder") {
     const founderCount = await prisma.userBatch.count({
       where: { batchId, role: "founder" },
@@ -71,11 +63,10 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  // Prevent founder re-participation (check email)
   if (role === "founder") {
     const existingFounder = await prisma.userBatch.findFirst({
       where: {
-        user: { email: email },
+        user: { email },
         role: "founder",
       },
     });
@@ -84,7 +75,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  // Prevent founder re-participation (check LinkedIn profile)
   if (role === "founder" && linkedInUrl) {
     const existingFounder = await prisma.user.findFirst({
       where: {
@@ -101,7 +91,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  // Check co-founder limit (max 2 per founder)
   if (role === "co_founder") {
     const coFounderCount = await prisma.userBatch.count({
       where: { batchId, founderId, role: "co_founder" },
@@ -111,14 +100,12 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  // Upsert user
   const invitedUser = await prisma.user.upsert({
     where: { email },
-    create: { email, name },
-    update: { name },
+    create: { email, name: name || email.split("@")[0] },
+    update: name ? { name } : {},
   });
 
-  // Check if already in this batch
   const existing = await prisma.userBatch.findUnique({
     where: { userId_batchId: { userId: invitedUser.id, batchId } },
   });
@@ -127,7 +114,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: "User already in this batch" };
   }
 
-  // Create user-batch relationship
   const userBatch = await prisma.userBatch.create({
     data: {
       userId: invitedUser.id,
@@ -138,7 +124,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     },
   });
 
-  // Generate invitation token (expires in 7 days)
   const token = randomUUID();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
@@ -153,7 +138,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     },
   });
 
-  // Auto-assign to group if groupId provided
   if (groupId) {
     const groupExists = await prisma.group.findFirst({
       where: { id: groupId, batchId },
@@ -161,23 +145,19 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     if (groupExists) {
       await prisma.groupMember.create({
         data: {
-          groupId: groupId,
+          groupId,
           userId: invitedUser.id,
         },
       });
-      // Revalidate group cache
-      revalidateTag(`group-${groupId}`);
-      revalidateTag(`groups-${batchId}`);
     }
   }
 
-  // Send invitation email (non-blocking - don't fail invite if email fails)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${appUrl}/invite/${token}`;
 
   const emailResult = await sendInvitationEmail({
     to: email,
-    inviteeName: name,
+    inviteeName: name || undefined,
     batchName: batch.name,
     role,
     inviteLink,
@@ -185,10 +165,6 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 
   if (!emailResult.success) {
     console.warn(`Failed to send invitation email to ${email}:`, emailResult.error);
-    revalidatePath("/admin/users");
-    revalidatePath("/admin/batches");
-    revalidateTag(`batch-users-${batchId}`);
-    revalidateTag("current-user");
     return {
       success: true,
       data: { id: userBatch.id, inviteLink },
@@ -196,11 +172,144 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     };
   }
 
+  return { success: true, data: { id: userBatch.id, inviteLink } };
+}
+
+export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = InviteUserSchema.safeParse({
+    email: formData.get("email"),
+    name: formData.get("name") || undefined,
+    role: formData.get("role"),
+    batchId: formData.get("batchId"),
+    linkedInUrl: formData.get("linkedInUrl") || undefined,
+    founderId: formData.get("founderId") || undefined,
+    groupId: formData.get("groupId") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const result = await inviteUserCore(parsed.data);
+
+  if (result.success) {
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/batches");
+    revalidateTag(`batch-users-${parsed.data.batchId}`);
+    revalidateTag("current-user");
+  }
+
+  return result;
+}
+
+export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<{
+  results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string }>;
+}>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = BulkInviteSchema.safeParse({
+    emails: formData.get("emails"),
+    role: formData.get("role"),
+    batchId: formData.get("batchId"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const rawEmails = parsed.data.emails
+    .split(/[\s,;\n\r]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
+
+  const uniqueEmails = [...new Set(rawEmails)];
+
+  if (uniqueEmails.length === 0) {
+    return { success: false, error: "No valid emails provided" };
+  }
+
+  if (uniqueEmails.length > 50) {
+    return { success: false, error: "Maximum 50 invites at once" };
+  }
+
+  const emailSchema = z.string().email();
+  const invalidEmails = uniqueEmails.filter((e) => !emailSchema.safeParse(e).success);
+  if (invalidEmails.length > 0) {
+    return {
+      success: false,
+      error: `Invalid email format: ${invalidEmails.slice(0, 3).join(", ")}${invalidEmails.length > 3 ? ` and ${invalidEmails.length - 3} more` : ""}`,
+    };
+  }
+
+  if (parsed.data.role === "founder") {
+    const currentFounderCount = await prisma.userBatch.count({
+      where: { batchId: parsed.data.batchId, role: "founder" },
+    });
+    const remaining = 30 - currentFounderCount;
+    if (remaining <= 0) {
+      return { success: false, error: "Founder limit reached (30 per batch)" };
+    }
+
+    if (uniqueEmails.length > remaining) {
+      return {
+        success: false,
+        error: `Only ${remaining} founder slot(s) remaining. Reduce to ${remaining} emails or fewer.`,
+      };
+    }
+  }
+
+  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string }> = [];
+
+  for (const email of uniqueEmails) {
+    const result = await inviteUserCore({
+      email,
+      role: parsed.data.role,
+      batchId: parsed.data.batchId,
+    });
+
+    if (result.success) {
+      results.push({ email, success: true, inviteLink: result.data.inviteLink });
+    } else {
+      results.push({ email, success: false, error: result.error });
+    }
+  }
+
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
-  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag(`batch-users-${parsed.data.batchId}`);
   revalidateTag("current-user");
-  return { success: true, data: { id: userBatch.id, inviteLink } };
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  if (successCount === 0) {
+    return {
+      success: false,
+      error: `All ${failCount} invitations failed. ${results[0]?.error || "Unknown error"}`,
+    };
+  }
+
+  return {
+    success: true,
+    data: { results },
+    ...(failCount > 0 ? { warning: `${successCount} invited, ${failCount} failed` } : {}),
+  };
 }
 
 export async function updateUserRole(

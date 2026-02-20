@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { addFeedback } from "@/actions/assignment";
-import { formatRelativeTime, getInitials } from "@/lib/utils";
+import { formatRelativeTime, getInitials, getDisplayName } from "@/lib/utils";
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
+  email: string;
   profileImage: string | null;
 }
 
@@ -96,10 +97,10 @@ export function SubmissionsList({ submissions, isStaff }: SubmissionsListProps) 
                 <div className="flex items-start gap-3">
                   <Avatar
                     src={submission.author.profileImage}
-                    name={submission.author.name}
+                    name={getDisplayName(submission.author)}
                   />
                   <div>
-                    <p className="font-medium">{submission.author.name}</p>
+                    <p className="font-medium">{getDisplayName(submission.author)}</p>
                     <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                       {formatRelativeTime(submission.submittedAt)}
                     </p>
@@ -136,7 +137,7 @@ export function SubmissionsList({ submissions, isStaff }: SubmissionsListProps) 
                       {submission.feedbacks.map((feedback) => (
                         <div key={feedback.id} className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{feedback.author.name}</p>
+                            <p className="text-sm font-medium">{getDisplayName(feedback.author)}</p>
                             <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                               {formatRelativeTime(feedback.createdAt)}
                             </p>

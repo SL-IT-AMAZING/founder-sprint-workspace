@@ -300,8 +300,8 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       });
       sendOfficeHourRequestEmail({
         to: targetHost.email,
-        hostName: targetHost.name,
-        requesterName: user.name,
+        hostName: targetHost.name || targetHost.email,
+        requesterName: user.name || user.email,
         groupName: group?.name,
         startTime: startTimeUtc,
         endTime: endTimeUtc,
@@ -483,8 +483,8 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
       if (slotWithHost?.host) {
         sendOfficeHourRequestEmail({
           to: slotWithHost.host.email,
-          hostName: slotWithHost.host.name,
-          requesterName: user.name,
+          hostName: slotWithHost.host.name || slotWithHost.host.email,
+          requesterName: user.name || user.email,
           groupName: slotWithHost.group?.name,
           startTime: slotWithHost.startTime,
           endTime: slotWithHost.endTime,

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { useState, useEffect } from "react";
 import BatchSwitcher from "@/components/layout/BatchSwitcher";
+import { getDisplayName } from "@/lib/utils";
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -14,7 +15,7 @@ interface NavbarProps {
   user: {
     id: string;
     email: string;
-    name: string;
+    name: string | null;
     profileImage?: string | null;
   };
   isAdmin?: boolean;
@@ -30,7 +31,7 @@ export default function Navbar({ user, isAdmin = false, batches = [], currentBat
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  const name = user.name || user.email;
+  const name = getDisplayName(user);
   const avatar = user.profileImage;
 
   const navLinks = [

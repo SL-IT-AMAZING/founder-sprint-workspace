@@ -127,7 +127,7 @@ export async function getQuestions(batchId: string) {
       prisma.question.findMany({
         where: { batchId },
         include: {
-          author: { select: { id: true, name: true, profileImage: true } },
+          author: { select: { id: true, name: true, email: true, profileImage: true } },
           _count: { select: { answers: true } },
           summary: { select: { id: true } },
         },
@@ -144,17 +144,17 @@ export async function getQuestion(id: string) {
       prisma.question.findUnique({
         where: { id },
         include: {
-          author: { select: { id: true, name: true, profileImage: true, jobTitle: true, company: true } },
+          author: { select: { id: true, name: true, email: true, profileImage: true, jobTitle: true, company: true } },
           attachments: true,
           answers: {
             include: {
-              author: { select: { id: true, name: true, profileImage: true } },
+              author: { select: { id: true, name: true, email: true, profileImage: true } },
             },
             orderBy: { createdAt: "asc" },
           },
           summary: {
             include: {
-              author: { select: { id: true, name: true, profileImage: true } },
+              author: { select: { id: true, name: true, email: true, profileImage: true } },
             },
           },
         },
