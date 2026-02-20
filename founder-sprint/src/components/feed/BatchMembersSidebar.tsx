@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
@@ -21,6 +22,7 @@ interface BatchMembersSidebarProps {
   batchName?: string;
   batchStatus?: BatchStatus;
   batchEndDate?: Date;
+  currentUserId?: string;
 }
 
 const roleLabels: Record<string, string> = {
@@ -39,7 +41,7 @@ const rolePriority: Record<string, number> = {
   co_founder: 4,
 };
 
-export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate }: BatchMembersSidebarProps) {
+export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate, currentUserId }: BatchMembersSidebarProps) {
   const activeMembers = members
     .filter((m) => m.status === "active")
     .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
@@ -53,7 +55,7 @@ export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndD
     groupedMembers[role].push(member);
   });
 
-  const roleOrder = ["admin", "mentor", "founder", "co_founder"];
+  const roleOrder = ["super_admin", "admin", "mentor", "founder", "co_founder"];
 
   return (
     <div
@@ -133,19 +135,20 @@ export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndD
               >
                 {roleLabels[role] || role} ({roleMembers.length})
               </p>
-              <div className="space-y-2">
-                {roleMembers.slice(0, 10).map((member) => (
-                  <div key={member.user.id} className="flex items-center gap-2">
-                    <Avatar
-                      src={member.user.profileImage}
-                      name={member.user.name}
-                      size={28}
-                    />
-                    <span className="text-sm truncate" style={{ maxWidth: "140px" }}>
-                      {member.user.name}
-                    </span>
-                  </div>
-                ))}
+               <div className="space-y-2">
+                 {roleMembers.slice(0, 10).map((member) => (
+                   <Link key={member.user.id} href={`/profile/${member.user.id}`} className="hover:bg-gray-50 rounded px-1 -mx-1" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                     <Avatar
+                       src={member.user.profileImage}
+                       name={member.user.name}
+                       size={28}
+                     />
+                     <div className="text-sm truncate" style={{ maxWidth: "140px" }}>
+                       {member.user.name}
+                       {member.user.id === currentUserId && <span style={{ color: "var(--color-foreground-muted)" }}> (You)</span>}
+                     </div>
+                   </Link>
+                 ))}
                 {roleMembers.length > 10 && (
                   <p
                     className="text-xs"

@@ -43,6 +43,42 @@ export async function GET(request: Request) {
       },
     });
 
+    // If no user found by OAuth email, check invite_token cookie to match by invitation
+    if (!user) {
+      const cookieStore = await cookies();
+      const inviteToken = cookieStore.get("invite_token")?.value;
+
+      if (inviteToken) {
+        const invitation = await prisma.invitationToken.findUnique({
+          where: { token: inviteToken, usedAt: null },
+          select: { userId: true, expiresAt: true },
+        });
+
+        if (invitation && invitation.expiresAt > new Date()) {
+          const emailConflict = await prisma.user.findFirst({
+            where: { email: { equals: email, mode: "insensitive" }, id: { not: invitation.userId } },
+          });
+
+          if (!emailConflict) {
+            await prisma.user.update({
+              where: { id: invitation.userId },
+              data: { email },
+            });
+          }
+
+          user = await prisma.user.findFirst({
+            where: { id: invitation.userId },
+            include: {
+              userBatches: {
+                where: { status: "invited" },
+                include: { batch: true },
+              },
+            },
+          });
+        }
+      }
+    }
+
     // User must exist (pre-invited or admin)
     if (!user) {
       await supabase.auth.signOut();
@@ -122,7 +158,7 @@ export async function GET(request: Request) {
 
     // Refresh user data after updates
     user = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
+      where: { id: user.id },
       include: {
         userBatches: {
           where: { status: "active" },

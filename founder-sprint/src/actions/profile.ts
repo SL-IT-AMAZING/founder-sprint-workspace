@@ -83,3 +83,72 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
 
   return { success: true, data: undefined };
 }
+
+export async function getUserProfile(userId: string): Promise<ActionResult<{
+  id: string;
+  email: string;
+  name: string;
+  profileImage: string | null;
+  jobTitle: string | null;
+  company: string | null;
+  bio: string | null;
+  role: string | null;
+  groups: { id: string; name: string }[];
+  officeHourSlots: { id: string; startTime: string; endTime: string; status: string }[];
+}>> {
+  const viewer = await getCurrentUser();
+  if (!viewer) return { success: false, error: "Not authenticated" };
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      profileImage: true,
+      jobTitle: true,
+      company: true,
+      bio: true,
+      userBatches: {
+        where: { batchId: viewer.batchId, status: "active" },
+        select: { role: true },
+        take: 1,
+      },
+      groupMembers: {
+        where: { group: { batchId: viewer.batchId } },
+        select: { group: { select: { id: true, name: true } } },
+      },
+      officeHourSlots: {
+        where: { batchId: viewer.batchId, status: "available", startTime: { gte: new Date() } },
+        select: { id: true, startTime: true, endTime: true, status: true },
+        orderBy: { startTime: "asc" },
+        take: 5,
+      },
+    },
+  });
+
+  if (!user) return { success: false, error: "User not found" };
+
+  const batchRole = user.userBatches[0]?.role ?? null;
+
+  return {
+    success: true,
+    data: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      profileImage: user.profileImage,
+      jobTitle: user.jobTitle,
+      company: user.company,
+      bio: user.bio,
+      role: batchRole,
+      groups: user.groupMembers.map((gm) => gm.group),
+      officeHourSlots: user.officeHourSlots.map((s) => ({
+        id: s.id,
+        startTime: s.startTime.toISOString(),
+        endTime: s.endTime.toISOString(),
+        status: s.status,
+      })),
+    },
+  };
+}

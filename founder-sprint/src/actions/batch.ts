@@ -57,7 +57,7 @@ export async function createBatch(formData: FormData): Promise<ActionResult<{ id
     data: {
       userId: user.id,
       batchId: batch.id,
-      role: user.role as any,
+      role: user.role as import("@prisma/client").$Enums.UserRole,
       status: "active",
       joinedAt: new Date(),
     },

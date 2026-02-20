@@ -15,3 +15,4 @@ export {
   SkeletonButton,
 } from "./Skeleton";
 export { DropdownMenu } from "./DropdownMenu";
+export { Pagination } from "./Pagination";

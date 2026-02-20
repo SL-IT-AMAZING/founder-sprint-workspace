@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { createSession, updateSession, deleteSession } from "@/actions/session";
 import { formatDate } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezone";
+import { useToast } from "@/hooks/useToast";
 
 interface Session {
   id: string;
@@ -35,6 +36,7 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
    const [editSession, setEditSession] = useState<Session | null>(null);
    const [isPending, startTransition] = useTransition();
    const [error, setError] = useState("");
+   const toast = useToast();
 
    const searchParams = useSearchParams();
    const prefillDate = searchParams.get("date");
@@ -69,7 +71,7 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
     startTransition(async () => {
       const result = await deleteSession(sessionId);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };

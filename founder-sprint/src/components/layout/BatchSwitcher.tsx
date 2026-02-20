@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { switchBatch } from "@/actions/batch-switcher";
 import { getEffectiveBatchStatus } from "@/lib/batch-utils";
+import { useToast } from "@/hooks/useToast";
 
 interface BatchSwitcherProps {
   batches: Array<{ batchId: string; batchName: string; batchStatus?: string; endDate?: Date }>;
@@ -14,6 +15,7 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
   const [isOpen, setIsOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const router = useRouter();
+  const toast = useToast();
   const ref = useRef<HTMLDivElement>(null);
 
   const currentBatch = batches.find((b) => b.batchId === currentBatchId);
@@ -43,7 +45,7 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
     if (result.success) {
       router.refresh();
     } else {
-      alert(result.error);
+      toast.error(result.error);
     }
     setSwitching(false);
   };

@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DropdownMenu } from "@/components/ui/DropdownMenu";
 import { createComment, updateComment, deleteComment, toggleLike, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
 
 interface User {
@@ -64,6 +65,7 @@ interface PostDetailProps {
 
 export function PostDetail({ post, currentUser }: PostDetailProps) {
   const router = useRouter();
+  const toast = useToast();
   const [commentContent, setCommentContent] = useState("");
   const [replyContent, setReplyContent] = useState<Record<string, string>>({});
   const [showReplyForm, setShowReplyForm] = useState<Set<string>>(new Set());
@@ -160,7 +162,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
       if (result.success) {
         setEditingPost(false);
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -173,7 +175,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
       if (result.success) {
         router.push("/feed");
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -182,7 +184,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
     startTransition(async () => {
       const result = await pinPost(post.id);
       if (!result.success) {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };
@@ -193,7 +195,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
       if (result.success) {
         router.push("/feed");
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   };

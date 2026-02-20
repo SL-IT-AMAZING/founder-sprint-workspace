@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { deleteQuestion } from "@/actions/question";
+import { useToast } from "@/hooks/useToast";
 
 export function DeleteQuestionButton({ questionId }: { questionId: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const toast = useToast();
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this question? This will also delete all answers and summaries.")) {
@@ -20,7 +22,7 @@ export function DeleteQuestionButton({ questionId }: { questionId: string }) {
     if (result.success) {
       router.push("/questions");
     } else {
-      alert(result.error);
+      toast.error(result.error);
       setLoading(false);
     }
   };

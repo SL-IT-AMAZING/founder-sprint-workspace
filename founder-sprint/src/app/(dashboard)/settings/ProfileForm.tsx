@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { updateProfile } from "@/actions/profile";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -21,6 +21,13 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [charCount, setCharCount] = useState(initialData.bio.length);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -33,7 +40,8 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
 
       if (result.success) {
         setMessage({ type: "success", text: "Profile updated successfully!" });
-        setTimeout(() => setMessage(null), 3000);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setMessage(null), 3000);
       } else {
         setMessage({ type: "error", text: result.error });
       }
