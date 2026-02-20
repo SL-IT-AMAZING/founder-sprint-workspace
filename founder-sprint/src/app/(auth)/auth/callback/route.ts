@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { revalidateTag as revalidateTagBase } from "next/cache";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -150,6 +153,15 @@ export async function GET(request: Request) {
           joinedAt: new Date(),
         },
       });
+
+      // Invalidate caches so the user appears in feed sidebar immediately
+      const activatedBatchIds = new Set(
+        validInvitations.map((ub: { batchId: string }) => ub.batchId)
+      );
+      for (const bid of activatedBatchIds) {
+        revalidateTag(`batch-users-${bid}`);
+      }
+      revalidateTag("current-user");
 
       // Mark invitation token as used (if present in cookie)
       const cookieStore = await cookies();
