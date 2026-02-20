@@ -63,7 +63,7 @@ export function AdminView({ batches }: AdminViewProps) {
       {activeTab === "batches" && <BatchList batches={batches} />}
       {activeTab === "users" && (
         <UserManagement
-          batches={batches.map((b) => ({ id: b.id, name: b.name, status: b.status }))}
+          batches={batches.map((b) => ({ id: b.id, name: b.name, status: b.status, endDate: b.endDate }))}
         />
       )}
     </div>

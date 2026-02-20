@@ -11,13 +11,15 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getRoleDisplayName, formatDate } from "@/lib/utils";
+import { getBatchStatusLabel, isBatchActive } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
-import type { UserRole } from "@/types";
+import type { UserRole, BatchStatus } from "@/types";
 
 interface Batch {
   id: string;
   name: string;
   status: string;
+  endDate: Date;
 }
 
 interface UserManagementProps {
@@ -162,7 +164,7 @@ export function UserManagement({ batches }: UserManagementProps) {
 
   const batchOptions = batches.map((batch) => ({
     value: batch.id,
-    label: `${batch.name} (${batch.status})`,
+    label: `${batch.name} (${getBatchStatusLabel({ status: batch.status as BatchStatus, endDate: new Date(batch.endDate) })})`,
   }));
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
@@ -181,7 +183,7 @@ export function UserManagement({ batches }: UserManagementProps) {
               onChange={(e) => handleBatchChange(e.target.value)}
             />
           </div>
-          {selectedBatchId && selectedBatch?.status === "active" && (
+          {selectedBatchId && selectedBatch && isBatchActive({ status: selectedBatch.status as BatchStatus, endDate: new Date(selectedBatch.endDate) }) && (
             <div className="pt-6">
               <Button onClick={() => setIsInviteModalOpen(true)}>
                 Invite User
@@ -208,7 +210,7 @@ export function UserManagement({ batches }: UserManagementProps) {
           title="No users in this batch"
           description="Invite users to get started"
           action={
-            selectedBatch?.status === "active" ? (
+            selectedBatch && isBatchActive({ status: selectedBatch.status as BatchStatus, endDate: new Date(selectedBatch.endDate) }) ? (
               <Button onClick={() => setIsInviteModalOpen(true)}>
                 Invite First User
               </Button>
