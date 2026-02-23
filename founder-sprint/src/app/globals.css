@@ -201,13 +201,10 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
 }
 
-.card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+
 
 .badge {
   font-family: var(--font-mono);
