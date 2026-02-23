@@ -36,7 +36,7 @@ export function QuestionsList({ questions }: QuestionsListProps) {
   const QuestionCard = ({ question }: { question: Question }) => (
     <Link href={`/questions/${question.id}`} className="block">
       <div
-        className="card hover:shadow-md transition-shadow"
+        className="card"
         style={{
           borderLeft: question.status === "open" ? "3px solid var(--color-success)" : "3px solid var(--color-warning)",
         }}
