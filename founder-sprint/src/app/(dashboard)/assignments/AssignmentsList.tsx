@@ -125,7 +125,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
               key={assignment.id}
               className="card cursor-pointer"
               onClick={() => router.push(`/assignments/${assignment.id}`)}
-              style={{ transition: "all 0.2s" }}
+              style={{ transition: "border-color 0.2s" }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = "var(--color-primary)";
               }}

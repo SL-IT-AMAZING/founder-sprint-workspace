@@ -298,7 +298,7 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="rounded-lg p-6 transition-all bg-white"
+      className="rounded-lg p-6 bg-white"
       style={{
         border: "1px solid var(--color-card-border)",
         borderRadius: "8px",

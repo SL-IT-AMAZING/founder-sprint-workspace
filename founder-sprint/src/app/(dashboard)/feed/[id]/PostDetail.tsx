@@ -300,7 +300,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                 cursor: "pointer",
                 padding: "4px 8px",
                 borderRadius: "4px",
-                transition: "all 0.2s",
+                transition: "color 0.2s, background-color 0.2s",
               }}
               onMouseEnter={(e) => {
                 if (!userHasLiked) {
@@ -517,7 +517,7 @@ export function PostDetail({ post, currentUser }: PostDetailProps) {
                       cursor: "pointer",
                       padding: "4px 8px",
                       borderRadius: "4px",
-                      transition: "all 0.2s",
+                       transition: "color 0.2s, background-color 0.2s",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = "#1A1A1A";

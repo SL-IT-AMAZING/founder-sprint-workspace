@@ -47,7 +47,7 @@ export function DropdownMenu({ items, trigger }: DropdownMenuProps) {
           fontSize: "18px",
           lineHeight: 1,
           color: "#666666",
-          transition: "all 0.2s",
+          transition: "color 0.2s, background-color 0.2s",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.05)";

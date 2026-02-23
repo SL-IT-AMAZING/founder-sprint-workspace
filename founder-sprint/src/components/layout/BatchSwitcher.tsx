@@ -69,7 +69,7 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
           cursor: switching ? "wait" : "pointer",
           opacity: switching ? 0.6 : 1,
           whiteSpace: "nowrap" as const,
-          transition: "all 0.2s ease",
+          transition: "opacity 0.2s ease",
         }}
       >
         <span>{switching ? "Switching..." : currentBatch?.batchName || "Select Batch"}</span>
