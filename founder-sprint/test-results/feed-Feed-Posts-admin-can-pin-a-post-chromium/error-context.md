@@ -1,0 +1,155 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e6] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e7]:
+      - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Open issues overlay" [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: "0"
+          - generic [ref=e15]: "1"
+        - generic [ref=e16]: Issue
+      - button "Collapse issues badge" [ref=e17]:
+        - img [ref=e18]
+  - generic [ref=e20]:
+    - navigation [ref=e21]:
+      - generic [ref=e22]:
+        - link "Outsome" [ref=e23] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Outsome" [ref=e24]
+        - generic [ref=e25]:
+          - button "Community ▼" [ref=e27] [cursor=pointer]:
+            - text: Community
+            - generic [ref=e28]: ▼
+          - button "Advice ▼" [ref=e30] [cursor=pointer]:
+            - text: Advice
+            - generic [ref=e31]: ▼
+          - button "Tools ▼" [ref=e33] [cursor=pointer]:
+            - text: Tools
+            - generic [ref=e34]: ▼
+          - button "Contact ▼" [ref=e36] [cursor=pointer]:
+            - text: Contact
+            - generic [ref=e37]: ▼
+      - textbox "Search Outsome" [ref=e39]
+      - generic [ref=e40]:
+        - link [ref=e41] [cursor=pointer]:
+          - /url: /messages
+          - img [ref=e42]
+        - button "루틴헙" [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: 루틴헙
+          - img [ref=e49]
+        - link "TA" [ref=e51] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e52]: TA
+        - button "Sign out" [ref=e54] [cursor=pointer]
+        - button "Menu" [ref=e55] [cursor=pointer]:
+          - img "Menu" [ref=e56]
+    - main [ref=e57]:
+      - generic [ref=e59]:
+        - main [ref=e60]:
+          - generic [ref=e61]:
+            - heading "Feed" [level=1] [ref=e63]
+            - generic [ref=e64]:
+              - tab "Top" [selected] [ref=e65] [cursor=pointer]
+              - tab "Recent" [ref=e66] [cursor=pointer]
+              - tab "General" [ref=e67] [cursor=pointer]
+              - tab "Launch" [ref=e68] [cursor=pointer]
+              - tab "Classifieds" [ref=e69] [cursor=pointer]
+              - tab "Recruiting" [ref=e70] [cursor=pointer]
+            - generic [ref=e72] [cursor=pointer]:
+              - generic [ref=e73]: TA
+              - generic [ref=e74]: What are you working on?
+            - generic [ref=e75]:
+              - paragraph [ref=e76]: No posts yet
+              - paragraph [ref=e77]: Be the first to share something with your batch!
+        - complementary [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - heading "루틴헙" [level=3] [ref=e82]
+                - generic [ref=e83]: Active
+              - paragraph [ref=e84]: Ends Feb 27, 2026
+              - paragraph [ref=e85]: 8 active members
+            - heading "Members (8)" [level=3] [ref=e86]
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - paragraph [ref=e89]: Super Admin (2)
+                - generic [ref=e90]:
+                  - generic [ref=e91]:
+                    - link "final test final test" [ref=e92] [cursor=pointer]:
+                      - /url: /profile/b54b963c-774d-447c-8f4d-e33bb4b484eb
+                      - img "final test" [ref=e93]
+                      - generic [ref=e94]: final test
+                    - button "Follow" [ref=e96] [cursor=pointer]:
+                      - generic [ref=e97]:
+                        - generic [ref=e98]: Follow
+                        - generic [ref=e99]: Follow
+                  - generic [ref=e100]:
+                    - link "test test" [ref=e101] [cursor=pointer]:
+                      - /url: /profile/17a4df2d-4cb0-4ec1-b3a7-69c5276d766a
+                      - img "test" [ref=e102]
+                      - generic [ref=e103]: test
+                    - button "Follow" [ref=e105] [cursor=pointer]:
+                      - generic [ref=e106]:
+                        - generic [ref=e107]: Follow
+                        - generic [ref=e108]: Follow
+              - generic [ref=e109]:
+                - paragraph [ref=e110]: Admin (4)
+                - generic [ref=e111]:
+                  - link "TA Test admin (You)" [ref=e113] [cursor=pointer]:
+                    - /url: /profile/59b5f020-1866-4bcd-b6ce-08e7bfc1ff6d
+                    - generic [ref=e114]: TA
+                    - generic [ref=e115]: Test admin (You)
+                  - generic [ref=e116]:
+                    - link "B bibodid119" [ref=e117] [cursor=pointer]:
+                      - /url: /profile/23536556-6228-4a16-bb36-f028afa86d3f
+                      - generic [ref=e118]: B
+                      - generic [ref=e119]: bibodid119
+                    - button "Follow" [ref=e121] [cursor=pointer]:
+                      - generic [ref=e122]:
+                        - generic [ref=e123]: Follow
+                        - generic [ref=e124]: Follow
+                  - generic [ref=e125]:
+                    - link "peter peter" [ref=e126] [cursor=pointer]:
+                      - /url: /profile/a6e9de4e-d396-433f-99fb-a8e08b44fe52
+                      - img "peter" [ref=e127]
+                      - generic [ref=e128]: peter
+                    - button "Follow" [ref=e130] [cursor=pointer]:
+                      - generic [ref=e131]:
+                        - generic [ref=e132]: Follow
+                        - generic [ref=e133]: Follow
+                  - generic [ref=e134]:
+                    - link "monsterjeon1108 monsterjeon1108" [ref=e135] [cursor=pointer]:
+                      - /url: /profile/8516fd0c-f0b6-4b48-b64e-21f0a08aa8d5
+                      - img "monsterjeon1108" [ref=e136]
+                      - generic [ref=e137]: monsterjeon1108
+                    - button "Follow" [ref=e139] [cursor=pointer]:
+                      - generic [ref=e140]:
+                        - generic [ref=e141]: Follow
+                        - generic [ref=e142]: Follow
+              - generic [ref=e143]:
+                - paragraph [ref=e144]: Mentor (1)
+                - generic [ref=e146]:
+                  - link "TM Test mentor" [ref=e147] [cursor=pointer]:
+                    - /url: /profile/87008ad6-1e74-4d00-8566-055ea629ac23
+                    - generic [ref=e148]: TM
+                    - generic [ref=e149]: Test mentor
+                  - button "Follow" [ref=e151] [cursor=pointer]:
+                    - generic [ref=e152]:
+                      - generic [ref=e153]: Follow
+                      - generic [ref=e154]: Follow
+              - generic [ref=e155]:
+                - paragraph [ref=e156]: Founder (1)
+                - generic [ref=e158]:
+                  - link "TF Test founder" [ref=e159] [cursor=pointer]:
+                    - /url: /profile/1291f2d9-5422-4016-ae48-0858ab786bdf
+                    - generic [ref=e160]: TF
+                    - generic [ref=e161]: Test founder
+                  - button "Follow" [ref=e163] [cursor=pointer]:
+                    - generic [ref=e164]:
+                      - generic [ref=e165]: Follow
+                      - generic [ref=e166]: Follow
+  - alert [ref=e167]
+```

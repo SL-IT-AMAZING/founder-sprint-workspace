@@ -91,7 +91,7 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
         <span>Manage</span>
       </div>
 
-      <h1 className="text-2xl">Manage Group</h1>
+      <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Manage Group</h1>
 
         {error && (
           <div className="form-error p-3 rounded-lg text-sm">

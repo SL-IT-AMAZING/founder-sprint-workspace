@@ -54,7 +54,7 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Submissions Dashboard</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Submissions Dashboard</h1>
       </div>
 
       {/* Filter */}

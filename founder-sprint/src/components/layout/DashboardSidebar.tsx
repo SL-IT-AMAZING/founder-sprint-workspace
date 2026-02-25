@@ -53,7 +53,6 @@ const styles = {
     width: '100%',
     minWidth: '200px',
     border: '1px solid #e0e0e0',
-    fontFamily: 'inherit',
     boxSizing: 'border-box' as const,
   },
 };

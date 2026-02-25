@@ -126,7 +126,7 @@ export default async function DashboardPage() {
 
         {/* Welcome Header */}
         <div className="space-y-2">
-          <h1 className="text-3xl" style={{ color: "var(--color-foreground)" }}>
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "var(--color-foreground)" }}>
             Welcome back, {getDisplayName(user)}
           </h1>
           <Badge variant="role">{getRoleDisplayName(user.role)}</Badge>

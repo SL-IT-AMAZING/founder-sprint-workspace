@@ -43,7 +43,7 @@ export default async function SchedulePage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl">Schedule</h1>
+      <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Schedule</h1>
       <ScheduleView
         items={items}
         month={monthDate.toISOString()}

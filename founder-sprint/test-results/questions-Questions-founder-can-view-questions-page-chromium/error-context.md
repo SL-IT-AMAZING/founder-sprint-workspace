@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - link "Outsome" [ref=e5] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Outsome" [ref=e6]
+        - generic [ref=e7]:
+          - button "Community ▼" [ref=e9] [cursor=pointer]:
+            - text: Community
+            - generic [ref=e10]: ▼
+          - button "Advice ▼" [ref=e12] [cursor=pointer]:
+            - text: Advice
+            - generic [ref=e13]: ▼
+          - button "Tools ▼" [ref=e15] [cursor=pointer]:
+            - text: Tools
+            - generic [ref=e16]: ▼
+          - button "Contact ▼" [ref=e18] [cursor=pointer]:
+            - text: Contact
+            - generic [ref=e19]: ▼
+      - textbox "Search Outsome" [ref=e21]
+      - generic [ref=e22]:
+        - link [ref=e23] [cursor=pointer]:
+          - /url: /messages
+          - img [ref=e24]
+        - button "루틴헙" [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: 루틴헙
+          - img [ref=e31]
+        - link "TF" [ref=e33] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e34]: TF
+        - button "Sign out" [ref=e36] [cursor=pointer]
+        - button "Menu" [ref=e37] [cursor=pointer]:
+          - img "Menu" [ref=e38]
+    - main [ref=e39]
+  - button "Open Next.js Dev Tools" [ref=e107] [cursor=pointer]:
+    - img [ref=e108]
+```

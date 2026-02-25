@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
 import { getGroups, getUserGroups } from "@/actions/group";
+import { getEnhancedUserProfile } from "@/actions/profile";
 
 export const revalidate = 60;
 import { ProfileForm } from "./ProfileForm";
 import { GroupSelector } from "./GroupSelector";
+import { ExperienceSection } from "./ExperienceSection";
+import { EducationSection } from "./EducationSection";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { getRoleDisplayName, getDisplayName } from "@/lib/utils";
+import { SettingsSectionCard } from "./SettingsSectionCard";
+import { SettingsSidebar } from "./SettingsSidebar";
 
 export default async function SettingsPage({
   searchParams,
@@ -33,67 +38,63 @@ export default async function SettingsPage({
     availableGroups = allGroups.map(g => ({ id: g.id, name: g.name, _count: { members: g._count.members } }));
   }
 
+  // Fetch enhanced profile data
+  const profileResult = await getEnhancedUserProfile(user.id);
+  const profile = profileResult.success ? profileResult.data : null;
   const hasGroup = userGroups.length > 0;
 
   return (
-    <div className="space-y-6">
-      {isOnboarding ? (
-        <div>
-          <h1 className="text-2xl">Complete Your Profile</h1>
+    <div>
+      {isOnboarding && (
+        <div style={{ marginBottom: "24px" }}>
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Complete Your Profile</h1>
           <p className="text-sm mt-2" style={{ color: "var(--color-foreground-muted)" }}>
             Please fill in your job title and company to get started.
             {isFounderRole && !hasGroup && availableGroups.length > 0 && " Please also select your group."}
           </p>
         </div>
-      ) : (
-        <h1 className="text-2xl">Profile Settings</h1>
+      )}
+
+      {!isOnboarding && (
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", marginBottom: "24px" }}>
+          Profile Settings
+        </h1>
       )}
 
       {isFounderRole && availableGroups.length > 0 && (
-        <div className="card">
-          <GroupSelector
-            currentGroupId={userGroups[0]?.id || null}
-            currentGroupName={userGroups[0]?.name || null}
-            availableGroups={availableGroups}
-            isOnboarding={isOnboarding && !hasGroup}
-          />
+        <div style={{ marginBottom: "20px" }}>
+          <SettingsSectionCard>
+            <GroupSelector
+              currentGroupId={userGroups[0]?.id || null}
+              currentGroupName={userGroups[0]?.name || null}
+              availableGroups={availableGroups}
+              isOnboarding={isOnboarding && !hasGroup}
+            />
+          </SettingsSectionCard>
         </div>
       )}
 
-      <div className="card">
-        <div className="space-y-6">
-          {/* Profile Picture */}
-          <div className="flex items-center gap-4">
-            <Avatar src={user.profileImage} name={getDisplayName(user)} size={64} />
-            <div>
-              <p className="font-medium text-lg">{getDisplayName(user)}</p>
-              <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                {user.email}
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t pt-6" style={{ borderColor: "var(--color-card-border)" }}>
-            <div className="space-y-4">
-              {/* Role */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        {/* Main Column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* Profile Identity Card */}
+          <SettingsSectionCard>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <Avatar src={user.profileImage} name={getDisplayName(user)} size={64} />
               <div>
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
-                  Role
+                <p style={{ fontSize: "18px", fontWeight: 600, color: "#2F2C26", marginBottom: "4px" }}>
+                  {getDisplayName(user)}
+                </p>
+                <p style={{ fontSize: "14px", color: "#666666", marginBottom: "8px" }}>
+                  {user.email}
                 </p>
                 <Badge variant="role">{getRoleDisplayName(user.role)}</Badge>
               </div>
-
-              {/* Batch */}
-              <div>
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
-                  Batch
-                </p>
-                <p>{user.batchName}</p>
-              </div>
             </div>
-          </div>
+          </SettingsSectionCard>
 
-          <div className="border-t pt-6" style={{ borderColor: "var(--color-card-border)" }}>
+          {/* ProfileForm Card */}
+          <SettingsSectionCard title="Edit Profile">
             <ProfileForm
               initialData={{
                 name: user.name || "",
@@ -102,9 +103,37 @@ export default async function SettingsPage({
                 company: user.company || "",
                 bio: user.bio || "",
                 profileImage: user.profileImage || "",
+                headline: profile?.headline || "",
+                location: profile?.location || "",
+                linkedinUrl: profile?.linkedinUrl || "",
+                twitterUrl: profile?.twitterUrl || "",
+                websiteUrl: profile?.websiteUrl || "",
               }}
             />
-          </div>
+          </SettingsSectionCard>
+
+          {/* Experience Card */}
+          <SettingsSectionCard>
+            <ExperienceSection experiences={profile?.experiences || []} />
+          </SettingsSectionCard>
+
+          {/* Education Card */}
+          <SettingsSectionCard>
+            <EducationSection education={profile?.education || []} />
+          </SettingsSectionCard>
+        </div>
+
+        {/* Sidebar Column */}
+        <div>
+          <SettingsSidebar
+            user={{
+              batchName: user.batchName,
+              location: profile?.location,
+              linkedinUrl: profile?.linkedinUrl,
+              twitterUrl: profile?.twitterUrl,
+              websiteUrl: profile?.websiteUrl,
+            }}
+          />
         </div>
       </div>
     </div>

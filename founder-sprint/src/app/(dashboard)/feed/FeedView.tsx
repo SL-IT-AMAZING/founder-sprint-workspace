@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
@@ -8,10 +9,13 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
 import { Modal } from "@/components/ui/Modal";
-import { DropdownMenu } from "@/components/ui/DropdownMenu";
+
 import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
+import { PostCard, InlineComposer, FeedTabs, defaultTabs } from "@/components/bookface";
+import { useViewTracking } from "@/hooks/useViewTracking";
+import { bookmarkPost, unbookmarkPost } from "@/actions/bookmark";
 
 interface User {
   id: string;
@@ -31,6 +35,8 @@ interface Post {
   isPinned: boolean;
   isHidden?: boolean;
   batchId?: string;
+  category?: string | null;
+  viewCount: number;
   createdAt: Date;
   author: User;
   images: PostImage[];
@@ -46,51 +52,56 @@ interface FeedViewProps {
   currentUser: User;
   isAdmin?: boolean;
   readOnly?: boolean;
+  initialTab?: string;
 }
 
-type FeedFilter = "all" | "latest" | "pinned";
-
-export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false }: FeedViewProps) {
-  const [postContent, setPostContent] = useState("");
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false, initialTab }: FeedViewProps) {
   const [commentContent, setCommentContent] = useState<Record<string, string>>({});
+  const router = useRouter();
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
-  const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
+  const [activeTab, setActiveTab] = useState(initialTab || 'top');
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState("");
   const toast = useToast();
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editContent, setEditContent] = useState("");
+  const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const { createObserver } = useViewTracking();
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    router.push(`/feed?tab=${tabId}`, { scroll: false });
+  };
 
   const filteredPosts = useMemo(() => {
-    switch (feedFilter) {
-      case "latest":
+    switch (activeTab) {
+      case 'top':
+        return [...posts].sort((a, b) => b._count.likes - a._count.likes);
+      case 'recent':
         return [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      case "pinned":
-        return posts.filter((p) => p.isPinned);
+      case 'general':
+      case 'launch':
+      case 'classifieds':
+      case 'recruiting':
+        return posts.filter((p) => p.category === activeTab);
       default:
         return posts;
     }
-  }, [posts, feedFilter]);
+  }, [posts, activeTab]);
 
-  const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!postContent.trim()) return;
+  useEffect(() => {
+    const observer = createObserver();
+    if (!observer) return;
 
-    setError("");
-
-    const formData = new FormData();
-    formData.append("content", postContent);
-
-    startTransition(async () => {
-      const result = await createPost(formData);
-      if (result.success) {
-        setPostContent("");
-      } else {
-        setError(result.error);
-      }
+    postRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
     });
-  };
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [filteredPosts, createObserver]);
+
 
   const handleAddComment = async (postId: string) => {
     const content = commentContent[postId];
@@ -175,6 +186,16 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     });
   };
 
+  const handleBookmark = async (postId: string, isBookmarked: boolean) => {
+    startTransition(async () => {
+      if (isBookmarked) {
+        await unbookmarkPost(postId);
+      } else {
+        await bookmarkPost(postId);
+      }
+    });
+  };
+
   const getPostMenuItems = (post: Post) => {
     const items = [];
     const isOwner = post.author.id === currentUser.id;
@@ -211,7 +232,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Feed</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Feed</h1>
         {isAdmin && archivedPosts.length > 0 && (
           <Button
             variant="ghost"
@@ -223,20 +244,12 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         )}
       </div>
 
-      <div className="flex gap-2">
-        {(["all", "latest", "pinned"] as const).map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setFeedFilter(filter)}
-            className={feedFilter === filter ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            {filter === "all" ? "All" : filter === "latest" ? "Latest" : "Pinned"}
-          </button>
-        ))}
-      </div>
+      <FeedTabs
+        tabs={defaultTabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
 
-      {/* Post Creation Form */}
       {readOnly ? (
         <div
           className="card text-center text-sm"
@@ -251,188 +264,100 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
           This batch has ended. New posts cannot be created.
         </div>
       ) : (
-        <div
-          className="card"
-          style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-            border: "1px solid #e0e0e0"
+        <InlineComposer
+          currentUser={currentUser}
+          onSubmit={async (data) => {
+            const formData = new FormData();
+            formData.append("content", data.content);
+            if (data.category) formData.append("category", data.category);
+            if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+            const result = await createPost(formData);
+            if (!result.success) {
+              toast.error(result.error);
+            }
           }}
-        >
-          <form onSubmit={handleCreatePost} className="space-y-3">
-            {error && (
-              <div className="form-error p-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <div className="flex items-start gap-3">
-              <Avatar
-                src={currentUser.profileImage}
-                name={getDisplayName(currentUser)}
-              />
-              <div className="flex-1 space-y-3">
-                <Textarea
-                  placeholder="What's on your mind?"
-                  rows={3}
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                />
-                <div className="flex justify-end">
-                  <Button type="submit" loading={isPending} disabled={isPending || !postContent.trim()}>
-                    Post
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </form>
-        </div>
+          isPending={isPending}
+        />
       )}
 
       {/* Posts Feed */}
       {filteredPosts.length === 0 ? (
         <EmptyState
-          title={feedFilter === "pinned" ? "No pinned posts" : "No posts yet"}
-          description={feedFilter === "pinned" ? "No announcements at the moment" : "Be the first to share something with your batch!"}
+          title="No posts yet"
+          description="Be the first to share something with your batch!"
         />
       ) : (
         <div className="space-y-4">
           {filteredPosts.map((post) => (
             <div
               key={post.id}
-              className="card"
-              style={{
-                backgroundColor: "white",
-                borderRadius: "8px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                border: "1px solid #e0e0e0"
+              ref={(el) => {
+                if (el) {
+                  postRefs.current.set(post.id, el);
+                } else {
+                  postRefs.current.delete(post.id);
+                }
               }}
+              data-post-id={post.id}
             >
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-4">
+              {post.isPinned && (
+                <div style={{ marginBottom: '12px' }}>
+                  <Badge variant="warning">Pinned</Badge>
+                </div>
+              )}
+              <PostCard
+                id={post.id}
+                author={{
+                  name: getDisplayName(post.author),
+                  avatarUrl: post.author.profileImage || undefined,
+                  batch: undefined,
+                  company: undefined,
+                }}
+                content={post.content}
+                postedAt={formatRelativeTime(post.createdAt)}
+                likes={post._count.likes}
+                comments={post._count.comments}
+                views={post.viewCount}
+                isLiked={false}
+                isBookmarked={false}
+                onLike={() => handleToggleLike(post.id)}
+                onComment={() => toggleCommentsView(post.id)}
+                onBookmark={() => handleBookmark(post.id, false)}
+                menuItems={(post.author.id === currentUser.id || isAdmin) ? getPostMenuItems(post) : undefined}
+              />
+
+              {showComments.has(post.id) && (
+                <div className="space-y-3 pt-3 border-t" style={{ borderColor: "#e0e0e0" }}>
                   <div className="flex items-start gap-3">
                     <Avatar
-                      src={post.author.profileImage}
-                      name={getDisplayName(post.author)}
+                      src={currentUser.profileImage}
+                      name={getDisplayName(currentUser)}
+                      size={32}
                     />
-                    <div>
-                      <p className="font-medium">{getDisplayName(post.author)}</p>
-                      <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                        {formatRelativeTime(post.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {post.isPinned && <Badge variant="warning">Pinned</Badge>}
-                    {(post.author.id === currentUser.id || isAdmin) && (
-                      <DropdownMenu items={getPostMenuItems(post)} />
-                    )}
-                  </div>
-                </div>
-
-                {/* Post Content */}
-                <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
-
-                {post.images.length > 0 && (
-                  <div className={`grid gap-2 ${post.images.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
-                    {post.images.map((image) => (
-                      <img
-                        key={image.id}
-                        src={image.imageUrl}
-                        alt=""
-                        className="rounded-lg object-cover w-full"
-                        style={{ maxHeight: post.images.length === 1 ? 480 : 280 }}
-                        loading="lazy"
+                    <div className="flex-1 space-y-2">
+                      <Textarea
+                        placeholder="Write a comment..."
+                        rows={2}
+                        value={commentContent[post.id] || ""}
+                        onChange={(e) =>
+                          setCommentContent({ ...commentContent, [post.id]: e.target.value })
+                        }
                       />
-                    ))}
-                  </div>
-                )}
-
-                {/* Post Actions */}
-                <div className="flex items-center gap-4 pt-2 border-t" style={{ borderColor: "#e0e0e0" }}>
-                  <button
-                    onClick={() => handleToggleLike(post.id)}
-                    disabled={isPending}
-                    className="text-sm"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#666666",
-                      cursor: isPending ? "not-allowed" : "pointer",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#1A1A1A";
-                      e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#666666";
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    {post._count.likes} likes
-                  </button>
-                  <button
-                    onClick={() => toggleCommentsView(post.id)}
-                    className="text-sm"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#666666",
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#1A1A1A";
-                      e.currentTarget.style.backgroundColor = "rgba(85,90,185,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#666666";
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    {post._count.comments} comments
-                  </button>
-                </div>
-
-                {/* Comments Section */}
-                {showComments.has(post.id) && (
-                  <div className="space-y-3 pt-3 border-t" style={{ borderColor: "#e0e0e0" }}>
-                    <div className="flex items-start gap-3">
-                      <Avatar
-                        src={currentUser.profileImage}
-                        name={getDisplayName(currentUser)}
-                        size={32}
-                      />
-                      <div className="flex-1 space-y-2">
-                        <Textarea
-                          placeholder="Write a comment..."
-                          rows={2}
-                          value={commentContent[post.id] || ""}
-                          onChange={(e) =>
-                            setCommentContent({ ...commentContent, [post.id]: e.target.value })
-                          }
-                        />
-                        <div className="flex justify-end">
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddComment(post.id)}
-                            disabled={!commentContent[post.id]?.trim()}
-                          >
-                            Comment
-                          </Button>
-                        </div>
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddComment(post.id)}
+                          disabled={!commentContent[post.id]?.trim()}
+                        >
+                          Comment
+                        </Button>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+
           ))}
         </div>
       )}

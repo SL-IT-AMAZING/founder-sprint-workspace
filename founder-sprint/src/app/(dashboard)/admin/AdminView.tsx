@@ -35,7 +35,7 @@ export function AdminView({ batches }: AdminViewProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-serif">Admin</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Admin</h1>
       </div>
 
       <div className="flex gap-2 border-b" style={{ borderColor: "var(--color-card-border)" }}>
