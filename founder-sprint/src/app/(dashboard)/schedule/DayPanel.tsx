@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { format, parseISO } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { Button } from "@/components/ui/Button";
+import { createEvent } from "@/actions/event";
+import { createOfficeHourSlot } from "@/actions/office-hour";
+import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
 import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
 
@@ -40,15 +48,112 @@ function getStatusVariant(
   }
 }
 
+type CreateType = "event" | "officeHour" | "session";
+
+const eventTypeOptions = [
+  { value: "one_off", label: "One-off Event" },
+  { value: "office_hour", label: "Office Hour" },
+  { value: "in_person", label: "In-person Event" },
+];
+
+const timezoneOptions = [
+  { value: "America/Los_Angeles", label: "PST (Pacific)" },
+  { value: "Asia/Seoul", label: "KST (Korea)" },
+  { value: "UTC", label: "UTC" },
+];
+
 export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<CreateType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
+  const defaultStartDateTime = dateStr ? `${dateStr}T09:00` : undefined;
+  const defaultEndDateTime = dateStr ? `${dateStr}T10:00` : undefined;
+  const defaultSessionDate = dateStr || undefined;
+
+  const createTitle =
+    createType === "event"
+      ? "Create Event"
+      : createType === "officeHour"
+      ? "Create Office Hour"
+      : createType === "session"
+      ? "Create Session"
+      : "Create";
+
+  const createButtonLabel =
+    createType === "event"
+      ? "Create Event"
+      : createType === "officeHour"
+      ? "Create Office Hour"
+      : "Create Session";
 
   const handleCreate = (path: string) => {
-    router.push(`${path}?date=${dateStr}`);
+    const nextType: CreateType | null =
+      path === "/events" ? "event" : path === "/office-hours" ? "officeHour" : path === "/sessions" ? "session" : null;
+
+    setCreateType(nextType);
+    setError(null);
     setCreateOpen(false);
+  };
+
+  const handleCloseModal = () => {
+    setCreateType(null);
+    setError(null);
+  };
+
+  const handleCreateSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!createType) return;
+
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+
+    if (createType === "event" || createType === "officeHour") {
+      const startTime = formData.get("startTime") as string;
+      const endTime = formData.get("endTime") as string;
+      if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+        setError("End time must be after start time");
+        return;
+      }
+    }
+
+    if (createType === "session") {
+      const sessionDate = (formData.get("sessionDate") as string) || dateStr;
+      const startTime = formData.get("startTime") as string;
+      const endTime = formData.get("endTime") as string;
+
+      if ((startTime && !endTime) || (!startTime && endTime)) {
+        setError("Start and end time must both be provided");
+        return;
+      }
+
+      if (startTime && endTime && new Date(`${sessionDate}T${endTime}`) <= new Date(`${sessionDate}T${startTime}`)) {
+        setError("End time must be after start time");
+        return;
+      }
+    }
+
+    startTransition(() => {
+      void (async () => {
+        const result =
+          createType === "event"
+            ? await createEvent(formData)
+            : createType === "officeHour"
+            ? await createOfficeHourSlot(formData)
+            : await createSession(formData);
+
+        if (result.success) {
+          handleCloseModal();
+          router.refresh();
+          return;
+        }
+
+        setError(result.error || "Failed to create item");
+      })();
+    });
   };
 
   return (
@@ -297,6 +402,115 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
           )}
         </div>
       )}
+
+      <Modal open={createType !== null} onClose={handleCloseModal} title={createTitle}>
+        <form onSubmit={handleCreateSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {error && (
+            <div
+              style={{
+                border: "1px solid #e0e0e0",
+                backgroundColor: "#f7f7f7",
+                color: "#1A1A1A",
+                borderRadius: 6,
+                padding: "10px 12px",
+                fontSize: 13,
+                fontFamily: "var(--font-sans)",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {createType === "event" && (
+            <>
+              <Input label="Title" name="title" required placeholder="Event title" />
+              <Textarea
+                label="Description"
+                name="description"
+                placeholder="Event description (optional)"
+                rows={3}
+              />
+              <Select label="Event Type" name="eventType" options={eventTypeOptions} required />
+              <Input
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                required
+                defaultValue={defaultStartDateTime}
+              />
+              <Input
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                required
+                defaultValue={defaultEndDateTime}
+              />
+              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+              <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
+            </>
+          )}
+
+          {createType === "officeHour" && (
+            <>
+              <Input
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                required
+                defaultValue={defaultStartDateTime}
+              />
+              <Input
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                required
+                defaultValue={defaultEndDateTime}
+              />
+              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+            </>
+          )}
+
+          {createType === "session" && (
+            <>
+              <Input label="Title" name="title" required placeholder="Session title" />
+              <Textarea
+                label="Description"
+                name="description"
+                placeholder="Session description (optional)"
+                rows={3}
+              />
+              <Input
+                label="Session Date"
+                name="sessionDate"
+                type="date"
+                required
+                defaultValue={defaultSessionDate}
+              />
+              <Input label="Start Time" name="startTime" type="time" defaultValue="09:00" />
+              <Input label="End Time" name="endTime" type="time" defaultValue="10:00" />
+              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+            </>
+          )}
+
+          <div
+            style={{
+              marginTop: 4,
+              paddingTop: 12,
+              borderTop: "1px solid #e0e0e0",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+            }}
+          >
+            <Button type="button" variant="secondary" onClick={handleCloseModal}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={isPending}>
+              {createButtonLabel}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

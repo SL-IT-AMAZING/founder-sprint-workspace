@@ -186,14 +186,14 @@ export default function BookfaceTopNav({
       label: "Advice",
       items: [
         { href: "/office-hours", label: "Office Hours" },
-        { href: "/questions", label: "Questions" },
+        { href: "/schedule", label: "Schedule" },
       ],
     },
     {
       key: "tools",
       label: "Tools",
       items: [
-        { href: "/schedule", label: "Schedule" },
+        { href: "/questions", label: "Questions" },
         { href: "/assignments", label: "Assignments" },
       ],
     },
