@@ -17,6 +17,7 @@ interface User {
 interface Assignment {
   id: string;
   title: string;
+  batch?: { id: string; name: string };
 }
 
 interface Feedback {
@@ -103,6 +104,9 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
                     Assignment
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-muted)" }}>
+                    Batch
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-muted)" }}>
                     Submitted
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-muted)" }}>
@@ -132,6 +136,26 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
                     </td>
                     <td className="py-3 px-4">
                       <span className="text-sm">{submission.assignment.title}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {submission.assignment.batch ? (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontFamily: '"Roboto Mono", monospace',
+                            backgroundColor: "#f0f0f0",
+                            color: "#666666",
+                            padding: "2px 8px",
+                            borderRadius: 4,
+                            fontWeight: 500,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {submission.assignment.batch.name}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "#999999" }}>—</span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="space-y-1">

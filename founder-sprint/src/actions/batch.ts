@@ -165,3 +165,16 @@ export async function getBatch(id: string) {
     },
   });
 }
+
+export async function getActiveBatches() {
+  return unstable_cache(
+    () =>
+      prisma.batch.findMany({
+        where: { status: "active" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true },
+      }),
+    ["batches-active"],
+    { revalidate: 60, tags: ["batches-active", "batches"] }
+  )();
+}

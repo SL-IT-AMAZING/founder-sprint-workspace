@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isStaff } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isAdmin } from "@/lib/permissions";
 
 export const revalidate = 60;
 import { getSubmissions } from "@/actions/assignment";
@@ -13,7 +13,10 @@ export default async function SubmissionsPage() {
     redirect("/assignments");
   }
 
-  const submissions = await getSubmissions(user.batchId);
+  // Admin sees all batches, staff sees their batch only
+  const submissions = isAdmin(user.role)
+    ? await getSubmissions()
+    : await getSubmissions(user.batchId);
 
   return <SubmissionsDashboard submissions={submissions} />;
 }
