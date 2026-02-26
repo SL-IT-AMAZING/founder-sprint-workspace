@@ -108,7 +108,7 @@ interface OfficeHourRequestEmailParams {
   to: string;
   hostName: string;
   requesterName: string;
-  groupName?: string;
+  companyName?: string;
   startTime: Date;
   endTime: Date;
   message?: string;
@@ -118,7 +118,7 @@ export async function sendOfficeHourRequestEmail({
   to,
   hostName,
   requesterName,
-  groupName,
+  companyName,
   startTime,
   endTime,
   message,
@@ -138,7 +138,7 @@ export async function sendOfficeHourRequestEmail({
     await transporter.sendMail({
       from: `Founder Sprint <${process.env.GMAIL_USER}>`,
       to,
-      subject: `Office Hour Request from ${requesterName}${groupName ? ` (${groupName})` : ""}`,
+      subject: `Office Hour Request from ${requesterName}${companyName ? ` (${companyName})` : ""}`,  
       html: `
         <!DOCTYPE html>
         <html>
@@ -151,7 +151,7 @@ export async function sendOfficeHourRequestEmail({
             <div style="background: #ffffff; padding: 32px; border: 1px solid #e0d6c8; border-top: none; border-radius: 0 0 12px 12px;">
               <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0;">New Office Hour Request</h2>
               <p style="font-size: 15px; color: #2F2C26; line-height: 1.6;">
-                <strong>${requesterName}</strong>${groupName ? ` from <strong>${groupName}</strong>` : ""} has requested an office hour with you.
+                <strong>${requesterName}</strong>${companyName ? ` from <strong>${companyName}</strong>` : ""} has requested an office hour with you.
               </p>
               <div style="background: #fefaf3; border: 1px solid #e0d6c8; border-radius: 8px; padding: 16px; margin: 16px 0;">
                 <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Date: <strong style="color: #2F2C26;">${dateStr}</strong></p>
@@ -180,7 +180,7 @@ interface OfficeHourApprovalEmailParams {
   startTime: Date;
   endTime: Date;
   meetLink?: string;
-  groupName?: string;
+  companyName?: string;
 }
 
 export async function sendOfficeHourApprovalEmail({
@@ -189,7 +189,7 @@ export async function sendOfficeHourApprovalEmail({
   startTime,
   endTime,
   meetLink,
-  groupName,
+  companyName,
 }: OfficeHourApprovalEmailParams): Promise<{ success: boolean; error?: string }> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
@@ -206,7 +206,7 @@ export async function sendOfficeHourApprovalEmail({
     await transporter.sendMail({
       from: `Founder Sprint <${process.env.GMAIL_USER}>`,
       to: to.join(", "),
-      subject: `Office Hour Confirmed${groupName ? ` — ${groupName}` : ""} with ${hostName}`,
+      subject: `Office Hour Confirmed${companyName ? ` — ${companyName}` : ""} with ${hostName}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -219,7 +219,7 @@ export async function sendOfficeHourApprovalEmail({
             <div style="background: #ffffff; padding: 32px; border: 1px solid #e0d6c8; border-top: none; border-radius: 0 0 12px 12px;">
               <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0;">Office Hour Confirmed ✅</h2>
               <p style="font-size: 15px; color: #2F2C26; line-height: 1.6;">
-                Your office hour with <strong>${hostName}</strong>${groupName ? ` for <strong>${groupName}</strong>` : ""} has been approved.
+                Your office hour with <strong>${hostName}</strong>${companyName ? ` for <strong>${companyName}</strong>` : ""} has been approved.
               </p>
               <div style="background: #fefaf3; border: 1px solid #e0d6c8; border-radius: 8px; padding: 16px; margin: 16px 0;">
                 <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Date: <strong style="color: #2F2C26;">${dateStr}</strong></p>

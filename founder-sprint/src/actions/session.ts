@@ -108,11 +108,25 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
 
   if (isCalendarConfigured()) {
     try {
-      const batchUsers = await prisma.userBatch.findMany({
-        where: { batchId: user.batchId, status: "active" },
-        include: { user: { select: { email: true } } },
-      });
-      const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+      const groupIds = formData.getAll("groupIds") as string[];
+
+      let attendeeEmails: string[];
+      if (groupIds.length > 0) {
+        // Specific companies selected — get their members
+        const groupMembers = await prisma.groupMember.findMany({
+          where: { groupId: { in: groupIds } },
+          include: { user: { select: { email: true } } },
+        });
+        // Always include the creator + deduplicate
+        attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
+      } else {
+        // Entire batch (current behavior)
+        const batchUsers = await prisma.userBatch.findMany({
+          where: { batchId: user.batchId, status: "active" },
+          include: { user: { select: { email: true } } },
+        });
+        attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+      }
 
       const calResult = hasTimedSession
         ? await createCalendarEvent({
@@ -258,11 +272,25 @@ export async function updateSession(
 
   if (existingSession.googleEventId) {
     try {
-      const batchUsers = await prisma.userBatch.findMany({
-        where: { batchId: user.batchId, status: "active" },
-        include: { user: { select: { email: true } } },
-      });
-      const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+      const groupIds = formData.getAll("groupIds") as string[];
+
+      let attendeeEmails: string[];
+      if (groupIds.length > 0) {
+        // Specific companies selected — get their members
+        const groupMembers = await prisma.groupMember.findMany({
+          where: { groupId: { in: groupIds } },
+          include: { user: { select: { email: true } } },
+        });
+        // Always include the creator + deduplicate
+        attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
+      } else {
+        // Entire batch (current behavior)
+        const batchUsers = await prisma.userBatch.findMany({
+          where: { batchId: user.batchId, status: "active" },
+          include: { user: { select: { email: true } } },
+        });
+        attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+      }
 
       await updateCalendarEvent(existingSession.googleEventId, {
         summary: parsed.data.title || existingSession.title,

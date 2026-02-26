@@ -10,16 +10,22 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
+import { CompanySelect } from "@/components/ui/CompanySelect";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { createEvent } from "@/actions/event";
-import { createOfficeHourSlot } from "@/actions/office-hour";
+import { createOfficeHourSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour } from "@/actions/office-hour";
 import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
+import type { CompanyOption, FounderOption } from "@/types/invite";
 import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
 
 interface DayPanelProps {
   items: ScheduleItem[];
   selectedDay: Date | null;
   isAdmin: boolean;
+  companies: CompanyOption[];
+  founders: FounderOption[];
+  totalBatchMembers: number;
 }
 
 function formatItemTime(item: ScheduleItem): string {
@@ -62,12 +68,15 @@ const timezoneOptions = [
   { value: "UTC", label: "UTC" },
 ];
 
-export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
+export function DayPanel({ items, selectedDay, isAdmin, companies, founders, totalBatchMembers }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<CreateType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [ohMode, setOhMode] = useState<"company" | "individual">("company");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [selectedFounderId, setSelectedFounderId] = useState<string>("");
 
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
   const defaultStartDateTime = dateStr ? `${dateStr}T09:00` : undefined;
@@ -102,6 +111,9 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
   const handleCloseModal = () => {
     setCreateType(null);
     setError(null);
+    setOhMode("company");
+    setSelectedGroupId("");
+    setSelectedFounderId("");
   };
 
   const handleCreateSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -111,7 +123,24 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
     setError(null);
     const formData = new FormData(e.currentTarget);
 
-    if (createType === "event" || createType === "officeHour") {
+    if (createType === "event") {
+      const startTime = formData.get("startTime") as string;
+      const endTime = formData.get("endTime") as string;
+      if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+        setError("End time must be after start time");
+        return;
+      }
+    }
+
+    if (createType === "officeHour") {
+      if (ohMode === "individual" && !selectedFounderId) {
+        setError("Please select a founder");
+        return;
+      }
+      if (ohMode === "company" && !selectedGroupId) {
+        setError("Please select a company");
+        return;
+      }
       const startTime = formData.get("startTime") as string;
       const endTime = formData.get("endTime") as string;
       if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -138,12 +167,20 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
 
     startTransition(() => {
       void (async () => {
-        const result =
-          createType === "event"
-            ? await createEvent(formData)
-            : createType === "officeHour"
-            ? await createOfficeHourSlot(formData)
-            : await createSession(formData);
+        let result;
+        if (createType === "event") {
+          result = await createEvent(formData);
+        } else if (createType === "officeHour") {
+          if (ohMode === "individual") {
+            formData.set("founderId", selectedFounderId);
+            result = await scheduleIndividualOfficeHour(formData);
+          } else {
+            formData.set("groupId", selectedGroupId);
+            result = await scheduleGroupOfficeHour(formData);
+          }
+        } else {
+          result = await createSession(formData);
+        }
 
         if (result.success) {
           handleCloseModal();
@@ -447,25 +484,77 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
               />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
               <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
+              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} />
             </>
           )}
 
           {createType === "officeHour" && (
             <>
-              <Input
-                label="Start Time"
-                name="startTime"
-                type="datetime-local"
-                required
-                defaultValue={defaultStartDateTime}
-              />
-              <Input
-                label="End Time"
-                name="endTime"
-                type="datetime-local"
-                required
-                defaultValue={defaultEndDateTime}
-              />
+              {/* Mode toggle */}
+              <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
+                <button
+                  type="button"
+                  onClick={() => { setOhMode("company"); setSelectedFounderId(""); }}
+                  style={{
+                    flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
+                    fontFamily: '"BDO Grotesk", sans-serif', border: "none", cursor: "pointer",
+                    backgroundColor: ohMode === "company" ? "#1A1A1A" : "transparent",
+                    color: ohMode === "company" ? "#FFFFFF" : "#666666",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Company
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setOhMode("individual"); setSelectedGroupId(""); }}
+                  style={{
+                    flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
+                    fontFamily: '"BDO Grotesk", sans-serif', border: "none",
+                    borderLeft: "1px solid #e0e0e0", cursor: "pointer",
+                    backgroundColor: ohMode === "individual" ? "#1A1A1A" : "transparent",
+                    color: ohMode === "individual" ? "#FFFFFF" : "#666666",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Individual Founder
+                </button>
+              </div>
+
+              {/* Company or Founder dropdown */}
+              {ohMode === "company" ? (
+                <SearchableSelect
+                  label="Company"
+                  options={companies.map((c) => ({
+                    id: c.id,
+                    label: c.name,
+                    secondary: `${c.memberCount} members`,
+                  }))}
+                  value={selectedGroupId}
+                  onChange={setSelectedGroupId}
+                  placeholder="Search for a company..."
+                  required
+                  emptyMessage="No companies found"
+                />
+              ) : (
+                <SearchableSelect
+                  label="Founder"
+                  options={founders.map((f) => ({
+                    id: f.id,
+                    label: f.name || f.email,
+                    secondary: f.groupName ? `Company: ${f.groupName}` : f.email,
+                    imageUrl: f.profileImage,
+                  }))}
+                  value={selectedFounderId}
+                  onChange={setSelectedFounderId}
+                  placeholder="Search for a founder..."
+                  required
+                  emptyMessage="No founders found"
+                />
+              )}
+
+              <Input label="Start Time" name="startTime" type="datetime-local" required defaultValue={defaultStartDateTime} />
+              <Input label="End Time" name="endTime" type="datetime-local" required defaultValue={defaultEndDateTime} />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
             </>
           )}
@@ -489,6 +578,7 @@ export function DayPanel({ items, selectedDay, isAdmin }: DayPanelProps) {
               <Input label="Start Time" name="startTime" type="time" defaultValue="09:00" />
               <Input label="End Time" name="endTime" type="time" defaultValue="10:00" />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} />
             </>
           )}
 

@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItemData[] = [
   { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments', prefetch: true },
   { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions', prefetch: true },
   { id: 'submissions', label: 'Submissions', iconSrc: '/images/icon-interface-arrow-up-right.svg', href: '/submissions' },
-  { id: 'groups', label: 'Groups', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
+  { id: 'groups', label: 'Companies', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
   {
     id: 'schedule',
     label: 'Schedule',

@@ -121,7 +121,7 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   const timezoneInput = formData.get("timezone") as string;
 
   if (!groupId || !startTime || !endTime) {
-    return { success: false, error: "Group, start time, and end time are required" };
+    return { success: false, error: "Company, start time, and end time are required" };
   }
 
   // 3. Validate timezone (same pattern as createOfficeHourSlot)
@@ -161,9 +161,9 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
     },
   });
 
-  if (!group) return { success: false, error: "Group not found" };
-  if (group.batchId !== user.batchId) return { success: false, error: "Group is not in your batch" };
-  if (group.members.length === 0) return { success: false, error: "Cannot schedule for an empty group" };
+  if (!group) return { success: false, error: "Company not found" };
+  if (group.batchId !== user.batchId) return { success: false, error: "Company is not in your batch" };
+  if (group.members.length === 0) return { success: false, error: "Cannot schedule for a company with no members" };
 
   try {
     // 6. Create slot as confirmed with groupId
@@ -186,7 +186,7 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
 
     const calResult = await createCalendarEventWithMeet({
       summary: `Office Hour: ${user.name} × ${group.name}`,
-      description: `Group office hour session with ${group.name}`,
+      description: `Office hour session with ${group.name}`,
       startTime: start,
       endTime: end,
       attendeeEmails: allEmails,
@@ -212,6 +212,100 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   }
 }
 
+export async function scheduleIndividualOfficeHour(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  // 1. Auth check — staff only
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Authentication required" };
+  if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
+
+  const batchCheck = await requireActiveBatch(user.batchId);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
+
+  // 2. Parse formData
+  const founderId = formData.get("founderId") as string;
+  const startTime = formData.get("startTime") as string;
+  const endTime = formData.get("endTime") as string;
+  const timezoneInput = formData.get("timezone") as string;
+
+  if (!founderId || !startTime || !endTime) {
+    return { success: false, error: "Founder, start time, and end time are required" };
+  }
+
+  // 3. Validate timezone
+  const timezone = TIMEZONE_MAP[timezoneInput?.toUpperCase()] || toIanaTimezone(timezoneInput || "UTC");
+
+  // 4. Validate time (same rules as scheduleGroupOfficeHour)
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { success: false, error: "Invalid date format" };
+  }
+  const durationMs = end.getTime() - start.getTime();
+  if (durationMs <= 0 || durationMs > 60 * 60 * 1000) {
+    return { success: false, error: "Office hour slots must be 1 hour or less" };
+  }
+  if (start < new Date()) {
+    return { success: false, error: "Cannot schedule office hours in the past" };
+  }
+
+  // 5. Validate founder — exists in batch
+  const founder = await prisma.user.findFirst({
+    where: {
+      id: founderId,
+      userBatches: {
+        some: { batchId: user.batchId, status: "active" },
+      },
+    },
+    select: { id: true, name: true, email: true },
+  });
+
+  if (!founder) return { success: false, error: "Founder not found in this batch" };
+
+  try {
+    // 6. Create slot as confirmed without groupId
+    const slot = await prisma.officeHourSlot.create({
+      data: {
+        batchId: user.batchId,
+        hostId: user.id,
+        startTime: start,
+        endTime: end,
+        timezone,
+        status: "confirmed",
+        // No groupId — individual
+      },
+    });
+
+    // 7. Create Google Calendar event with Meet link
+    const allEmails = [...new Set([user.email, founder.email])];
+
+    const calResult = await createCalendarEventWithMeet({
+      summary: `Office Hour: ${user.name} × ${founder.name || founder.email}`,
+      description: `Individual office hour session`,
+      startTime: start,
+      endTime: end,
+      attendeeEmails: allEmails,
+      timezone,
+    });
+
+    if (calResult?.meetLink || calResult?.eventId) {
+      await prisma.officeHourSlot.update({
+        where: { id: slot.id },
+        data: {
+          googleMeetLink: calResult.meetLink || "https://meet.google.com/new",
+          googleEventId: calResult.eventId || null,
+        },
+      });
+    }
+
+    revalidateTag(`office-hours-${user.batchId}`);
+    revalidateSchedule(user.batchId);
+    return { success: true, data: { id: slot.id } };
+  } catch (error) {
+    console.error("[scheduleIndividualOfficeHour] Error:", error);
+    return { success: false, error: "Failed to schedule individual office hour" };
+  }
+}
+
 export async function proposeOfficeHour(formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
     const user = await getCurrentUser();
@@ -224,7 +318,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
 
     const groupId = formData.get("groupId") as string;
     if (!groupId) {
-      return { success: false, error: "Group is required" };
+      return { success: false, error: "Company is required" };
     }
 
     // Validate group membership
@@ -232,7 +326,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       where: { groupId, userId: user.id },
     });
     if (!membership) {
-      return { success: false, error: "You must be a member of this group to request office hours" };
+      return { success: false, error: "You must be a member of this company to request office hours" };
     }
 
     const data = {
@@ -302,7 +396,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
         to: targetHost.email,
         hostName: targetHost.name || targetHost.email,
         requesterName: user.name || user.email,
-        groupName: group?.name,
+        companyName: group?.name,
         startTime: startTimeUtc,
         endTime: endTimeUtc,
         message: (formData.get("message") as string) || undefined,
@@ -423,7 +517,7 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
       where: { groupId, userId: user.id },
     });
     if (!membership) {
-      return { success: false, error: "You must be a member of this group to request office hours" };
+      return { success: false, error: "You must be a member of this company to request office hours" };
     }
 
     const validated = requestSchema.parse({ slotId, message });
@@ -485,7 +579,7 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
           to: slotWithHost.host.email,
           hostName: slotWithHost.host.name || slotWithHost.host.email,
           requesterName: user.name || user.email,
-          groupName: slotWithHost.group?.name,
+          companyName: slotWithHost.group?.name,
           startTime: slotWithHost.startTime,
           endTime: slotWithHost.endTime,
           message: validated.message,
@@ -649,7 +743,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         ]);
 
         let recipientEmails: string[] = [];
-        let groupName: string | undefined;
+        let companyName: string | undefined;
 
         if (request.slot.groupId) {
           const group = await prisma.group.findUnique({
@@ -660,7 +754,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
           });
           if (group) {
             recipientEmails = group.members.map((m) => m.user.email);
-            groupName = group.name;
+            companyName = group.name;
           }
         } else if (requester) {
           recipientEmails = [requester.email];
@@ -679,7 +773,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
             startTime: request.slot.startTime,
             endTime: request.slot.endTime,
             meetLink: updatedSlot?.googleMeetLink || undefined,
-            groupName,
+            companyName,
           }).catch((err) => console.error("Failed to send approval email:", err));
         }
       } catch (err) {

@@ -91,7 +91,7 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
         <span>Manage</span>
       </div>
 
-      <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Manage Group</h1>
+      <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Manage Company</h1>
 
         {error && (
           <div className="form-error p-3 rounded-lg text-sm">
@@ -101,10 +101,10 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
 
       {/* Group Settings */}
       <div className="card">
-        <h3 className="text-lg font-medium mb-4">Group Settings</h3>
+        <h3 className="text-lg font-medium mb-4">Company Settings</h3>
         <form onSubmit={handleUpdateGroup} className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Group Name</label>
+            <label className="text-sm font-medium mb-1.5 block">Company Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -119,7 +119,7 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="Optional description for the group"
+              placeholder="Optional description for the company"
             />
           </div>
 
@@ -180,12 +180,12 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
               onClick={() => setShowDeleteConfirm(true)}
               style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
             >
-              Delete Group
+              Delete Company
             </Button>
           ) : (
             <div className="space-y-3">
               <p className="text-sm font-medium" style={{ color: "var(--color-error)" }}>
-                Are you sure you want to delete this group? This action cannot be undone.
+                Are you sure you want to delete this company? This action cannot be undone.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -199,7 +199,7 @@ export function GroupManage({ group, isAdmin }: GroupManageProps) {
                   loading={isPending}
                   style={{ backgroundColor: "var(--color-error)" }}
                 >
-                  Yes, Delete Group
+                  Yes, Delete Company
                 </Button>
               </div>
             </div>
