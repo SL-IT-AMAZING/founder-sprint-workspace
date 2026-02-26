@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/permissions";
-import { getBatchMembers, getBatchMemberStats } from "@/actions/directory";
+import { getAllMembers, getAllMemberStats } from "@/actions/directory";
 import { getFollowingIdsForUser } from "@/actions/follow";
 import { FollowButton } from "@/components/feed/FollowButton";
 import { SearchBar } from "./SearchBar";
@@ -42,14 +42,13 @@ export default async function FoundersPage({
   const page = Math.max(1, parseInt(params.page || "1", 10));
 
   const [membersResult, statsResult, followingIds] = await Promise.all([
-    getBatchMembers({
-      batchId: user.batchId,
+    getAllMembers({
       search: search || undefined,
       role: roleFilter !== "all" ? roleFilter : undefined,
       page,
       limit: 20,
     }),
-    getBatchMemberStats(user.batchId),
+    getAllMemberStats(),
     getFollowingIdsForUser(user.id),
   ]);
 
@@ -99,7 +98,7 @@ export default async function FoundersPage({
           Founders
         </h1>
         <p style={{ fontSize: "14px", color: "#666666" }}>
-          {stats.total} members in your batch
+          {stats.total} members across all batches
         </p>
       </div>
 
@@ -231,6 +230,23 @@ export default async function FoundersPage({
                     >
                       {member.name || "Unnamed User"}
                     </Link>
+                    {/* Batch name badge */}
+                    {"batchName" in member && member.batchName && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#1A1A1A",
+                          backgroundColor: "rgba(26, 26, 26, 0.1)",
+                          padding: "2px 6px",
+                          borderRadius: "3px",
+                          fontFamily: '"Roboto Mono", monospace',
+                        }}
+                      >
+                        {member.batchName}
+                      </span>
+                    )}
+                    {/* Role badge */}
                     <span
                       style={{
                         fontSize: "12px",

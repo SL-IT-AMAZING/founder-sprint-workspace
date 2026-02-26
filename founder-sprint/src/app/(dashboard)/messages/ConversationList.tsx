@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { format, isThisYear } from "date-fns";
 import type { ConversationListItem } from "@/actions/messaging";
 
@@ -29,6 +30,7 @@ export default function ConversationList({
 }: ConversationListProps) {
   const [contextMenu, setContextMenu] = useState<{ conversationId: string; x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -367,48 +369,62 @@ export default function ConversationList({
         )}
       </div>
 
-      {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          role="menu"
-          aria-label="Conversation actions"
-          style={{
-            position: "fixed",
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: 1000,
-            backgroundColor: "#FFFFFF",
-            border: "1px solid #e0e0e0",
-            borderRadius: "8px",
-            boxShadow: "0 6px 24px rgba(0, 0, 0, 0.12)",
-            padding: "4px",
-            minWidth: "180px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Delete this conversation?")) {
-                onDeleteConversation(contextMenu.conversationId);
-              }
-              setContextMenu(null);
-            }}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            ref={contextMenuRef}
+            role="menu"
+            aria-label="Conversation actions"
+            initial={reduceMotion ? false : { opacity: 0, y: -4, scale: 0.98 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -2, scale: 0.98 }}
+            transition={{ duration: reduceMotion ? 0.01 : 0.16, ease: [0.2, 0, 0, 1] }}
             style={{
-              width: "100%",
-              border: "none",
-              background: "none",
-              textAlign: "left",
-              fontSize: "13px",
-              color: "#C62828",
-              padding: "8px 10px",
-              borderRadius: "6px",
-              cursor: "pointer",
+              position: "fixed",
+              left: contextMenu.x,
+              top: contextMenu.y,
+              zIndex: 1000,
+              backgroundColor: "#FFFFFF",
+              border: "1px solid #e0e0e0",
+              borderRadius: "8px",
+              boxShadow: "0 6px 24px rgba(0, 0, 0, 0.12)",
+              padding: "4px",
+              minWidth: "180px",
+              transformOrigin: "top right",
             }}
           >
-            Delete conversation
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Delete this conversation?")) {
+                  onDeleteConversation(contextMenu.conversationId);
+                }
+                setContextMenu(null);
+              }}
+              style={{
+                width: "100%",
+                border: "none",
+                background: "none",
+                textAlign: "left",
+                fontSize: "13px",
+                color: "#C62828",
+                padding: "8px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                transition: "background-color 0.16s",
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.backgroundColor = "rgba(198, 40, 40, 0.08)";
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              Delete conversation
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

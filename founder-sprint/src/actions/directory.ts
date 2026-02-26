@@ -126,6 +126,161 @@ export async function getBatchMembers(
   };
 }
 
+interface GetAllMembersParams {
+  search?: string;
+  role?: UserRole;
+  page?: number;
+  limit?: number;
+}
+
+export async function getAllMembers(
+  params: GetAllMembersParams
+): Promise<ActionResult<{
+  users: Array<{
+    id: string;
+    name: string | null;
+    email: string;
+    profileImage: string | null;
+    jobTitle: string | null;
+    company: string | null;
+    headline: string | null;
+    followerCount: number;
+    role: UserRole;
+    batchName: string | null;
+  }>;
+  total: number;
+  hasMore: boolean;
+}>> {
+  const viewer = await getCurrentUser();
+  if (!viewer) return { success: false, error: "Not authenticated" };
+
+  const page = Math.max(1, params.page ?? 1);
+  const limit = Math.max(1, Math.min(params.limit ?? 20, 100));
+  const skip = (page - 1) * limit;
+
+  const where = {
+    status: "active" as const,
+    ...(params.role ? { role: params.role } : {}),
+    ...(params.search
+      ? {
+          user: {
+            name: {
+              contains: params.search,
+              mode: "insensitive" as const,
+            },
+          },
+        }
+      : {}),
+  };
+
+  const [members, total] = await Promise.all([
+    prisma.userBatch.findMany({
+      where,
+      select: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profileImage: true,
+            jobTitle: true,
+            company: true,
+            headline: true,
+            followerCount: true,
+          },
+        },
+        batch: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: [
+        { user: { followerCount: "desc" } },
+        { user: { name: "asc" } },
+      ],
+      skip,
+      take: limit,
+    }),
+    prisma.userBatch.count({ where }),
+  ]);
+
+  // Deduplicate users who appear in multiple batches
+  // Keep first occurrence (sorted by followerCount desc, so highest first)
+  const seenUserIds = new Set<string>();
+  const dedupedUsers = members
+    .filter((member) => {
+      if (seenUserIds.has(member.user.id)) return false;
+      seenUserIds.add(member.user.id);
+      return true;
+    })
+    .map((member) => ({
+      id: member.user.id,
+      name: member.user.name,
+      email: member.user.email,
+      profileImage: member.user.profileImage,
+      jobTitle: member.user.jobTitle,
+      company: member.user.company,
+      headline: member.user.headline,
+      followerCount: member.user.followerCount,
+      role: member.role,
+      batchName: member.batch.name,
+    }));
+
+  return {
+    success: true,
+    data: {
+      users: dedupedUsers,
+      total,
+      hasMore: skip + dedupedUsers.length < total,
+    },
+  };
+}
+
+export async function getAllMemberStats(): Promise<ActionResult<{
+  total: number;
+  founders: number;
+  coFounders: number;
+  mentors: number;
+  admins: number;
+}>> {
+  const viewer = await getCurrentUser();
+  if (!viewer) return { success: false, error: "Not authenticated" };
+
+  const [total, founders, coFounders, mentors, admins] = await Promise.all([
+    prisma.userBatch.count({
+      where: { status: "active" },
+    }),
+    prisma.userBatch.count({
+      where: { status: "active", role: "founder" },
+    }),
+    prisma.userBatch.count({
+      where: { status: "active", role: "co_founder" },
+    }),
+    prisma.userBatch.count({
+      where: { status: "active", role: "mentor" },
+    }),
+    prisma.userBatch.count({
+      where: {
+        status: "active",
+        role: { in: ["admin", "super_admin"] },
+      },
+    }),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      total,
+      founders,
+      coFounders,
+      mentors,
+      admins,
+    },
+  };
+}
+
 export async function getBatchMemberStats(
   batchId: string
 ): Promise<ActionResult<{

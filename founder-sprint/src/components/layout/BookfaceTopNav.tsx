@@ -186,7 +186,7 @@ export default function BookfaceTopNav({
       label: "Advice",
       items: [
         { href: "/office-hours", label: "Office Hours" },
-        { href: "/questions", label: "Knowledge Base" },
+        { href: "/questions", label: "Questions" },
       ],
     },
     {
@@ -202,7 +202,6 @@ export default function BookfaceTopNav({
       label: "Contact",
       items: [
         { href: "/messages", label: "Messages" },
-        { href: "/settings", label: "Settings" },
         ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
       ],
     },

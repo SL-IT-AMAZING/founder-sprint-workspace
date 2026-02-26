@@ -197,7 +197,6 @@ export async function getUserFollowing(
 }
 
 export async function getFollowSuggestions(
-  batchId: string,
   limit: number = 5
 ) {
   const user = await getCurrentUser();
@@ -210,9 +209,9 @@ export async function getFollowSuggestions(
 
   const excludeIds = [user.id, ...followingIds.map((f) => f.followingId)];
 
-  const batchMembers = await prisma.userBatch.findMany({
+  // Cross-batch: find users from ALL active batches, not just user's batch
+  const suggestions = await prisma.userBatch.findMany({
     where: {
-      batchId,
       status: "active",
       userId: { notIn: excludeIds },
     },
@@ -229,14 +228,39 @@ export async function getFollowSuggestions(
           followerCount: true,
         },
       },
+      batch: {
+        select: {
+          name: true,
+        },
+      },
     },
-    take: limit * 2,
+    take: limit * 3,
   });
 
-  return batchMembers
-    .map((m) => m.user)
-    .sort((a, b) => b.followerCount - a.followerCount)
-    .slice(0, limit);
+  // Deduplicate users (a user can be in multiple batches)
+  const seenUserIds = new Set<string>();
+  const uniqueSuggestions: Array<{
+    user: (typeof suggestions)[0]["user"];
+    batchName: string | null;
+  }> = [];
+
+  for (const s of suggestions) {
+    if (!seenUserIds.has(s.user.id)) {
+      seenUserIds.add(s.user.id);
+      uniqueSuggestions.push({
+        user: s.user,
+        batchName: s.batch.name,
+      });
+    }
+  }
+
+  return uniqueSuggestions
+    .sort((a, b) => b.user.followerCount - a.user.followerCount)
+    .slice(0, limit)
+    .map((s) => ({
+      ...s.user,
+      batchName: s.batchName,
+    }));
 }
 
 export async function getFollowingIdsForUser(userId: string): Promise<string[]> {

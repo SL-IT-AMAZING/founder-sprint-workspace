@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { createCompany, updateCompany } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -38,7 +38,56 @@ export function CompanyForm({ initialData }: CompanyFormProps) {
   const [name, setName] = useState(initialData?.name || "");
   const [slug, setSlug] = useState(initialData?.slug || "");
   const [autoSlug, setAutoSlug] = useState(!initialData);
+  const [logoUrl, setLogoUrl] = useState(initialData?.logoUrl || "");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const handleLogoUpload = async (file: File) => {
+    setLogoError("");
+    setLogoUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "company-logos");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await res.json();
+
+      if (result.success && result.url) {
+        setLogoUrl(result.url);
+      } else {
+        setLogoError(result.error || "Upload failed");
+      }
+    } catch {
+      setLogoError("Upload failed. Please try again.");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleLogoUpload(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      handleLogoUpload(file);
+    } else {
+      setLogoError("Please drop an image file (JPEG, PNG, GIF, or SVG)");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -142,13 +191,128 @@ export function CompanyForm({ initialData }: CompanyFormProps) {
             defaultValue={initialData?.foundedYear || ""}
           />
 
-          <Input
-            label="Logo URL"
-            name="logoUrl"
-            type="url"
-            placeholder="https://example.com/logo.png"
-            defaultValue={initialData?.logoUrl || ""}
-          />
+          {/* Logo Upload */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 500,
+                marginBottom: "6px",
+                color: "#2F2C26",
+              }}
+            >
+              Company Logo
+            </label>
+            <input type="hidden" name="logoUrl" value={logoUrl} />
+            <div
+              onClick={() => !logoUploading && fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              style={{
+                border: dragOver ? "2px dashed #1A1A1A" : "2px dashed #e0e0e0",
+                borderRadius: "8px",
+                padding: "24px",
+                textAlign: "center",
+                cursor: logoUploading ? "wait" : "pointer",
+                backgroundColor: dragOver ? "#f5f5f0" : "#fefaf3",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/svg+xml"
+                onChange={handleFileChange}
+                style={{ display: "none" }}
+              />
+              {logoUrl ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", justifyContent: "center" }}>
+                  <img
+                    src={logoUrl}
+                    alt="Company logo"
+                    style={{
+                      width: "64px",
+                      height: "64px",
+                      objectFit: "contain",
+                      borderRadius: "8px",
+                      border: "1px solid #e0e0e0",
+                      backgroundColor: "#fff",
+                    }}
+                  />
+                  <div style={{ textAlign: "left" }}>
+                    <p style={{ fontSize: "14px", color: "#2F2C26", fontWeight: 500 }}>
+                      Logo uploaded
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#999", marginTop: "2px" }}>
+                      Click or drag to replace
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLogoUrl("");
+                      }}
+                      style={{
+                        fontSize: "12px",
+                        color: "#C62828",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        marginTop: "4px",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : logoUploading ? (
+                <div>
+                  <div
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      border: "2px solid #e0e0e0",
+                      borderTopColor: "#1A1A1A",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      margin: "0 auto 8px",
+                    }}
+                  />
+                  <p style={{ fontSize: "14px", color: "#666" }}>Uploading...</p>
+                </div>
+              ) : (
+                <div>
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#999"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ margin: "0 auto 8px" }}
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <p style={{ fontSize: "14px", color: "#2F2C26", fontWeight: 500 }}>
+                    Click to upload or drag and drop
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#999", marginTop: "4px" }}>
+                    JPEG, PNG, GIF or SVG (max 2MB)
+                  </p>
+                </div>
+              )}
+            </div>
+            {logoError && (
+              <p style={{ fontSize: "12px", color: "#C62828", marginTop: "6px" }}>{logoError}</p>
+            )}
+          </div>
 
           <div>
             <Input

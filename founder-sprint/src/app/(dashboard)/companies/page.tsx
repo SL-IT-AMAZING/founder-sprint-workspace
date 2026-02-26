@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { getCompaniesDirectory } from "@/actions/directory";
 import { SearchBar } from "./SearchBar";
 
@@ -72,23 +72,47 @@ export default async function CompaniesPage({
     return colors[Math.abs(hash) % colors.length];
   };
 
+  const userIsAdmin = isAdmin(user.role);
+
   return (
     <div>
-      <div style={{ marginBottom: "32px" }}>
-        <h1
-          style={{
-            fontSize: "32px",
-            fontWeight: 600,
-            fontFamily: '"Libre Caslon Condensed", Georgia, serif',
-            color: "#2F2C26",
-            marginBottom: "8px",
-          }}
-        >
-          Companies
-        </h1>
-        <p style={{ fontSize: "14px", color: "#666666" }}>
-          {total} companies in your batch
-        </p>
+      <div style={{ marginBottom: "32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <h1
+            style={{
+              fontSize: "32px",
+              fontWeight: 600,
+              fontFamily: '"Libre Caslon Condensed", Georgia, serif',
+              color: "#2F2C26",
+              marginBottom: "8px",
+            }}
+          >
+            Companies
+          </h1>
+          <p style={{ fontSize: "14px", color: "#666666" }}>
+            {total} companies in your batch
+          </p>
+        </div>
+        {userIsAdmin && (
+          <Link
+            href="/admin/companies/new"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 500,
+              borderRadius: "9px",
+              backgroundColor: "#1A1A1A",
+              color: "#FFFFFF",
+              textDecoration: "none",
+              transition: "background-color 0.2s",
+            }}
+          >
+            + Create Company
+          </Link>
+        )}
       </div>
 
       <SearchBar initialSearch={search} />

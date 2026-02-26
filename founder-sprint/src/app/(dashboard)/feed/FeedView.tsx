@@ -53,9 +53,10 @@ interface FeedViewProps {
   isAdmin?: boolean;
   readOnly?: boolean;
   initialTab?: string;
+  batchName?: string;
 }
 
-export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false, initialTab }: FeedViewProps) {
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false, initialTab, batchName }: FeedViewProps) {
   const [commentContent, setCommentContent] = useState<Record<string, string>>({});
   const router = useRouter();
   const [showComments, setShowComments] = useState<Set<string>>(new Set());
@@ -310,7 +311,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 author={{
                   name: getDisplayName(post.author),
                   avatarUrl: post.author.profileImage || undefined,
-                  batch: undefined,
+                  batch: batchName || undefined,
                   company: undefined,
                 }}
                 content={post.content}
