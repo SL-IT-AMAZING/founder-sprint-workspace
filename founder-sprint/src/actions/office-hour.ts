@@ -36,9 +36,9 @@ const slotSchema = z.object({
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
     const diffMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-    return diffMinutes > 0 && diffMinutes < 60;
+    return diffMinutes > 0 && diffMinutes <= 60;
   },
-  { message: "Office hour slots must be less than 1 hour" }
+  { message: "Office hour slots must be 1 hour or less" }
 );
 
 const requestSchema = z.object({
@@ -140,8 +140,8 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
     return { success: false, error: "Invalid date format" };
   }
   const durationMs = end.getTime() - start.getTime();
-  if (durationMs <= 0 || durationMs >= 60 * 60 * 1000) {
-    return { success: false, error: "Office hour slots must be less than 1 hour" };
+  if (durationMs <= 0 || durationMs > 60 * 60 * 1000) {
+    return { success: false, error: "Office hour slots must be 1 hour or less" };
   }
   if (start < new Date()) {
     return { success: false, error: "Cannot schedule office hours in the past" };
