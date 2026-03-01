@@ -73,7 +73,7 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
               key={group.id}
               className="card cursor-pointer"
               onClick={() => router.push(`/groups/${group.id}`)}
-              style={{ transition: "all 0.2s" }}
+              style={{ transition: "border-color 0.2s" }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = "var(--color-primary)";
               }}
