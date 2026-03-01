@@ -128,7 +128,7 @@
 
 ---
 
-## 5. Supabase Storage 버킷 생성 [선택 사항]
+## 5. Supabase Storage 버킷 생성 [필요 ⚠️]
 
 **필수 이유**: 파일 업로드 기능을 위해 스토리지 버킷 필수
 
@@ -141,12 +141,17 @@ Supabase 대시보드 → **Storage**:
 1. 버킷 생성: `question-attachments` (Private)
 2. 버킷 생성: `post-images` (Private)
 3. 버킷 생성: `profile-images` (Public)
+4. 버킷 생성: `company-logos` (Public) ← **NEW: 회사 로고 업로드용**
+   - Public으로 설정 (로고는 누구나 볼 수 있어야 함)
+   - 최대 파일 크기: 2MB
+   - 허용 타입: JPEG, PNG, GIF, SVG
 
 ### 검증 방법
 - 파일 업로드 시 "bucket not found" 에러 없음
+- 회사 생성/편집 페이지에서 로고 이미지 업로드 가능
 
 ### 현재 상태
-- **블로킹**: 아니오 (파일 업로드 기능 아직 필요 없음)
+- **블로킹**: `company-logos` 버킷 미생성 시 로고 업로드 불가 (URL 직접 입력은 계속 가능)
 
 ---
 
@@ -175,5 +180,5 @@ Supabase 대시보드 → **Storage**:
 | Gmail SMTP | ✅ 완료 | 아니오 | - |
 | Google Calendar | 🔲 선택 | 아니오 | 낮음 |
 | Resend 검증 | 🔲 선택 | 아니오 | 낮음 |
-| Storage 버킷 | 🔲 선택 | 아니오 | 낮음 |
+| Storage 버킷 | ⚠️ 필요 | 부분적 | 중간 |
 | Vercel 환경변수 | ✅ 완료 | 아니오 | - |

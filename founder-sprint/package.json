@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "prepare:settings-fixture": "node scripts/prepare-settings-fixture.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.3.0",

@@ -1,0 +1,91 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e6] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e7]:
+      - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Open issues overlay" [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: "0"
+          - generic [ref=e15]: "1"
+        - generic [ref=e16]: Issue
+      - button "Collapse issues badge" [ref=e17]:
+        - img [ref=e18]
+  - generic [ref=e20]:
+    - navigation [ref=e21]:
+      - generic [ref=e22]:
+        - link "Outsome" [ref=e23] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Outsome" [ref=e24]
+        - generic [ref=e25]:
+          - button "Community ▼" [ref=e27] [cursor=pointer]:
+            - text: Community
+            - generic [ref=e28]: ▼
+          - button "Advice ▼" [ref=e30] [cursor=pointer]:
+            - text: Advice
+            - generic [ref=e31]: ▼
+          - button "Tools ▼" [ref=e33] [cursor=pointer]:
+            - text: Tools
+            - generic [ref=e34]: ▼
+          - button "Contact ▼" [ref=e36] [cursor=pointer]:
+            - text: Contact
+            - generic [ref=e37]: ▼
+      - textbox "Search Outsome" [ref=e39]
+      - generic [ref=e40]:
+        - link [ref=e41] [cursor=pointer]:
+          - /url: /messages
+          - img [ref=e42]
+        - button "Test Batch 1772020772779" [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: Test Batch 1772020772779
+          - img [ref=e49]
+        - link "TA" [ref=e51] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e52]: TA
+        - button "Sign out" [ref=e54] [cursor=pointer]
+        - button "Menu" [ref=e55] [cursor=pointer]:
+          - img "Menu" [ref=e56]
+    - main [ref=e57]:
+      - generic [ref=e58]:
+        - heading "Batch Management" [level=1] [ref=e60]
+        - button "Create Batch" [active] [ref=e62] [cursor=pointer]:
+          - generic [ref=e63]:
+            - generic [ref=e64]: Create Batch
+            - generic [ref=e65]: Create Batch
+        - generic [ref=e66]:
+          - generic [ref=e68]:
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - heading "Test Batch 1772020772779" [level=3] [ref=e71]
+                - generic [ref=e72]: Active
+              - generic [ref=e73]:
+                - generic [ref=e74]: Feb 26, 2026 — Mar 28, 2026
+                - generic [ref=e75]: 1 members
+            - generic [ref=e76]:
+              - button "Edit" [ref=e77] [cursor=pointer]
+              - button "Archive" [ref=e78] [cursor=pointer]
+              - button "Delete" [ref=e79] [cursor=pointer]
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - heading "루틴헙" [level=3] [ref=e84]
+                - generic [ref=e85]: Active
+              - generic [ref=e86]:
+                - generic [ref=e87]: Feb 5, 2026 — Feb 27, 2026
+                - generic [ref=e88]: 8 members
+            - generic [ref=e89]:
+              - button "Edit" [ref=e90] [cursor=pointer]
+              - button "Archive" [ref=e91] [cursor=pointer]
+              - button "Delete" [ref=e92] [cursor=pointer]
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]:
+                - heading "Test2" [level=3] [ref=e97]
+                - generic [ref=e98]: Ended
+              - generic [ref=e99]:
+                - generic [ref=e100]: Feb 4, 2026 — Feb 6, 2026
+                - generic [ref=e101]: 3 members
+            - button "Delete" [ref=e103] [cursor=pointer]
+  - alert [ref=e104]
+```

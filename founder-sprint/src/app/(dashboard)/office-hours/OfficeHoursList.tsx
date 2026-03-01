@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -11,9 +11,11 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime, getDisplayName } from "@/lib/utils";
 import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
+import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
+import type { FounderOption } from "@/types/invite";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 
 interface GroupMember {
   user: {
@@ -78,6 +80,7 @@ interface OfficeHoursListProps {
   user: UserWithBatch;
   slots: OfficeHourSlot[];
   groups: Group[];
+  founders: FounderOption[];
 }
 
 function getStatusBadgeVariant(status: OfficeHourSlotStatus): "default" | "success" | "warning" | "error" {
@@ -114,7 +117,7 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
   }
 }
 
-export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
+export function OfficeHoursList({ user, slots, groups, founders }: OfficeHoursListProps) {
    const [createModalOpen, setCreateModalOpen] = useState(false);
    const [requestModalOpen, setRequestModalOpen] = useState(false);
    const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -127,6 +130,8 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
    const endTimeRef = useRef<HTMLInputElement>(null);
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
+   const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
+   const [selectedFounderId, setSelectedFounderId] = useState<string>("");
 
    const searchParams = useSearchParams();
    const prefillDate = searchParams.get("date");
@@ -187,7 +192,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
     }
   };
 
-  const handleScheduleGroupOH = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleScheduleOH = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -200,10 +205,24 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
       setLoading(false);
       return;
     }
-    const result = await scheduleGroupOfficeHour(formData);
+
+    let result;
+    if (scheduleMode === "individual") {
+      if (!selectedFounderId) {
+        setError("Please select a founder");
+        setLoading(false);
+        return;
+      }
+      formData.set("founderId", selectedFounderId);
+      result = await scheduleIndividualOfficeHour(formData);
+    } else {
+      result = await scheduleGroupOfficeHour(formData);
+    }
 
     if (result.success) {
       setScheduleModalOpen(false);
+      setScheduleMode("company");
+      setSelectedFounderId("");
       (e.target as HTMLFormElement).reset();
     } else {
       setError(result.error || "Failed to schedule");
@@ -340,7 +359,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ backgroundColor: "var(--color-success)" }}
             >
-              Schedule Group Office Hour
+              Schedule Company Office Hour
             </button>
             <Button onClick={() => setCreateModalOpen(true)} size="sm">
               Create Slot
@@ -387,7 +406,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                       </div>
                       {slot.group && (
                         <div className="flex items-center gap-1 text-sm" style={{ color: "var(--color-primary)" }}>
-                          <span className="font-medium">Group: {slot.group.name}</span>
+                          <span className="font-medium">Company: {slot.group.name}</span>
                           <span style={{ color: "var(--color-foreground-secondary)" }}>({slot.group.members.length} members)</span>
                         </div>
                       )}
@@ -406,7 +425,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                     )}
                     {isFounderUser && groups.length === 0 && slot.status === "available" && (
                       <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-                        Join a group to request
+                        Join a company to request
                       </p>
                     )}
                     {userHasRequested && (
@@ -463,7 +482,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
 
                 {slot.status === "confirmed" && slot.group && !approvedRequest && (
                   <div className="pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>
-                    <div className="text-sm font-medium mb-2">Group Members:</div>
+                    <div className="text-sm font-medium mb-2">Company Members:</div>
                     <div className="flex flex-wrap gap-2">
                       {slot.group.members.slice(0, 5).map((m) => (
                         <div key={m.user.id} className="flex items-center gap-1">
@@ -605,7 +624,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
             </div>
           )}
           <div className="space-y-1">
-            <label className="text-sm font-medium">Group</label>
+            <label className="text-sm font-medium">Company</label>
             <select
               value={selectedGroupId}
               onChange={(e) => setSelectedGroupId(e.target.value)}
@@ -613,7 +632,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background)" }}
               required
             >
-              <option value="">Select your group</option>
+              <option value="">Select your company</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
@@ -636,8 +655,8 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
         </form>
       </Modal>
 
-      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); }} title="Schedule Group Office Hour">
-        <form onSubmit={handleScheduleGroupOH} className="space-y-4">
+      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }} title={scheduleMode === "individual" ? "Schedule Individual Office Hour" : "Schedule Company Office Hour"}>
+        <form onSubmit={handleScheduleOH} className="space-y-4">
           {error && (
             <div
               className="p-3 rounded text-sm"
@@ -646,24 +665,72 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
               {error}
             </div>
           )}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Group</label>
-            <select
-              name="groupId"
-              required
-              className="w-full px-3 py-2 rounded-md border text-sm"
+          <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
+            <button
+              type="button"
+              onClick={() => { setScheduleMode("company"); setSelectedFounderId(""); }}
               style={{
-                backgroundColor: "var(--color-background)",
-                borderColor: "var(--color-border)",
-                color: "var(--color-foreground)",
+                flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
+                fontFamily: '"BDO Grotesk", sans-serif', border: "none", cursor: "pointer",
+                backgroundColor: scheduleMode === "company" ? "#1A1A1A" : "transparent",
+                color: scheduleMode === "company" ? "#FFFFFF" : "#666666",
+                transition: "background-color 0.15s, color 0.15s",
               }}
             >
-              <option value="">Select group</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name} ({g._count.members} members)</option>
-              ))}
-            </select>
+              Company
+            </button>
+            <button
+              type="button"
+              onClick={() => { setScheduleMode("individual"); setSelectedGroupId(""); }}
+              style={{
+                flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
+                fontFamily: '"BDO Grotesk", sans-serif', border: "none",
+                borderLeft: "1px solid #e0e0e0", cursor: "pointer",
+                backgroundColor: scheduleMode === "individual" ? "#1A1A1A" : "transparent",
+                color: scheduleMode === "individual" ? "#FFFFFF" : "#666666",
+                transition: "background-color 0.15s, color 0.15s",
+              }}
+            >
+              Individual Founder
+            </button>
           </div>
+          {scheduleMode === "company" ? (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Company</label>
+              <select
+                name="groupId"
+                required={scheduleMode === "company"}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                <option value="">Select company</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g._count.members} members)</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <SearchableSelect
+                label="Founder"
+                options={founders.map((f) => ({
+                  id: f.id,
+                  label: f.name || f.email,
+                  secondary: f.groupName ? `Company: ${f.groupName}` : f.email,
+                  imageUrl: f.profileImage,
+                }))}
+                value={selectedFounderId}
+                onChange={setSelectedFounderId}
+                placeholder="Search for a founder..."
+                required
+                emptyMessage="No founders found"
+              />
+            </div>
+          )}
           <Input
             label="Start Time"
             name="startTime"
@@ -697,11 +764,11 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); }}>
+            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }}>
               Cancel
             </Button>
             <Button type="submit" loading={loading}>
-              Schedule & Send Invites
+              {scheduleMode === "individual" ? "Schedule & Send Invite" : "Schedule & Send Invites"}
             </Button>
           </div>
         </form>
@@ -718,7 +785,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
             </div>
           )}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Group</label>
+            <label className="text-sm font-medium">Company</label>
             <select
               name="groupId"
               required
@@ -729,7 +796,7 @@ export function OfficeHoursList({ user, slots, groups }: OfficeHoursListProps) {
                 color: "var(--color-foreground)",
               }}
             >
-              <option value="">Select your group</option>
+              <option value="">Select your company</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}

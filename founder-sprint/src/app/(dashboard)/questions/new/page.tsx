@@ -23,7 +23,7 @@ export default async function NewQuestionPage() {
       </Link>
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Ask a Question</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", marginBottom: "8px" }}>Ask a Question</h1>
         <p style={{ color: "var(--color-foreground-secondary)" }}>
           Get help from mentors and admins in your batch
         </p>

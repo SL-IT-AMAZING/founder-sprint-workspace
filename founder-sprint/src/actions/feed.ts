@@ -12,6 +12,8 @@ const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 const CreatePostSchema = z.object({
   content: z.string().min(1).max(3000),
   groupId: z.string().optional().or(z.literal("")),
+  category: z.string().optional().or(z.literal("")),
+  linkPreview: z.string().optional(),
 });
 
 export async function createPost(formData: FormData): Promise<ActionResult<{ id: string }>> {
@@ -24,6 +26,8 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
   const parsed = CreatePostSchema.safeParse({
     content: formData.get("content"),
     groupId: formData.get("groupId") || undefined,
+    category: formData.get("category") || undefined,
+    linkPreview: formData.get("linkPreview") || undefined,
   });
 
   if (!parsed.success) {
@@ -36,6 +40,8 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
       authorId: user.id,
       content: parsed.data.content,
       groupId: parsed.data.groupId || null,
+      category: parsed.data.category || null,
+      linkPreview: parsed.data.linkPreview ? JSON.parse(parsed.data.linkPreview) : undefined,
     },
   });
 
@@ -170,6 +176,24 @@ export async function getPaginatedPosts(
     [`posts-${batchId}-page-${page}-limit-${limit}`],
     { revalidate: 60, tags: [`posts-${batchId}`] }
   )();
+}
+
+export async function getUserPosts(userId: string) {
+  return prisma.post.findMany({
+    where: { authorId: userId, isHidden: false },
+    include: {
+      author: true,
+      images: true,
+      _count: {
+        select: {
+          comments: true,
+          likes: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
 }
 
 export async function getArchivedPosts(batchId: string) {

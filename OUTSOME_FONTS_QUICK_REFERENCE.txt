@@ -1,0 +1,136 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║              OUTSOME.CO TYPOGRAPHY - QUICK REFERENCE CARD                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📝 FONT FAMILIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HEADINGS:
+  Font:     Libre Caslon Condensed (Serif)
+  Weight:   400 Regular
+  Fallback: Times New Roman, sans-serif
+  Style:    Elegant, condensed, premium
+
+BODY TEXT:
+  Font:     BDO Grotesk (Sans-serif Variable)
+  Weight:   300–900 (full variable range)
+  Fallback: Arial, sans-serif
+  Style:    Modern, clean, readable
+
+ACCENTS/BADGES:
+  Font:     Roboto Mono (Monospace)
+  Weight:   500 Medium
+  Fallback: Trebuchet MS, sans-serif
+  Style:    Technical, precise
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📏 SIZING SCALE (Modular: 1.26)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HEADINGS:
+  H1:  70.59px  │ H2:  56.02px  │ H3:  44.46px
+  H4:  35.29px  │ H5:  28.01px
+
+BODY:
+  Large/Lead:  17.64px
+  Regular:     14.00px
+  Small:       11.11px
+
+LINE HEIGHTS:
+  H1:   1.0em   │ H2:   1.1em   │ H3:   1.2em   │ H4:   1.25em  │ H5:   1.3em
+  Body: 1.4em
+
+LETTER SPACING:
+  H1/H2/H3/H4:  -0.02em
+  H5:           -0.01em
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 HERO SECTION ("Silicon Valley Accelerating for Korean Startups")
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Font:        Libre Caslon Condensed (serif)
+Size:        ~56–71px (H1 or H2)
+Weight:      400 (Regular)
+Line Height: 1.0–1.1em
+Spacing:     -0.02em (negative letter spacing for premium feel)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💾 SELF-HOSTED FONT FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/public/fonts/
+├── BDOGrotesk-VF.ttf                    (259 KB)
+├── LibreCaslonCondensed-Regular.otf     (71 KB)
+├── LibreCaslonCondensed-Italic.otf      (101 KB)
+└── RobotoMono-Medium.ttf                (87 KB)
+
+No CDN dependencies (Google Fonts, Adobe Fonts, etc.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 CSS VARIABLES USED IN SOURCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--_typography---type-font-body        → "BDO Grotesk", Arial, sans-serif
+--_typography---type-font-headings    → "Libre Caslon Condensed", Times New Roman
+--_typography---type-font-badges      → "Roboto Mono", Trebuchet MS, sans-serif
+
+--_typography---type-body-size        → 14px
+--_typography---type-lead-size        → 17.64px (≈18px)
+--_typography---type-small-size       → 11.11px (≈11px)
+
+--_typography---type-h1-size          → 70.59px
+--_typography---type-h2-size          → 56.02px
+--_typography---type-h3-size          → 44.46px
+--_typography---type-h4-size          → 35.29px
+--_typography---type-h5-size          → 28.01px
+
+--_typography---type-base-unit        → 14px
+--_typography---type-scale-factor     → 1.26
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ DESIGN PHILOSOPHY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Elegance through serif headings (Libre Caslon Condensed)
+✓ Modernity via sans-serif body (BDO Grotesk)
+✓ Precision with monospace accents (Roboto Mono)
+✓ Harmony through modular scale (1.26)
+✓ Premium feel with negative letter spacing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 QUICK IMPLEMENTATION
+
+CSS:
+  @font-face { font-family: 'Libre Caslon Condensed'; src: url('/fonts/...'); }
+  @font-face { font-family: 'BDO Grotesk'; src: url('/fonts/...'); }
+  @font-face { font-family: 'Roboto Mono'; src: url('/fonts/...'); }
+
+  h1 { font-family: 'Libre Caslon Condensed'; font-size: 70.59px; line-height: 1em; letter-spacing: -0.02em; }
+  body { font-family: 'BDO Grotesk'; font-size: 14px; line-height: 1.4em; }
+
+Tailwind:
+  theme: {
+    fontFamily: {
+      'body': ['BDO Grotesk', 'Arial', 'sans-serif'],
+      'heading': ['Libre Caslon Condensed', 'Times New Roman', 'sans-serif'],
+      'mono': ['Roboto Mono', 'Trebuchet MS', 'sans-serif'],
+    },
+  }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 KEY FACTS
+
+✓ Variable Font for Body (BDO Grotesk): Weight range 300–900
+✓ Serif for Headings (Libre Caslon Condensed): Weight 400 only
+✓ Monospace for Badges (Roboto Mono): Weight 500 only
+✓ All fonts self-hosted (no external CDN)
+✓ Font display strategy: block (for optimal rendering)
+✓ Negative letter spacing on all major headings for premium appearance
+

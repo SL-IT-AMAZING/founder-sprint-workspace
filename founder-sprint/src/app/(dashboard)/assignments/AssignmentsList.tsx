@@ -11,12 +11,19 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { createAssignment, updateAssignment, deleteAssignment } from "@/actions/assignment";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+
+interface BatchOption {
+  id: string;
+  name: string;
+}
 
 interface Assignment {
   id: string;
   title: string;
   description: string;
   dueDate: Date;
+  batch?: { id: string; name: string };
   _count: {
     submissions: number;
   };
@@ -25,15 +32,19 @@ interface Assignment {
 interface AssignmentsListProps {
   assignments: Assignment[];
   canCreate: boolean;
+  isAdmin?: boolean;
+  batches?: BatchOption[];
+  currentBatchId?: string;
 }
 
-export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps) {
+export function AssignmentsList({ assignments, canCreate, isAdmin, batches = [], currentBatchId = "" }: AssignmentsListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const router = useRouter();
   const toast = useToast();
+  const [selectedBatchId, setSelectedBatchId] = useState(currentBatchId);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -69,13 +80,10 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
     });
   };
 
-  const handleDelete = (e: React.MouseEvent, assignmentId: string, title: string, hasSubmissions: boolean) => {
+  const handleDelete = (e: React.MouseEvent, assignmentId: string, title: string) => {
     e.stopPropagation();
-    if (hasSubmissions) {
-      toast.error("Cannot delete assignment with existing submissions");
-      return;
-    }
-    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+    const confirmMsg = `Are you sure you want to delete "${title}"? This will also delete all submissions and feedback.`;
+    if (!confirm(confirmMsg)) return;
 
     startTransition(async () => {
       const result = await deleteAssignment(assignmentId);
@@ -102,7 +110,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Assignments</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Assignments</h1>
         {canCreate && (
           <Button onClick={() => setIsModalOpen(true)}>Create Assignment</Button>
         )}
@@ -136,7 +144,25 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-medium">{assignment.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-medium">{assignment.title}</h3>
+                      {isAdmin && assignment.batch && (
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontFamily: '"Roboto Mono", monospace',
+                            backgroundColor: "#f0f0f0",
+                            color: "#666666",
+                            padding: "2px 8px",
+                            borderRadius: 4,
+                            fontWeight: 500,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {assignment.batch.name}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                       Due {formatDate(assignment.dueDate)}
                     </p>
@@ -145,7 +171,6 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
                     {getDueDateBadge(assignment.dueDate)}
                   </div>
                 </div>
-
                 <p
                   className="text-sm line-clamp-2"
                   style={{ color: "var(--color-foreground-secondary)" }}
@@ -157,7 +182,7 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
                   <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     <span>{assignment._count.submissions} submissions</span>
                   </div>
-                  {canCreate && (
+                  {isAdmin && (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
@@ -173,8 +198,8 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={(e) => handleDelete(e, assignment.id, assignment.title, assignment._count.submissions > 0)}
-                        disabled={isPending || assignment._count.submissions > 0}
+                        onClick={(e) => handleDelete(e, assignment.id, assignment.title)}
+                        disabled={isPending}
                       >
                         Delete
                       </Button>
@@ -192,6 +217,24 @@ export function AssignmentsList({ assignments, canCreate }: AssignmentsListProps
           {error && (
             <div className="form-error p-3 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+
+          {isAdmin && batches.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <SearchableSelect
+                label="Target Batch"
+                options={batches.map((b) => ({
+                  id: b.id,
+                  label: b.name,
+                }))}
+                value={selectedBatchId}
+                onChange={setSelectedBatchId}
+                placeholder="Select batch..."
+                required
+                emptyMessage="No active batches"
+              />
+              <input type="hidden" name="batchId" value={selectedBatchId} />
             </div>
           )}
 

@@ -6,6 +6,7 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { Calendar } from "@/components/ui/Calendar";
 import { DayPanel } from "./DayPanel";
 import type { ScheduleItem, ScheduleItemKind } from "@/types/schedule";
+import type { CompanyOption, FounderOption } from "@/types/invite";
 import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
 
 interface ScheduleViewProps {
@@ -14,6 +15,9 @@ interface ScheduleViewProps {
   selectedDay: string | null;
   typeFilter: ScheduleItemKind | null;
   isAdmin: boolean;
+  companies: CompanyOption[];
+  founders: FounderOption[];
+  totalBatchMembers: number;
 }
 
 const ALL_KINDS: ScheduleItemKind[] = ["event", "officeHour", "session"];
@@ -24,6 +28,9 @@ export function ScheduleView({
   selectedDay,
   typeFilter,
   isAdmin,
+  companies,
+  founders,
+  totalBatchMembers,
 }: ScheduleViewProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -139,6 +146,9 @@ export function ScheduleView({
             items={dayItems}
             selectedDay={selectedDayDate}
             isAdmin={isAdmin}
+            companies={companies}
+            founders={founders}
+            totalBatchMembers={totalBatchMembers}
           />
         </div>
       </div>

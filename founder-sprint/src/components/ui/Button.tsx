@@ -54,6 +54,7 @@ const variantInlineStyles: Record<ButtonVariant, React.CSSProperties> = {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = "primary", size = "md", loading, disabled, children, style, className, ...props }, ref) => {
     const isDisabled = disabled || loading;
+    const shouldAnimateText = !isDisabled && variant === "primary";
 
     return (
       <button
@@ -67,6 +68,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           border: "none",
           cursor: isDisabled ? "not-allowed" : "pointer",
           fontWeight: 500,
+          overflow: "hidden",
           ...sizeStyles[size],
           ...variantInlineStyles[variant],
           opacity: isDisabled ? 0.5 : 1,
@@ -81,7 +83,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
         )}
-        {children}
+        {shouldAnimateText ? (
+          <span className="btn-text-wrap">
+            <span className="btn-text-initial">{children}</span>
+            <span className="btn-text-reveal" aria-hidden="true">{children}</span>
+          </span>
+        ) : (
+          children
+        )}
       </button>
     );
   }
