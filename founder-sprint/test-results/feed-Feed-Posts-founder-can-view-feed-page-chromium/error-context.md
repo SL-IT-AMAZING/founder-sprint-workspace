@@ -1,0 +1,51 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e6] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e7]:
+      - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Open issues overlay" [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: "0"
+          - generic [ref=e15]: "1"
+        - generic [ref=e16]: Issue
+      - button "Collapse issues badge" [ref=e17]:
+        - img [ref=e18]
+  - generic [ref=e20]:
+    - navigation [ref=e21]:
+      - generic [ref=e22]:
+        - link "Outsome" [ref=e23] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Outsome" [ref=e24]
+        - generic [ref=e25]:
+          - button "Community ▼" [ref=e27] [cursor=pointer]:
+            - text: Community
+            - generic [ref=e28]: ▼
+          - button "Advice ▼" [ref=e30] [cursor=pointer]:
+            - text: Advice
+            - generic [ref=e31]: ▼
+          - button "Tools ▼" [ref=e33] [cursor=pointer]:
+            - text: Tools
+            - generic [ref=e34]: ▼
+          - button "Contact ▼" [ref=e36] [cursor=pointer]:
+            - text: Contact
+            - generic [ref=e37]: ▼
+      - textbox "Search Outsome" [ref=e39]
+      - generic [ref=e40]:
+        - link [ref=e41] [cursor=pointer]:
+          - /url: /messages
+          - img [ref=e42]
+        - button "루틴헙" [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: 루틴헙
+          - img [ref=e49]
+        - link "TF" [ref=e51] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e52]: TF
+        - button "Sign out" [ref=e54] [cursor=pointer]
+        - button "Menu" [ref=e55] [cursor=pointer]:
+          - img "Menu" [ref=e56]
+    - main [ref=e57]
+  - alert [ref=e125]
+```

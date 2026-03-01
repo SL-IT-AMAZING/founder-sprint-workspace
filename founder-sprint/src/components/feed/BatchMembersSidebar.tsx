@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FollowButton } from "@/components/feed/FollowButton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
@@ -24,6 +25,7 @@ interface BatchMembersSidebarProps {
   batchStatus?: BatchStatus;
   batchEndDate?: Date;
   currentUserId?: string;
+  followingIds?: string[];
 }
 
 const roleLabels: Record<string, string> = {
@@ -42,7 +44,7 @@ const rolePriority: Record<string, number> = {
   co_founder: 4,
 };
 
-export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate, currentUserId }: BatchMembersSidebarProps) {
+export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate, currentUserId, followingIds = [] }: BatchMembersSidebarProps) {
   const activeMembers = members
     .filter((m) => m.status === "active")
     .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
@@ -136,20 +138,34 @@ export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndD
               >
                 {roleLabels[role] || role} ({roleMembers.length})
               </p>
-               <div className="space-y-2">
-                 {roleMembers.slice(0, 10).map((member) => (
-                   <Link key={member.user.id} href={`/profile/${member.user.id}`} className="hover:bg-gray-50 rounded px-1 -mx-1" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
-                     <Avatar
-                       src={member.user.profileImage}
-                       name={getDisplayName(member.user)}
-                       size={28}
-                      />
-                      <div className="text-sm truncate" style={{ maxWidth: "140px" }}>
-                       {getDisplayName(member.user)}
-                       {member.user.id === currentUserId && <span style={{ color: "var(--color-foreground-muted)" }}> (You)</span>}
+               <div className="space-y-1">
+                 {roleMembers.slice(0, 10).map((member) => {
+                   const isCurrentUser = member.user.id === currentUserId;
+                   return (
+                     <div key={member.user.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 4px", borderRadius: "6px" }} className="hover:bg-gray-50 -mx-1">
+                       <Link href={`/profile/${member.user.id}`} style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+                         <Avatar
+                           src={member.user.profileImage}
+                           name={getDisplayName(member.user)}
+                           size={28}
+                         />
+                         <div className="text-sm truncate" style={{ maxWidth: "100px" }}>
+                           {getDisplayName(member.user)}
+                           {isCurrentUser && <span style={{ color: "var(--color-foreground-muted)" }}> (You)</span>}
+                         </div>
+                       </Link>
+                       {!isCurrentUser && (
+                         <div style={{ marginLeft: "auto", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                           <FollowButton
+                             targetUserId={member.user.id}
+                             isFollowing={followingIds.includes(member.user.id)}
+                             size="sm"
+                           />
+                         </div>
+                       )}
                      </div>
-                   </Link>
-                 ))}
+                   );
+                 })}
                 {roleMembers.length > 10 && (
                   <p
                     className="text-xs"

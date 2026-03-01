@@ -16,7 +16,7 @@ export default async function EventsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Events</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Events</h1>
       </div>
       <EventsList user={user} events={events} />
     </div>

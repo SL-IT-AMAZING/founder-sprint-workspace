@@ -72,11 +72,25 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
     if (isCalendarConfigured()) {
       try {
-        const batchUsers = await prisma.userBatch.findMany({
-          where: { batchId: user.batchId, status: "active" },
-          include: { user: { select: { email: true } } },
-        });
-        const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        const groupIds = formData.getAll("groupIds") as string[];
+
+        let attendeeEmails: string[];
+        if (groupIds.length > 0) {
+          // Specific companies selected — get their members
+          const groupMembers = await prisma.groupMember.findMany({
+            where: { groupId: { in: groupIds } },
+            include: { user: { select: { email: true } } },
+          });
+          // Always include the creator + deduplicate
+          attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
+        } else {
+          // Entire batch (current behavior)
+          const batchUsers = await prisma.userBatch.findMany({
+            where: { batchId: user.batchId, status: "active" },
+            include: { user: { select: { email: true } } },
+          });
+          attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        }
 
         // Use createCalendarEventWithMeet for office_hour events to generate Google Meet link
         const calResult = validated.eventType === "office_hour"
@@ -284,11 +298,25 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     // Attempt to update Google Calendar event if googleEventId exists
     if (existingEvent?.googleEventId) {
       try {
-        const batchUsers = await prisma.userBatch.findMany({
-          where: { batchId: user.batchId, status: "active" },
-          include: { user: { select: { email: true } } },
-        });
-        const attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        const groupIds = formData.getAll("groupIds") as string[];
+
+        let attendeeEmails: string[];
+        if (groupIds.length > 0) {
+          // Specific companies selected — get their members
+          const groupMembers = await prisma.groupMember.findMany({
+            where: { groupId: { in: groupIds } },
+            include: { user: { select: { email: true } } },
+          });
+          // Always include the creator + deduplicate
+          attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
+        } else {
+          // Entire batch (current behavior)
+          const batchUsers = await prisma.userBatch.findMany({
+            where: { batchId: user.batchId, status: "active" },
+            include: { user: { select: { email: true } } },
+          });
+          attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        }
 
         await updateCalendarEvent(existingEvent.googleEventId, {
           summary: validated.title,

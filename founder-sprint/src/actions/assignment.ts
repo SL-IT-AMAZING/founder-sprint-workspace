@@ -32,9 +32,6 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
-
   if (!canCreateAssignment(user.role)) {
     return { success: false, error: "Unauthorized: staff only" };
   }
@@ -50,21 +47,39 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
+  // Determine target batch: admin can pick any active batch via form
+  const formBatchId = formData.get("batchId") as string | null;
+  let targetBatchId = user.batchId;
+
+  if (formBatchId && isAdmin(user.role)) {
+    // Validate the target batch exists and is active
+    const targetBatch = await prisma.batch.findUnique({
+      where: { id: formBatchId },
+      select: { id: true, status: true },
+    });
+    if (!targetBatch) {
+      return { success: false, error: "Target batch not found" };
+    }
+    if (targetBatch.status !== "active") {
+      return { success: false, error: "Target batch is not active" };
+    }
+    targetBatchId = formBatchId;
+  } else if (!user.batchId) {
+    return { success: false, error: "No active batch context" };
+  }
+
   // Normalize dueDate to KST 23:59:59 (14:59:59 UTC)
-  // If the input is a date-only string (no specific time), set it to end of day KST
   const dueDateInput = formData.get("dueDate") as string;
   let normalizedDueDate = parsed.data.dueDate;
 
-  // Check if the input is date-only (no time component)
   if (dueDateInput && !dueDateInput.includes("T") && !dueDateInput.includes(":")) {
-    // Extract date portion and create new Date at 14:59:59 UTC (23:59:59 KST)
-    const datePart = dueDateInput.split(" ")[0]; // Handle both "YYYY-MM-DD" and "YYYY-MM-DD HH:MM"
+    const datePart = dueDateInput.split(" ")[0];
     normalizedDueDate = new Date(`${datePart}T14:59:59.000Z`);
   }
 
   const assignment = await prisma.assignment.create({
     data: {
-      batchId: user.batchId,
+      batchId: targetBatchId,
       title: parsed.data.title,
       description: parsed.data.description,
       templateUrl: parsed.data.templateUrl || null,
@@ -72,9 +87,10 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     },
   });
 
-   revalidatePath("/assignments");
-   revalidateTag(`assignments-${user.batchId}`);
-   return { success: true, data: { id: assignment.id } };
+  revalidatePath("/assignments");
+  revalidateTag(`assignments-${targetBatchId}`);
+  revalidateTag("assignments-all");
+  return { success: true, data: { id: assignment.id } };
 }
 
 const UpdateAssignmentSchema = z.object({
@@ -144,56 +160,66 @@ export async function deleteAssignment(assignmentId: string): Promise<ActionResu
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  if (!canCreateAssignment(user.role)) {
-    return { success: false, error: "Unauthorized: staff only" };
+  if (!isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admins only" };
   }
 
-  // Check for existing submissions
-  const submissionCount = await prisma.submission.count({
-    where: { assignmentId },
-  });
-
-  if (submissionCount > 0) {
-    return { success: false, error: "Cannot modify assignment with existing submissions" };
-  }
-
-  // Check if assignment exists
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
-    select: { id: true },
+    select: { id: true, batchId: true },
   });
 
   if (!assignment) {
     return { success: false, error: "Assignment not found" };
   }
 
+  // Cascade delete: Prisma schema has onDelete: Cascade for submissions
   await prisma.assignment.delete({
     where: { id: assignmentId },
   });
 
   revalidatePath("/assignments");
-  revalidateTag(`assignments-${user.batchId}`);
+  revalidateTag(`assignments-${assignment.batchId}`);
+  revalidateTag("assignments-all");
   return { success: true, data: undefined };
 }
 
-export async function getAssignments(batchId: string) {
+export async function getAssignments(batchId?: string) {
   const user = await getCurrentUser();
   if (!user) return [];
-  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
+  // Admin with no batchId filter = all batches
+  if (!batchId && isAdmin(user.role)) {
+    return unstable_cache(
+      () =>
+        prisma.assignment.findMany({
+          orderBy: { dueDate: "desc" },
+          include: {
+            batch: { select: { id: true, name: true } },
+            _count: { select: { submissions: true } },
+          },
+        }),
+      ["assignments-all"],
+      { revalidate: 60, tags: ["assignments-all"] }
+    )();
+  }
+
+  // Specific batch
+  const targetBatchId = batchId || user.batchId;
+  if (!isAdmin(user.role) && user.batchId !== targetBatchId) return [];
 
   return unstable_cache(
     () =>
       prisma.assignment.findMany({
-        where: { batchId },
+        where: { batchId: targetBatchId },
         orderBy: { dueDate: "desc" },
         include: {
-          _count: {
-            select: { submissions: true },
-          },
+          batch: { select: { id: true, name: true } },
+          _count: { select: { submissions: true } },
         },
       }),
-    [`assignments-${batchId}`],
-    { revalidate: 60, tags: [`assignments-${batchId}`] }
+    [`assignments-${targetBatchId}`],
+    { revalidate: 60, tags: [`assignments-${targetBatchId}`] }
   )();
 }
 
@@ -306,28 +332,48 @@ export async function getSubmission(id: string) {
   });
 }
 
-export async function getSubmissions(batchId: string) {
+export async function getSubmissions(batchId?: string) {
   const user = await getCurrentUser();
   if (!user) return [];
-  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+
+  // Admin with no batchId filter = all batches
+  if (!batchId && isAdmin(user.role)) {
+    return unstable_cache(
+      () =>
+        prisma.submission.findMany({
+          include: {
+            author: true,
+            assignment: {
+              include: { batch: { select: { id: true, name: true } } },
+            },
+            feedbacks: true,
+          },
+          orderBy: { submittedAt: "desc" },
+        }),
+      ["submissions-all"],
+      { revalidate: 60, tags: ["submissions-all"] }
+    )();
+  }
+
+  // Specific batch
+  const targetBatchId = batchId || user.batchId;
+  if (!isAdmin(user.role) && user.batchId !== targetBatchId) return [];
 
   return unstable_cache(
     () =>
       prisma.submission.findMany({
-        where: {
-          assignment: {
-            batchId,
-          },
-        },
+        where: { assignment: { batchId: targetBatchId } },
         include: {
           author: true,
-          assignment: true,
+          assignment: {
+            include: { batch: { select: { id: true, name: true } } },
+          },
           feedbacks: true,
         },
         orderBy: { submittedAt: "desc" },
       }),
-    [`submissions-${batchId}`],
-    { revalidate: 60, tags: [`submissions-${batchId}`] }
+    [`submissions-${targetBatchId}`],
+    { revalidate: 60, tags: [`submissions-${targetBatchId}`] }
   )();
 }
 

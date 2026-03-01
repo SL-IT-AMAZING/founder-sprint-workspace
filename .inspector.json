@@ -1,0 +1,8 @@
+{
+  "targets": {
+    "/Users/jsup/Development Files/Founder Sprint Batch/founder-sprint-workspace/founder-sprint": {
+      "setup": "cd \"founder-sprint\" && npm install && npm run postinstall",
+      "run": "cd \"founder-sprint\" && npm run dev"
+    }
+  }
+}

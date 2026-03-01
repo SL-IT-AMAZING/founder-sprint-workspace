@@ -76,10 +76,17 @@ model User {
   bio           String?   @db.VarChar(500)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
-
+  headline       String? @db.VarChar(200)
+  followerCount  Int     @default(0) @map("follower_count")
+  followingCount Int     @default(0) @map("following_count")
+  // M2: New profile fields
+  location      String?  @db.VarChar(200)
+  linkedinUrl   String?  @map("linkedin_url") @db.VarChar(500)
+  twitterUrl    String?  @map("twitter_url") @db.VarChar(500)
+  websiteUrl    String?  @map("website_url") @db.VarChar(500)
   // Relations
   userBatches         UserBatch[]
-  coFounderAssignments UserBatch[] @relation("CoFounderOf") // Users who are co-founders assigned to this founder
+  coFounderAssignments UserBatch[] @relation("CoFounderOf")
   questions           Question[]
   answers             Answer[]
   summaries           Summary[]
@@ -93,7 +100,18 @@ model User {
   events              Event[]
   groups              Group[]
   groupMembers        GroupMember[]
-
+  following           UserFollow[] @relation("Following")
+  followers           UserFollow[] @relation("Followers")
+  bookmarks           Bookmark[]
+  postViews           PostView[]
+  // M2: New relations
+  companyMemberships CompanyMember[]
+  experiences        Experience[]
+  education          Education[]
+  // M3: Messaging relations
+  conversationParticipants ConversationParticipant[]
+  sentMessages             Message[]
+  createdConversations     Conversation[] @relation("ConversationCreator")
   @@map("users")
 }
 
@@ -407,6 +425,9 @@ model Post {
   content   String   @db.Text
   isPinned  Boolean  @default(false) @map("is_pinned")
   isHidden  Boolean  @default(false) @map("is_hidden")
+  category    String?  @db.VarChar(50)
+  viewCount   Int      @default(0) @map("view_count")
+  linkPreview Json?    @map("link_preview")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -417,8 +438,10 @@ model Post {
   images   PostImage[]
   comments Comment[]
   likes    Like[]
+  bookmarks Bookmark[]
+  views     PostView[]
 
-  @@index([batchId, isPinned, createdAt])
+  @@index([batchId, category, isPinned, createdAt])
   @@index([batchId, groupId])
   @@map("posts")
 }
@@ -491,4 +514,194 @@ model InvitationToken {
   @@index([token])
   @@index([userId])
   @@map("invitation_tokens")
+}
+
+model UserFollow {
+  id          String   @id @default(uuid()) @db.Uuid
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("user_follows")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("bookmarks")
+}
+
+model PostView {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  viewerId  String   @map("viewer_id") @db.Uuid
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Date
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  viewer User @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, viewerId, viewedAt])
+  @@index([postId])
+  @@index([viewerId])
+  @@map("post_views")
+}
+
+
+// ============================================
+// M2: DIRECTORY + PROFILES MODELS
+// ============================================
+
+// Company - Standalone company entity
+model Company {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  slug        String   @unique @db.VarChar(200)
+  description String?  @db.Text
+  website     String?  @db.VarChar(500)
+  industry    String?  @db.VarChar(100)
+  hqLocation  String?  @map("hq_location") @db.VarChar(200)
+  foundedYear Int?     @map("founded_year")
+  logoUrl     String?  @map("logo_url")
+  tags        String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members     CompanyMember[]
+
+  @@index([industry])
+  @@index([hqLocation])
+  @@map("companies")
+}
+
+// CompanyMember - Junction table for Company <-> User
+model CompanyMember {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  role       String?   @db.VarChar(100)
+  title      String?   @db.VarChar(100)
+  startDate  DateTime? @map("start_date") @db.Date
+  endDate    DateTime? @map("end_date") @db.Date
+  isCurrent  Boolean   @default(true) @map("is_current")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, startDate])
+  @@index([userId])
+  @@index([companyId])
+  @@map("company_members")
+}
+
+// Experience - User work experience (plain text company, NOT FK)
+model Experience {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  company     String    @db.VarChar(200)
+  title       String    @db.VarChar(200)
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  isCurrent   Boolean   @default(false) @map("is_current")
+  description String?   @db.Text
+  location    String?   @db.VarChar(200)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("experiences")
+}
+
+// Education - User education history
+model Education {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  institution  String   @db.VarChar(200)
+  degree       String?  @db.VarChar(200)
+  fieldOfStudy String?  @map("field_of_study") @db.VarChar(200)
+  startYear    Int?     @map("start_year")
+  endYear      Int?     @map("end_year")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("education")
+}
+
+// ============================================
+// M3: MESSAGING MODELS
+// ============================================
+
+// Conversation - DM or group chat
+model Conversation {
+  id            String    @id @default(uuid()) @db.Uuid
+  isGroup       Boolean   @default(false) @map("is_group")
+  groupName     String?   @map("group_name") @db.VarChar(200)
+  groupEmoji    String?   @map("group_emoji") @db.VarChar(10)
+  isPublic      Boolean   @default(false) @map("is_public")
+  createdBy     String?   @map("created_by") @db.Uuid
+  dmKey         String?   @unique @map("dm_key") @db.VarChar(73)
+  lastMessage   String?   @map("last_message") @db.Text
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  creator      User?    @relation("ConversationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt])
+  @@index([isPublic, isGroup, lastMessageAt])
+  @@map("conversations")
+}
+
+// ConversationParticipant - User membership in a conversation
+model ConversationParticipant {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  joinedAt       DateTime @default(now()) @map("joined_at")
+  lastReadAt     DateTime @default(now()) @map("last_read_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+// Message - Individual message in a conversation
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  senderId       String?  @map("sender_id") @db.Uuid
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?        @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@map("messages")
 }

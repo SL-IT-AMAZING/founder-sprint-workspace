@@ -123,7 +123,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
               </Link>
             )}
             <Button onClick={handleJoinLeave} loading={isPending} variant={isMember ? "secondary" : "primary"}>
-              {isMember ? "Leave Group" : "Join Group"}
+              {isMember ? "Leave Company" : "Join Company"}
             </Button>
           </div>
         </div>
@@ -161,14 +161,14 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
               <Avatar src={currentUser.profileImage} name={getDisplayName(currentUser)} />
               <div className="flex-1 space-y-3">
                 <Textarea
-                  placeholder="Share with the group..."
+                  placeholder="Share with the company..."
                   rows={3}
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
                 />
                 <div className="flex justify-end">
                   <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
-                    Post to Group
+                    Post to Company
                   </Button>
                 </div>
               </div>
@@ -179,12 +179,12 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
 
       {/* Group Feed */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Group Posts</h3>
+        <h3 className="text-lg font-medium">Company Posts</h3>
 
         {group.posts.length === 0 ? (
           <div className="card">
             <p style={{ color: "var(--color-foreground-secondary)" }}>
-              No posts yet. {isMember ? "Be the first to post!" : "Join the group to post."}
+              No posts yet. {isMember ? "Be the first to post!" : "Join the company to post."}
             </p>
           </div>
         ) : (

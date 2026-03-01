@@ -7,11 +7,19 @@ const BUCKET_CONFIG = {
     maxSize: 10 * 1024 * 1024,
     maxFiles: 5,
     allowedTypes: ["image/jpeg", "image/png", "image/gif", "application/pdf"],
+    adminOnly: false,
   },
   "post-images": {
     maxSize: 5 * 1024 * 1024,
     maxFiles: 5,
     allowedTypes: ["image/jpeg", "image/png", "image/gif"],
+    adminOnly: false,
+  },
+  "company-logos": {
+    maxSize: 2 * 1024 * 1024,
+    maxFiles: 1,
+    allowedTypes: ["image/jpeg", "image/png", "image/gif", "image/svg+xml"],
+    adminOnly: true,
   },
 } as const;
 
@@ -91,22 +99,44 @@ export async function POST(
       );
     }
 
-    const activeMembership = await prisma.userBatch.findFirst({
-      where: {
-        user: { email: user.email! },
-        status: "active",
-      },
+    // Authorization: admin-only buckets check role, others check batch membership
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.email! },
+      select: { id: true, role: true },
     });
 
-    if (!activeMembership) {
+    if (!dbUser) {
       return NextResponse.json(
-        { success: false, error: "No active batch membership", code: "FORBIDDEN" },
+        { success: false, error: "User not found", code: "FORBIDDEN" },
         { status: 403 }
       );
     }
 
+    if (config.adminOnly) {
+      if (dbUser.role !== "admin" && dbUser.role !== "super_admin") {
+        return NextResponse.json(
+          { success: false, error: "Admin access required", code: "FORBIDDEN" },
+          { status: 403 }
+        );
+      }
+    } else {
+      const activeMembership = await prisma.userBatch.findFirst({
+        where: {
+          user: { email: user.email! },
+          status: "active",
+        },
+      });
+
+      if (!activeMembership) {
+        return NextResponse.json(
+          { success: false, error: "No active batch membership", code: "FORBIDDEN" },
+          { status: 403 }
+        );
+      }
+    }
+
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const fileName = `${user.id}/${Date.now()}-${sanitizedName}`;
+    const fileName = `${dbUser.id}/${Date.now()}-${sanitizedName}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { data, error } = await supabase.storage

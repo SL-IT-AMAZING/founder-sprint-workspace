@@ -12,3 +12,7 @@
 - What didn't work as expected: None in implementation, but Edge timer availability is environment-sensitive, so cleanup needs a `typeof setInterval` guard.
 - What would I do differently: If this needs to scale beyond a single instance, move counters to shared storage (Upstash/Redis) and preserve the same `check()` API.
 - Gotchas: Keep route checks limited to `/api/upload` and `/api/invite` in middleware to avoid accidentally throttling page navigations and server actions.
+- What worked well: Keeping new M2 directory/profile actions aligned to existing `ActionResult` and auth guard patterns made multi-file additions predictable and fast to verify.
+- What didn't work as expected: Dynamic `OR` array construction in Prisma `findMany` widened types and caused `CompanyWhereInput` and `_count` inference issues until conditions were built as a typed array.
+- What would I do differently: Start related-company queries with a typed `Prisma.CompanyWhereInput[]` builder from the beginning to avoid late-stage TypeScript fixes.
+- Gotchas: TypeScript LSP diagnostics still cannot run in this environment because `typescript-language-server` is not installed; use `npx tsc --noEmit` as the compile gate.

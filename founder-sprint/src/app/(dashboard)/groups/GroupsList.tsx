@@ -50,19 +50,19 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Groups</h1>
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Companies</h1>
         {isAdmin && (
-          <Button onClick={() => setIsModalOpen(true)}>Create Group</Button>
+          <Button onClick={() => setIsModalOpen(true)}>Create Company</Button>
         )}
       </div>
 
       {groups.length === 0 ? (
         <EmptyState
-          title="No groups yet"
-          description="Groups will appear here once created"
+          title="No companies yet"
+          description="Companies will appear here once created"
           action={
             isAdmin ? (
-              <Button onClick={() => setIsModalOpen(true)}>Create First Group</Button>
+              <Button onClick={() => setIsModalOpen(true)}>Create First Company</Button>
             ) : undefined
           }
         />
@@ -103,7 +103,7 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
         </div>
       )}
 
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Group">
+      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Company">
         <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="form-error p-3 rounded-lg text-sm">
@@ -113,15 +113,15 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
 
           <Input
             name="name"
-            label="Group Name"
-            placeholder="Engineering Team"
+            label="Company Name"
+            placeholder="Acme Corp"
             required
           />
 
           <Textarea
             name="description"
             label="Description"
-            placeholder="Brief description of the group"
+            placeholder="Brief description of the company"
             rows={3}
           />
 
@@ -135,7 +135,7 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
               Cancel
             </Button>
             <Button type="submit" loading={isPending}>
-              Create Group
+              Create Company
             </Button>
           </div>
         </form>

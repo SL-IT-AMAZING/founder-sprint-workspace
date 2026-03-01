@@ -21,7 +21,7 @@ export default async function QuestionsPage() {
     <div className="container" style={{ maxWidth: 900 }}>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Questions</h1>
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", marginBottom: "8px" }}>Questions</h1>
           <p style={{ color: "var(--color-foreground-secondary)" }}>
             Ask questions and get answers from mentors and admins
           </p>
