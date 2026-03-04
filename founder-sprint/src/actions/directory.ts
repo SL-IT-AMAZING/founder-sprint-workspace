@@ -346,6 +346,7 @@ export async function getCompaniesDirectory(
     tags: string[];
     memberCount: number;
     memberAvatars: Array<string | null>;
+    batchNames: string[];
   }>;
   total: number;
   hasMore: boolean;
@@ -400,6 +401,9 @@ export async function getCompaniesDirectory(
         logoUrl: true,
         tags: true,
         _count: { select: { members: true } },
+        batches: {
+          select: { batch: { select: { name: true } } },
+        },
         members: {
           select: {
             user: {
@@ -435,6 +439,7 @@ export async function getCompaniesDirectory(
         tags: company.tags,
         memberCount: company._count.members,
         memberAvatars: company.members.map((member) => member.user.profileImage),
+        batchNames: company.batches.map((cb) => cb.batch.name),
       })),
       total,
       hasMore: skip + companies.length < total,

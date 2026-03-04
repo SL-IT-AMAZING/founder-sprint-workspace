@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
-import { requireActiveBatch } from "@/lib/batch-gate";
+
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 import type { ActionResult } from "@/types";
 
@@ -12,8 +12,6 @@ export async function bookmarkPost(postId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck;
 
   try {
     await prisma.bookmark.upsert({
@@ -43,8 +41,6 @@ export async function unbookmarkPost(postId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck;
 
   try {
     await prisma.bookmark.deleteMany({
@@ -130,4 +126,19 @@ export async function checkIsBookmarked(postId: string): Promise<boolean> {
   } catch (error) {
     return false;
   }
+}
+
+export async function getUserBookmarkedPostIds(postIds: string[]): Promise<string[]> {
+  const user = await getCurrentUser();
+  if (!user || postIds.length === 0) return [];
+
+  const bookmarks = await prisma.bookmark.findMany({
+    where: {
+      userId: user.id,
+      postId: { in: postIds },
+    },
+    select: { postId: true },
+  });
+
+  return bookmarks.map((b) => b.postId);
 }

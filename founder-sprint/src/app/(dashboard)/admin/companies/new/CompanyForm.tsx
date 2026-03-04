@@ -20,6 +20,8 @@ interface CompanyFormProps {
     logoUrl: string | null;
     tags: string[];
   };
+  batches?: { id: string; name: string }[];
+  initialBatchIds?: string[];
 }
 
 function slugify(value: string): string {
@@ -32,7 +34,7 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function CompanyForm({ initialData }: CompanyFormProps) {
+export function CompanyForm({ initialData, batches = [], initialBatchIds = [] }: CompanyFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [name, setName] = useState(initialData?.name || "");
@@ -42,6 +44,7 @@ export function CompanyForm({ initialData }: CompanyFormProps) {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set(initialBatchIds));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -326,6 +329,62 @@ export function CompanyForm({ initialData }: CompanyFormProps) {
               Separate multiple tags with commas
             </p>
           </div>
+
+          {/* Batch Assignment */}
+          {batches.length > 0 && (
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  marginBottom: "8px",
+                  color: "#2F2C26",
+                }}
+              >
+                Batches
+              </label>
+              <input type="hidden" name="batchIds" value={[...selectedBatchIds].join(",")} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {batches.map((batch) => {
+                  const isSelected = selectedBatchIds.has(batch.id);
+                  return (
+                    <button
+                      key={batch.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBatchIds((prev) => {
+                          const next = new Set(prev);
+                          if (isSelected) {
+                            next.delete(batch.id);
+                          } else {
+                            next.add(batch.id);
+                          }
+                          return next;
+                        });
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        borderRadius: "6px",
+                        border: isSelected ? "2px solid #1A1A1A" : "1px solid #e0e0e0",
+                        backgroundColor: isSelected ? "#1A1A1A" : "#FFFFFF",
+                        color: isSelected ? "#FFFFFF" : "#2F2C26",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {batch.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-1" style={{ color: "#666" }}>
+                Select which batch(es) this company belongs to
+              </p>
+            </div>
+          )}
         </div>
 
         {error && (

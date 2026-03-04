@@ -54,7 +54,20 @@ interface Profile {
   experiences: Experience[];
   education: Education[];
   batches: Batch[];
+  companyMemberships?: {
+    id: string;
+    role: string | null;
+    title: string | null;
+    isCurrent: boolean;
+    company: {
+      id: string;
+      name: string;
+      slug: string;
+      logoUrl: string | null;
+    };
+  }[]
 }
+
 
 interface UserPost {
   id: string;
@@ -120,6 +133,31 @@ export function ProfileClient({
     if (startYear && !endYear) return `${startYear}`;
     if (!startYear && endYear) return `${endYear}`;
     return `${startYear} - ${endYear}`;
+  };
+
+  const getInitials = (name: string): string => {
+    return name
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getColorFromName = (name: string): string => {
+    const colors = [
+      "#E8F5E9",
+      "#FFF3E0",
+      "#E3F2FD",
+      "#F3E5F5",
+      "#FFF9C4",
+      "#FFE0B2",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
   };
 
   // Message button component (inline with FollowButton)
@@ -345,6 +383,114 @@ export function ProfileClient({
                   </p>
                 </div>
               )}
+
+              {/* Companies Section */}
+              {profile.companyMemberships && profile.companyMemberships.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: "8px",
+                    border: "1px solid #e0e0e0",
+                    padding: "24px",
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      color: "#2F2C26",
+                      margin: "0 0 16px 0",
+                    }}
+                  >
+                    Companies
+                  </h2>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    {profile.companyMemberships.map((membership) => (
+                      <Link
+                        key={membership.id}
+                        href={`/companies/${membership.company.slug}`}
+                        style={{
+                          display: "flex",
+                          gap: "12px",
+                          textDecoration: "none",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "48px",
+                            height: "48px",
+                            borderRadius: "4px",
+                            flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "20px",
+                            fontWeight: 600,
+                            backgroundColor: membership.company.logoUrl ? "transparent" : getColorFromName(membership.company.name),
+                            color: "#666666",
+                          }}
+                        >
+                          {membership.company.logoUrl ? (
+                            <img
+                              src={membership.company.logoUrl}
+                              alt={membership.company.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                borderRadius: "4px",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            getInitials(membership.company.name)
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                            <h3
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 600,
+                                color: "#2F2C26",
+                                margin: 0,
+                              }}
+                            >
+                              {membership.company.name}
+                            </h3>
+                            {membership.isCurrent && (
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                  backgroundColor: "#E8F5E9",
+                                  color: "#2F2C26",
+                                  padding: "4px 8px",
+                                  borderRadius: "4px",
+                                }}
+                              >
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          {(membership.role || membership.title) && (
+                            <p
+                              style={{
+                                fontSize: "14px",
+                                color: "#666666",
+                                margin: "0",
+                              }}
+                            >
+                              {membership.role || membership.title}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
 
               {/* Experience Section */}
               <div

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { getBatchUsers, inviteUser, bulkInviteUsers, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
-import { getGroups } from "@/actions/group";
+import { getCompaniesForSelect } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -65,7 +65,7 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
-  const [groups, setGroups] = useState<Array<{ id: string; name: string; _count: { members: number; posts: number } }>>([]);
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string; _count: { members: number } }>>([]);
   const [selectedRole, setSelectedRole] = useState("founder");
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
   const [bulkEmails, setBulkEmails] = useState<string[]>([]);
@@ -96,16 +96,12 @@ export function UserManagement({ batches }: UserManagementProps) {
       .finally(() => setIsLoadingUsers(false));
   };
 
-  // Fetch groups when batch changes
+  // Fetch companies (not batch-scoped)
   useEffect(() => {
-    if (selectedBatchId) {
-      getGroups(selectedBatchId).then((g) => {
-        if (g) setGroups(g);
-      });
-    } else {
-      setGroups([]);
-    }
-  }, [selectedBatchId]);
+    getCompaniesForSelect().then((c) => {
+      if (c) setCompanies(c);
+    });
+  }, []);
 
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -613,18 +609,18 @@ export function UserManagement({ batches }: UserManagementProps) {
               required
             />
 
-            {/* Group Assignment (optional, for founders/co-founders) */}
-            {(selectedRole === "founder" || selectedRole === "co_founder") && groups.length > 0 && (
+            {/* Company Assignment (optional, for founders/co-founders) */}
+            {(selectedRole === "founder" || selectedRole === "co_founder") && companies.length > 0 && (
               <div className="space-y-1.5">
-                <label className="block text-sm font-medium">Group (Optional)</label>
+                <label className="block text-sm font-medium">Company (Optional)</label>
                 <select
-                  name="groupId"
+                  name="companyId"
                   className="form-input"
                 >
-                  <option value="">No group</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name} ({g._count.members} members)
+                  <option value="">No company</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c._count.members} members)
                     </option>
                   ))}
                 </select>

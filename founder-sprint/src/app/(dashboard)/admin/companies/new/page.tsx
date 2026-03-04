@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getBatches } from "@/actions/batch";
 import { CompanyForm } from "./CompanyForm";
 
 export default async function NewCompanyPage() {
@@ -13,6 +14,8 @@ export default async function NewCompanyPage() {
     redirect("/dashboard");
   }
 
+  const allBatches = await getBatches();
+
   return (
     <div className="space-y-6">
       <div>
@@ -21,7 +24,7 @@ export default async function NewCompanyPage() {
           Add a new company to the directory
         </p>
       </div>
-      <CompanyForm />
+      <CompanyForm batches={allBatches.map((b) => ({ id: b.id, name: b.name }))} />
     </div>
   );
 }

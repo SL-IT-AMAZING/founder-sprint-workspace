@@ -136,6 +136,7 @@ model Batch {
   events           Event[]
   groups           Group[]
 
+  companies        CompanyBatch[]
   @@map("batches")
 }
 
@@ -582,6 +583,7 @@ model Company {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   members     CompanyMember[]
+  batches     CompanyBatch[]
 
   @@index([industry])
   @@index([hqLocation])
@@ -589,6 +591,21 @@ model Company {
 }
 
 // CompanyMember - Junction table for Company <-> User
+
+// CompanyBatch - Junction table for Company <-> Batch (many-to-many)
+model CompanyBatch {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  batchId   String   @map("batch_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, batchId])
+  @@index([batchId])
+  @@map("company_batches")
+}
 model CompanyMember {
   id         String    @id @default(uuid()) @db.Uuid
   companyId  String    @map("company_id") @db.Uuid

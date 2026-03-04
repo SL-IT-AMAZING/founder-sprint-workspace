@@ -20,7 +20,7 @@ export default async function CompaniesPage({
   const page = Math.max(1, parseInt(params.page || "1", 10));
 
   const companiesResult = await getCompaniesDirectory({
-    batchId: user.batchId,
+
     search: search || undefined,
     industry: industry || undefined,
     page,
@@ -90,7 +90,7 @@ export default async function CompaniesPage({
             Companies
           </h1>
           <p style={{ fontSize: "14px", color: "#666666" }}>
-            {total} companies in your batch
+            {total} companies
           </p>
         </div>
         {userIsAdmin && (
@@ -215,6 +215,26 @@ export default async function CompaniesPage({
                     >
                       {company.industry}
                     </span>
+                  )}
+                  {company.batchNames && company.batchNames.length > 0 && (
+                    <div style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
+                      {company.batchNames.map((batchName) => (
+                        <span
+                          key={batchName}
+                          style={{
+                            display: "inline-block",
+                            backgroundColor: "#1A1A1A",
+                            color: "white",
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "1px 4px",
+                            borderRadius: "3px",
+                          }}
+                        >
+                          {batchName}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

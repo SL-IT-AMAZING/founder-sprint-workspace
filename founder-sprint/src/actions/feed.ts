@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -19,9 +18,7 @@ const CreatePostSchema = z.object({
 export async function createPost(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
-
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
+  if (!user.batchId) return { success: false, error: "No batch membership. Cannot create post." };
 
   const parsed = CreatePostSchema.safeParse({
     content: formData.get("content"),
@@ -49,7 +46,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
   if (parsed.data.groupId) {
     revalidatePath(`/groups/${parsed.data.groupId}`);
   }
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
 
   return { success: true, data: { id: post.id } };
 }
@@ -133,15 +130,13 @@ export async function getPosts(batchId: string, groupId?: string) {
 }
 
 export async function getPaginatedPosts(
-  batchId: string,
   page: number = 1,
   limit: number = 20
 ) {
   const user = await getCurrentUser();
   if (!user) return { items: [], total: 0, page, limit, totalPages: 0 };
-  if (!isAdmin(user.role) && user.batchId !== batchId) return { items: [], total: 0, page, limit, totalPages: 0 };
 
-  const where = { batchId, isHidden: false };
+  const where = { isHidden: false, groupId: null };
 
   return unstable_cache(
     async () => {
@@ -150,6 +145,7 @@ export async function getPaginatedPosts(
           where,
           include: {
             author: true,
+            batch: { select: { name: true } },
             images: true,
             _count: {
               select: {
@@ -173,8 +169,8 @@ export async function getPaginatedPosts(
         totalPages: Math.ceil(total / limit),
       };
     },
-    [`posts-${batchId}-page-${page}-limit-${limit}`],
-    { revalidate: 60, tags: [`posts-${batchId}`] }
+    [`posts-global-page-${page}-limit-${limit}`],
+    { revalidate: 60, tags: ["posts-global"] }
   )();
 }
 
@@ -196,16 +192,14 @@ export async function getUserPosts(userId: string) {
   });
 }
 
-export async function getArchivedPosts(batchId: string) {
+export async function getArchivedPosts() {
   const user = await getCurrentUser();
   if (!user) return [];
-  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
 
   return unstable_cache(
     () =>
       prisma.post.findMany({
         where: {
-          batchId,
           isHidden: true,
         },
         include: {
@@ -220,8 +214,8 @@ export async function getArchivedPosts(batchId: string) {
         },
         orderBy: { createdAt: "desc" },
       }),
-    [`archived-posts-${batchId}`],
-    { revalidate: 60, tags: [`archived-posts-${batchId}`] }
+    ["archived-posts-global"],
+    { revalidate: 60, tags: ["archived-posts-global"] }
   )();
 }
 
@@ -232,9 +226,6 @@ export async function createComment(
 ): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
-
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!content.trim()) {
     return { success: false, error: "Comment content is required" };
@@ -267,7 +258,7 @@ export async function createComment(
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${postId}`);
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${postId}`);
 
   return { success: true, data: { id: comment.id } };
@@ -312,7 +303,7 @@ export async function updateComment(
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${comment.postId}`);
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${comment.postId}`);
 
   return { success: true, data: undefined };
@@ -344,7 +335,7 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${comment.postId}`);
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${comment.postId}`);
 
   return { success: true, data: undefined };
@@ -407,7 +398,7 @@ export async function toggleLike(
   if (targetPostId) {
     revalidatePath(`/feed/${targetPostId}`);
   }
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   if (targetPostId) {
     revalidateTag(`post-${targetPostId}`);
   }
@@ -492,7 +483,7 @@ export async function updatePost(
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
@@ -526,7 +517,7 @@ export async function deletePost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
@@ -559,7 +550,7 @@ export async function hidePost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
-  revalidateTag(`posts-${user.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
@@ -606,7 +597,7 @@ export async function pinPost(postId: string): Promise<ActionResult> {
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }
-  revalidateTag(`posts-${post.batchId}`);
+  revalidateTag("posts-global");
   revalidateTag(`post-${postId}`);
 
   return { success: true, data: undefined };
@@ -639,7 +630,8 @@ export async function archivePost(postId: string): Promise<ActionResult> {
    if (post.groupId) {
      revalidatePath(`/groups/${post.groupId}`);
    }
-   revalidateTag(`posts-${user.batchId}`);
+   revalidateTag("posts-global");
+   revalidateTag("archived-posts-global");
    revalidateTag(`post-${postId}`);
 
    return { success: true, data: undefined };
@@ -676,8 +668,25 @@ export async function restorePost(postId: string): Promise<ActionResult> {
    if (post.groupId) {
      revalidatePath(`/groups/${post.groupId}`);
    }
-   revalidateTag(`posts-${user.batchId}`);
+   revalidateTag("posts-global");
+   revalidateTag("archived-posts-global");
    revalidateTag(`post-${postId}`);
 
    return { success: true, data: undefined };
+}
+
+export async function getUserLikedPostIds(postIds: string[]): Promise<string[]> {
+  const user = await getCurrentUser();
+  if (!user || postIds.length === 0) return [];
+
+  const likes = await prisma.like.findMany({
+    where: {
+      userId: user.id,
+      targetType: "post",
+      postId: { in: postIds },
+    },
+    select: { postId: true },
+  });
+
+  return likes.map((l) => l.postId).filter((id): id is string => id !== null);
 }
