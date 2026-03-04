@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getBatches } from "@/actions/batch";
 import { CompanyForm } from "../../new/CompanyForm";
 import { MemberManager } from "./MemberManager";
 
@@ -23,25 +24,30 @@ export default async function EditCompanyPage({ params }: EditCompanyPageProps) 
 
   const { id } = await params;
 
-
-  const company = await prisma.company.findUnique({
-    where: { id },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              profileImage: true,
+  const [company, allBatches] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+              },
             },
           },
+          orderBy: [{ isCurrent: "desc" }, { createdAt: "asc" }],
         },
-        orderBy: [{ isCurrent: "desc" }, { createdAt: "asc" }],
+        batches: {
+          select: { batchId: true },
+        },
       },
-    },
-  });
+    }),
+    getBatches(),
+  ]);
 
   if (!company) {
     notFound();
@@ -68,7 +74,9 @@ export default async function EditCompanyPage({ params }: EditCompanyPageProps) 
           foundedYear: company.foundedYear,
           logoUrl: company.logoUrl,
           tags: company.tags,
-        }} 
+        }}
+        batches={allBatches.map((b) => ({ id: b.id, name: b.name }))}
+        initialBatchIds={company.batches.map((cb) => cb.batchId)}
       />
 
       <MemberManager 

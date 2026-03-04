@@ -18,7 +18,7 @@ const InviteUserSchema = z.object({
   batchId: z.string().uuid(),
   linkedInUrl: z.string().optional(),
   founderId: z.string().uuid().optional(), // Required when role is co_founder
-  groupId: z.string().uuid().optional(),
+  companyId: z.string().uuid().optional(),
 });
 
 const BulkInviteSchema = z.object({
@@ -34,13 +34,13 @@ interface InviteUserParams {
   batchId: string;
   linkedInUrl?: string;
   founderId?: string;
-  groupId?: string;
+  companyId?: string;
 }
 
 async function inviteUserCore(
   params: InviteUserParams
 ): Promise<ActionResult<{ id: string; inviteLink: string }>> {
-  const { email, name, role, batchId, linkedInUrl, founderId, groupId } = params;
+  const { email, name, role, batchId, linkedInUrl, founderId, companyId } = params;
 
   if (role === "co_founder" && !founderId) {
     return { success: false, error: "founderId is required when inviting a co-founder" };
@@ -138,15 +138,16 @@ async function inviteUserCore(
     },
   });
 
-  if (groupId) {
-    const groupExists = await prisma.group.findFirst({
-      where: { id: groupId, batchId },
+  if (companyId) {
+    const companyExists = await prisma.company.findUnique({
+      where: { id: companyId },
     });
-    if (groupExists) {
-      await prisma.groupMember.create({
+    if (companyExists) {
+      await prisma.companyMember.create({
         data: {
-          groupId,
+          companyId,
           userId: invitedUser.id,
+          isCurrent: true,
         },
       });
     }
@@ -192,7 +193,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     batchId: formData.get("batchId"),
     linkedInUrl: formData.get("linkedInUrl") || undefined,
     founderId: formData.get("founderId") || undefined,
-    groupId: formData.get("groupId") || undefined,
+    companyId: formData.get("companyId") || undefined,
   });
 
   if (!parsed.success) {
