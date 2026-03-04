@@ -2,20 +2,19 @@
 
 import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Tabs } from "@/components/ui/Tabs";
 import { Modal } from "@/components/ui/Modal";
 
-import { createPost, createComment, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
+import { createPost, toggleLike, restorePost, updatePost, deletePost, pinPost, hidePost } from "@/actions/feed";
 import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
 import { PostCard, InlineComposer, FeedTabs, defaultTabs } from "@/components/bookface";
 import { useViewTracking } from "@/hooks/useViewTracking";
 import { bookmarkPost, unbookmarkPost } from "@/actions/bookmark";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface User {
   id: string;
@@ -40,6 +39,7 @@ interface Post {
   createdAt: Date;
   author: User;
   images: PostImage[];
+  batch?: { name: string } | null;
   _count: {
     comments: number;
     likes: number;
@@ -51,15 +51,13 @@ interface FeedViewProps {
   archivedPosts?: Post[];
   currentUser: User;
   isAdmin?: boolean;
-  readOnly?: boolean;
   initialTab?: string;
-  batchName?: string;
+  likedPostIds: string[];
+  bookmarkedPostIds: string[];
 }
 
-export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, readOnly = false, initialTab, batchName }: FeedViewProps) {
-  const [commentContent, setCommentContent] = useState<Record<string, string>>({});
+export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, initialTab, likedPostIds, bookmarkedPostIds }: FeedViewProps) {
   const router = useRouter();
-  const [showComments, setShowComments] = useState<Set<string>>(new Set());
   const [showArchived, setShowArchived] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab || 'top');
   const [isPending, startTransition] = useTransition();
@@ -68,6 +66,11 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   const [editContent, setEditContent] = useState("");
   const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { createObserver } = useViewTracking();
+
+  // Optimistic state for likes and bookmarks
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set(likedPostIds));
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set(bookmarkedPostIds));
+  const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -103,33 +106,50 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     };
   }, [filteredPosts, createObserver]);
 
-
-  const handleAddComment = async (postId: string) => {
-    const content = commentContent[postId];
-    if (!content?.trim()) return;
-
-    startTransition(async () => {
-      const result = await createComment(postId, content);
-      if (result.success) {
-        setCommentContent({ ...commentContent, [postId]: "" });
-      }
-    });
-  };
-
   const handleToggleLike = async (postId: string) => {
+    const wasLiked = likedIds.has(postId);
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) {
+        next.delete(postId);
+      } else {
+        next.add(postId);
+      }
+      return next;
+    });
+    setLikeDelta((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || 0) + (wasLiked ? -1 : 1),
+    }));
     startTransition(async () => {
       await toggleLike("post", postId);
     });
   };
 
-  const toggleCommentsView = (postId: string) => {
-    const newShow = new Set(showComments);
-    if (newShow.has(postId)) {
-      newShow.delete(postId);
-    } else {
-      newShow.add(postId);
-    }
-    setShowComments(newShow);
+  const handleBookmark = async (postId: string) => {
+    const wasBookmarked = bookmarkedIds.has(postId);
+    setBookmarkedIds((prev) => {
+      const next = new Set(prev);
+      if (wasBookmarked) {
+        next.delete(postId);
+      } else {
+        next.add(postId);
+      }
+      return next;
+    });
+    startTransition(async () => {
+      if (wasBookmarked) {
+        await unbookmarkPost(postId);
+      } else {
+        await bookmarkPost(postId);
+      }
+    });
+  };
+
+  const handleShare = (postId: string) => {
+    const url = `${window.location.origin}/feed/${postId}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Link copied to clipboard");
   };
 
   const handleRestore = async (postId: string) => {
@@ -183,16 +203,6 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       const result = await hidePost(postId);
       if (!result.success) {
         toast.error(result.error);
-      }
-    });
-  };
-
-  const handleBookmark = async (postId: string, isBookmarked: boolean) => {
-    startTransition(async () => {
-      if (isBookmarked) {
-        await unbookmarkPost(postId);
-      } else {
-        await bookmarkPost(postId);
       }
     });
   };
@@ -251,41 +261,26 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         onTabChange={handleTabChange}
       />
 
-      {readOnly ? (
-        <div
-          className="card text-center text-sm"
-          style={{
-            backgroundColor: "#f9f9f9",
-            borderRadius: "8px",
-            border: "1px solid #e0e0e0",
-            padding: "16px",
-            color: "var(--color-foreground-secondary)",
-          }}
-        >
-          This batch has ended. New posts cannot be created.
-        </div>
-      ) : (
-        <InlineComposer
-          currentUser={currentUser}
-          onSubmit={async (data) => {
-            const formData = new FormData();
-            formData.append("content", data.content);
-            if (data.category) formData.append("category", data.category);
-            if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
-            const result = await createPost(formData);
-            if (!result.success) {
-              toast.error(result.error);
-            }
-          }}
-          isPending={isPending}
-        />
-      )}
+      <InlineComposer
+        currentUser={currentUser}
+        onSubmit={async (data) => {
+          const formData = new FormData();
+          formData.append("content", data.content);
+          if (data.category) formData.append("category", data.category);
+          if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+          const result = await createPost(formData);
+          if (!result.success) {
+            toast.error(result.error);
+          }
+        }}
+        isPending={isPending}
+      />
 
       {/* Posts Feed */}
       {filteredPosts.length === 0 ? (
         <EmptyState
           title="No posts yet"
-          description="Be the first to share something with your batch!"
+          description="Be the first to share something with the community!"
         />
       ) : (
         <div className="space-y-4">
@@ -311,54 +306,24 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 author={{
                   name: getDisplayName(post.author),
                   avatarUrl: post.author.profileImage || undefined,
-                  batch: batchName || undefined,
+                  batch: post.batch?.name || undefined,
                   company: undefined,
                 }}
                 content={post.content}
                 postedAt={formatRelativeTime(post.createdAt)}
-                likes={post._count.likes}
+                likes={post._count.likes + (likeDelta[post.id] || 0)}
                 comments={post._count.comments}
                 views={post.viewCount}
-                isLiked={false}
-                isBookmarked={false}
+                isLiked={likedIds.has(post.id)}
+                isBookmarked={bookmarkedIds.has(post.id)}
                 onLike={() => handleToggleLike(post.id)}
-                onComment={() => toggleCommentsView(post.id)}
-                onBookmark={() => handleBookmark(post.id, false)}
+                onComment={() => router.push(`/feed/${post.id}`)}
+                onBookmark={() => handleBookmark(post.id)}
+                onShare={() => handleShare(post.id)}
+                onAuthorClick={() => router.push(`/profile/${post.author.id}`)}
                 menuItems={(post.author.id === currentUser.id || isAdmin) ? getPostMenuItems(post) : undefined}
               />
-
-              {showComments.has(post.id) && (
-                <div className="space-y-3 pt-3 border-t" style={{ borderColor: "#e0e0e0" }}>
-                  <div className="flex items-start gap-3">
-                    <Avatar
-                      src={currentUser.profileImage}
-                      name={getDisplayName(currentUser)}
-                      size={32}
-                    />
-                    <div className="flex-1 space-y-2">
-                      <Textarea
-                        placeholder="Write a comment..."
-                        rows={2}
-                        value={commentContent[post.id] || ""}
-                        onChange={(e) =>
-                          setCommentContent({ ...commentContent, [post.id]: e.target.value })
-                        }
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddComment(post.id)}
-                          disabled={!commentContent[post.id]?.trim()}
-                        >
-                          Comment
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-
           ))}
         </div>
       )}

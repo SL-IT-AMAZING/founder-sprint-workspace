@@ -182,6 +182,21 @@ export async function createCompany(formData: FormData): Promise<ActionResult<{
     },
   });
 
+  // Handle batch assignments
+  const batchIdsRaw = formData.get("batchIds") as string | null;
+  if (batchIdsRaw) {
+    const batchIds = batchIdsRaw.split(",").filter(Boolean);
+    if (batchIds.length > 0) {
+      await prisma.companyBatch.createMany({
+        data: batchIds.map((batchId) => ({
+          companyId: company.id,
+          batchId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
   revalidatePath("/companies");
   revalidatePath("/admin/companies");
 
@@ -246,6 +261,22 @@ export async function updateCompany(
     },
   });
 
+
+  // Sync batch assignments (delete all, re-create)
+  const batchIdsRaw = formData.get("batchIds") as string | null;
+  await prisma.companyBatch.deleteMany({ where: { companyId: id } });
+  if (batchIdsRaw) {
+    const batchIds = batchIdsRaw.split(",").filter(Boolean);
+    if (batchIds.length > 0) {
+      await prisma.companyBatch.createMany({
+        data: batchIds.map((batchId) => ({
+          companyId: id,
+          batchId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
   revalidatePath("/companies");
   revalidatePath(`/companies/${existingCompany.slug}`);
   revalidatePath(`/companies/${company.slug}`);
@@ -459,4 +490,23 @@ export async function getRelatedCompanies(
       memberCount: item._count.members,
     })),
   };
+}
+
+export async function getCompaniesForSelect(): Promise<Array<{
+  id: string;
+  name: string;
+  _count: { members: number };
+}>> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  if (!isAdmin(user.role)) return [];
+
+  return prisma.company.findMany({
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { members: true } },
+    },
+    orderBy: { name: "asc" },
+  });
 }
