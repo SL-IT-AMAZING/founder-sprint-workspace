@@ -112,7 +112,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
 
   const firstActiveBatchId =
     batchIds.find((batchId) => activeSelectedBatchIds.includes(batchId)) || activeSelectedBatchIds[0];
-  const batchCheck = await requireActiveBatch(firstActiveBatchId);
+  const batchCheck = await requireActiveBatch(firstActiveBatchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   const parsed = CreateSessionSchema.safeParse({

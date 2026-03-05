@@ -30,7 +30,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
       return { success: false, error: "Unauthorized: admin access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId);
+    const batchCheck = await requireActiveBatch(user.batchId, user.role);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const selectedBatchIds = formData.getAll("batchIds") as string[];
