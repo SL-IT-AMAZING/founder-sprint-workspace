@@ -510,3 +510,32 @@ export async function getCompaniesForSelect(): Promise<Array<{
     orderBy: { name: "asc" },
   });
 }
+
+/**
+ * Get all companies for office hour scheduling dropdowns.
+ * Returns all companies globally with member counts.
+ */
+export async function getCompaniesForBatch(_batchId?: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  return prisma.company.findMany({
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { members: { where: { isCurrent: true } } } },
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+/**
+ * Get the company IDs a user belongs to (for founder visibility filtering).
+ */
+export async function getUserCompanyIds(userId: string): Promise<string[]> {
+  const memberships = await prisma.companyMember.findMany({
+    where: { userId, isCurrent: true },
+    select: { companyId: true },
+  });
+  return memberships.map((m) => m.companyId);
+}

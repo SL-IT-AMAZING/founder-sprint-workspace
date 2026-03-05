@@ -1,5 +1,7 @@
 import { getCurrentUser } from "@/lib/permissions";
-import { getScheduleItems } from "@/actions/schedule"; import { getGroups } from "@/actions/group"; import { prisma } from "@/lib/prisma";
+import { getScheduleItems } from "@/actions/schedule";
+import { getCompaniesForBatch } from "@/actions/company";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, parse, isValid } from "date-fns";
@@ -33,7 +35,7 @@ export default async function SchedulePage({
   const rangeStart = startOfWeek(startOfMonth(monthDate));
   const rangeEnd = endOfWeek(endOfMonth(monthDate));
 
-  const [items, groups, batchMembers] = await Promise.all([
+  const [items, companiesRaw, batchMembers] = await Promise.all([
     getScheduleItems({
       batchId: user.batchId,
       viewerId: user.id,
@@ -41,16 +43,16 @@ export default async function SchedulePage({
       rangeStart,
       rangeEnd,
     }),
-    getGroups(user.batchId),
+    getCompaniesForBatch(user.batchId),
     prisma.userBatch.findMany({
       where: { batchId: user.batchId, status: "active" },
-      select: { user: { select: { id: true, name: true, email: true, profileImage: true, role: true, groupMembers: { select: { group: { select: { name: true } } } } } } }
+      select: { user: { select: { id: true, name: true, email: true, profileImage: true, role: true, companyMemberships: { where: { isCurrent: true }, select: { company: { select: { name: true } } } } } } }
     }),
   ]);
-  const companies = groups.map(g => ({ id: g.id, name: g.name, memberCount: g._count?.members ?? 0 }));
+  const companies = companiesRaw.map(c => ({ id: c.id, name: c.name, memberCount: c._count?.members ?? 0 }));
   const founders = batchMembers
     .filter(ub => ub.user.role === "founder" || ub.user.role === "co_founder")
-    .map(ub => ({ id: ub.user.id, name: ub.user.name, email: ub.user.email, profileImage: ub.user.profileImage, groupName: ub.user.groupMembers[0]?.group.name ?? null }));
+    .map(ub => ({ id: ub.user.id, name: ub.user.name, email: ub.user.email, profileImage: ub.user.profileImage, companyName: ub.user.companyMemberships[0]?.company.name ?? null }));
   const totalBatchMembers = batchMembers.length;
 
   return (
