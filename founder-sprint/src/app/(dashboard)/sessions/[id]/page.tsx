@@ -12,7 +12,8 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   if (!user) redirect("/auth/login");
 
   const session = await getSession(id, user.batchId);
-  if (!session || session.batchId !== user.batchId) redirect("/sessions");
+  const assignedBatchIds = session?.batches?.map((b: { batchId: string }) => b.batchId) ?? [];
+  if (!session || !assignedBatchIds.includes(user.batchId)) redirect("/sessions");
 
   const isUserAdmin = isAdmin(user.role);
   const isPastSession = new Date(session.sessionDate) < new Date();

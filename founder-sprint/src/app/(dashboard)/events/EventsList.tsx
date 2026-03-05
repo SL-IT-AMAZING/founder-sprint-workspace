@@ -14,6 +14,7 @@ import { formatDateTime, formatDate, getDisplayName } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
 import { useToast } from "@/hooks/useToast";
+import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import type { UserWithBatch, EventType } from "@/types";
 
 type ViewMode = "list" | "calendar";
@@ -33,11 +34,13 @@ interface Event {
     email: string;
     profileImage: string | null;
   };
+  batches?: { batch: { id: string; name: string } }[];
 }
 
 interface EventsListProps {
   user: UserWithBatch;
   events: Event[];
+  batchOptions: BatchOption[];
 }
 
 const eventTypeOptions = [
@@ -72,7 +75,7 @@ function getEventTypeLabel(type: EventType): string {
   }
 }
 
-export function EventsList({ user, events }: EventsListProps) {
+export function EventsList({ user, events, batchOptions }: EventsListProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<EventType | "all">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -265,6 +268,30 @@ export function EventsList({ user, events }: EventsListProps) {
                       {getEventTypeLabel(event.eventType)}
                     </Badge>
                   </div>
+                  {event.batches && event.batches.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {event.batches.slice(0, 3).map((b) => (
+                        <span
+                          key={b.batch.id}
+                          style={{
+                            fontSize: 11,
+                            backgroundColor: "#f0f0f0",
+                            color: "#666666",
+                            padding: "1px 6px",
+                            borderRadius: 4,
+                            fontFamily: '"BDO Grotesk", sans-serif',
+                          }}
+                        >
+                          {b.batch.name}
+                        </span>
+                      ))}
+                      {event.batches.length > 3 && (
+                        <span style={{ fontSize: 11, color: "#999999", fontFamily: '"BDO Grotesk", sans-serif' }}>
+                          +{event.batches.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {event.description && (
                     <p style={{ color: "var(--color-foreground-secondary)" }}>{event.description}</p>
                   )}
@@ -311,6 +338,8 @@ export function EventsList({ user, events }: EventsListProps) {
               {error}
             </div>
           )}
+
+          <BatchSelect batches={batchOptions} />
           <Input
             label="Title"
             name="title"

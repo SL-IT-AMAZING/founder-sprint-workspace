@@ -69,6 +69,13 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     if (!user) return null;
   }
 
+  // Fetch ALL active batch memberships for multi-batch support
+  const allBatchMemberships = await prisma.userBatch.findMany({
+    where: { userId: user.id, status: "active" },
+    select: { batchId: true },
+  });
+  const userBatchIds = allBatchMemberships.map(b => b.batchId);
+
   if (user.userBatches.length === 0) {
     const globalRole = user.role as UserRole | null;
     if (globalRole === "super_admin" || globalRole === "admin") {
@@ -83,6 +90,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
         role: globalRole,
         batchId: "",
         batchName: "",
+        userBatchIds,
       };
     }
     return null;
@@ -102,6 +110,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     batchName: ub.batch.name,
     batchEndDate: ub.batch.endDate,
     batchStatus: ub.batch.status as import("@/types").BatchStatus,
+    userBatchIds,
   };
 });
 

@@ -133,6 +133,29 @@ export async function deleteBatch(batchId: string): Promise<ActionResult> {
     return { success: false, error: "Unauthorized: only Super Admin can delete batches" };
   }
 
+  // Safety check: prevent deletion if this is the ONLY batch for any session or event
+  const [exclusiveSessions, exclusiveEvents] = await Promise.all([
+    prisma.session.findMany({
+      where: { batches: { some: { batchId } } },
+      include: { batches: true },
+    }),
+    prisma.event.findMany({
+      where: { batches: { some: { batchId } } },
+      include: { batches: true },
+    }),
+  ]);
+
+  const sessionBlockers = exclusiveSessions.filter(s => s.batches.length === 1);
+  const eventBlockers = exclusiveEvents.filter(e => e.batches.length === 1);
+  const totalBlockers = sessionBlockers.length + eventBlockers.length;
+
+  if (totalBlockers > 0) {
+    return {
+      success: false,
+      error: `Cannot delete: ${totalBlockers} session(s)/event(s) are only assigned to this batch. Reassign them first.`,
+    };
+  }
+
   await prisma.batch.delete({ where: { id: batchId } });
 
   revalidatePath("/admin/batches");

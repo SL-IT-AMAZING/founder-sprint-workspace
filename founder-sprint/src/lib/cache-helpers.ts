@@ -17,3 +17,17 @@ export function revalidateSchedule(batchId: string) {
   revalidatePath("/schedule");
   revalidateTag(`schedule-${batchId}`);
 }
+
+export function revalidateSessionsMultiBatch(batchIds: string[]) {
+  for (const batchId of batchIds) {
+    revalidateTag(`sessions-${batchId}`);
+    revalidateSchedule(batchId);
+  }
+}
+
+export function revalidateEventsMultiBatch(batchIds: string[]) {
+  for (const batchId of batchIds) {
+    revalidateTag(`events-${batchId}`);
+    revalidateSchedule(batchId);
+  }
+}
