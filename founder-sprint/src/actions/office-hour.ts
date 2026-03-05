@@ -115,12 +115,12 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   if (batchCheck) return batchCheck;
 
   // 2. Parse formData
-  const groupId = formData.get("groupId") as string;
+  const companyId = formData.get("companyId") as string;
   const startTime = formData.get("startTime") as string;
   const endTime = formData.get("endTime") as string;
   const timezoneInput = formData.get("timezone") as string;
 
-  if (!groupId || !startTime || !endTime) {
+  if (!companyId || !startTime || !endTime) {
     return { success: false, error: "Company, start time, and end time are required" };
   }
 
@@ -147,26 +147,28 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
     return { success: false, error: "Cannot schedule office hours in the past" };
   }
 
-  // 5. Validate group — exists, same batch, has members
-  const group = await prisma.group.findUnique({
-    where: { id: groupId },
+  // 5. Validate company — exists and has members
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
     include: {
       members: {
+        where: { isCurrent: true },
         include: {
           user: {
             select: { id: true, name: true, email: true },
           },
         },
       },
+      // batches filter removed — companies are global
     },
   });
 
-  if (!group) return { success: false, error: "Company not found" };
-  if (group.batchId !== user.batchId) return { success: false, error: "Company is not in your batch" };
-  if (group.members.length === 0) return { success: false, error: "Cannot schedule for a company with no members" };
+  if (!company) return { success: false, error: "Company not found" };
+  // Company-batch check removed — companies are global across all batches
+  if (company.members.length === 0) return { success: false, error: "Cannot schedule for a company with no members" };
 
   try {
-    // 6. Create slot as confirmed with groupId
+    // 6. Create slot as confirmed with companyId
     const slot = await prisma.officeHourSlot.create({
       data: {
         batchId: user.batchId,
@@ -175,18 +177,18 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
         endTime: end,
         timezone,
         status: "confirmed",
-        groupId,
+        companyId,
       },
     });
 
-    // 7. Create Google Calendar event with Meet link for all group members
-    const memberEmails = group.members.map((m) => m.user.email);
+    // 7. Create Google Calendar event with Meet link for all company members
+    const memberEmails = company.members.map((m) => m.user.email);
     const hostEmail = user.email;
     const allEmails = [...new Set([hostEmail, ...memberEmails])];
 
     const calResult = await createCalendarEventWithMeet({
-      summary: `Office Hour: ${user.name} × ${group.name}`,
-      description: `Office hour session with ${group.name}`,
+      summary: `Office Hour: ${user.name} × ${company.name}`,
+      description: `Office hour session with ${company.name}`,
       startTime: start,
       endTime: end,
       attendeeEmails: allEmails,
@@ -316,14 +318,14 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
     const batchCheck = await requireActiveBatch(user.batchId);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
-    const groupId = formData.get("groupId") as string;
-    if (!groupId) {
+    const companyId = formData.get("companyId") as string;
+    if (!companyId) {
       return { success: false, error: "Company is required" };
     }
 
-    // Validate group membership
-    const membership = await prisma.groupMember.findFirst({
-      where: { groupId, userId: user.id },
+    // Validate company membership
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId, userId: user.id, isCurrent: true },
     });
     if (!membership) {
       return { success: false, error: "You must be a member of this company to request office hours" };
@@ -345,18 +347,15 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       return { success: false, error: "Cannot request office hours in the past" };
     }
 
-    // Look up the target host
+    // Look up the target host (global — not filtered by batch)
     const targetHost = await prisma.user.findFirst({
       where: {
         email: OFFICE_HOUR_TARGET_EMAIL,
-        userBatches: {
-          some: { batchId: user.batchId, status: "active" },
-        },
       },
     });
 
     if (!targetHost) {
-      return { success: false, error: "Office hour host not found in this batch" };
+      return { success: false, error: "Office hour host not found" };
     }
 
     // Create the slot with host as the target
@@ -368,7 +367,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
         endTime: endTimeUtc,
         timezone: validated.timezone,
         status: "requested",
-        groupId,
+        companyId,
       },
     });
 
@@ -388,15 +387,15 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
 
     // Notify host via email (non-blocking)
     try {
-      const group = await prisma.group.findUnique({
-        where: { id: groupId },
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
         select: { name: true },
       });
       sendOfficeHourRequestEmail({
         to: targetHost.email,
         hostName: targetHost.name || targetHost.email,
         requesterName: user.name || user.email,
-        companyName: group?.name,
+        companyName: company?.name,
         startTime: startTimeUtc,
         endTime: endTimeUtc,
         message: (formData.get("message") as string) || undefined,
@@ -434,6 +433,18 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
                 profileImage: true,
               },
             },
+            company: {
+              include: {
+                members: {
+                  where: { isCurrent: true },
+                  include: {
+                    user: {
+                      select: { id: true, name: true, email: true, profileImage: true },
+                    },
+                  },
+                },
+              },
+            },
             group: {
               include: {
                 members: {
@@ -469,13 +480,13 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
 
     // Filter for founders — only show their group's slots + ungrouped slots
     if (userId && userRole && (userRole === "founder" || userRole === "co_founder")) {
-      const userGroups = await prisma.groupMember.findMany({
-        where: { userId },
-        select: { groupId: true },
+      const userCompanies = await prisma.companyMember.findMany({
+        where: { userId, isCurrent: true },
+        select: { companyId: true },
       });
-      const groupIds = new Set(userGroups.map((g) => g.groupId));
+      const companyIds = new Set(userCompanies.map((c) => c.companyId));
       filteredSlots = filteredSlots.filter(
-        (s) => s.groupId === null || groupIds.has(s.groupId)
+        (s) => s.companyId === null || companyIds.has(s.companyId)
       );
     }
 
@@ -502,7 +513,7 @@ export async function completeExpiredSlots(batchId: string) {
   }
 }
 
-export async function requestOfficeHour(slotId: string, groupId: string, message?: string): Promise<ActionResult<{ id: string }>> {
+export async function requestOfficeHour(slotId: string, companyId: string, message?: string): Promise<ActionResult<{ id: string }>> {
   try {
     const user = await getCurrentUser();
     if (!user || !isFounder(user.role)) {
@@ -512,9 +523,9 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
     const batchCheck = await requireActiveBatch(user.batchId);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
-    // Validate group membership
-    const membership = await prisma.groupMember.findFirst({
-      where: { groupId, userId: user.id },
+    // Validate company membership
+    const membership = await prisma.companyMember.findFirst({
+      where: { companyId, userId: user.id, isCurrent: true },
     });
     if (!membership) {
       return { success: false, error: "You must be a member of this company to request office hours" };
@@ -571,6 +582,7 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
         where: { id: validated.slotId },
         include: {
           host: { select: { email: true, name: true } },
+          company: { select: { name: true } },
           group: { select: { name: true } },
         },
       });
@@ -579,7 +591,7 @@ export async function requestOfficeHour(slotId: string, groupId: string, message
           to: slotWithHost.host.email,
           hostName: slotWithHost.host.name || slotWithHost.host.email,
           requesterName: user.name || user.email,
-          companyName: slotWithHost.group?.name,
+          companyName: slotWithHost.company?.name || slotWithHost.group?.name,
           startTime: slotWithHost.startTime,
           endTime: slotWithHost.endTime,
           message: validated.message,
@@ -675,16 +687,16 @@ export async function respondToRequest(requestId: string, status: "approved" | "
           let attendeeEmails: string[] = [];
           let calendarSummary = `Office Hour: ${host?.name || "Host"} × ${requester?.name || "Requester"}`;
 
-          if (request.slot.groupId) {
-            const group = await prisma.group.findUnique({
-              where: { id: request.slot.groupId },
+          if (request.slot.companyId) {
+            const company = await prisma.company.findUnique({
+              where: { id: request.slot.companyId },
               include: {
-                members: { include: { user: { select: { email: true, name: true } } } },
+                members: { where: { isCurrent: true }, include: { user: { select: { email: true, name: true } } } },
               },
             });
-            if (group) {
-              attendeeEmails = group.members.map((m) => m.user.email);
-              calendarSummary = `Office Hour: ${host?.name || "Host"} × ${group.name}`;
+            if (company) {
+              attendeeEmails = company.members.map((m) => m.user.email);
+              calendarSummary = `Office Hour: ${host?.name || "Host"} × ${company.name}`;
             }
           } else if (requester) {
             attendeeEmails = [requester.email];
@@ -745,16 +757,16 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         let recipientEmails: string[] = [];
         let companyName: string | undefined;
 
-        if (request.slot.groupId) {
-          const group = await prisma.group.findUnique({
-            where: { id: request.slot.groupId },
+        if (request.slot.companyId) {
+          const company = await prisma.company.findUnique({
+            where: { id: request.slot.companyId },
             include: {
-              members: { include: { user: { select: { email: true } } } },
+              members: { where: { isCurrent: true }, include: { user: { select: { email: true } } } },
             },
           });
-          if (group) {
-            recipientEmails = group.members.map((m) => m.user.email);
-            companyName = group.name;
+          if (company) {
+            recipientEmails = company.members.map((m) => m.user.email);
+            companyName = company.name;
           }
         } else if (requester) {
           recipientEmails = [requester.email];

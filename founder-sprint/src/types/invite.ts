@@ -3,7 +3,7 @@ export interface FounderOption {
   name: string | null;
   email: string;
   profileImage: string | null;
-  groupName: string | null;
+  companyName: string | null;
 }
 
 export interface CompanyOption {

@@ -12,6 +12,7 @@ import { createSession, updateSession, deleteSession } from "@/actions/session";
 import { formatDate } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezone";
 import { useToast } from "@/hooks/useToast";
+import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 
 interface Session {
   id: string;
@@ -24,14 +25,16 @@ interface Session {
   slidesUrl: string | null;
   recordingUrl: string | null;
   createdAt: Date;
+  batches?: { batch: { id: string; name: string } }[];
 }
 
 interface SessionsListProps {
   sessions: Session[];
   isAdmin: boolean;
+  batchOptions: BatchOption[];
 }
 
-export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
+export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListProps) {
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editSession, setEditSession] = useState<Session | null>(null);
    const [isPending, startTransition] = useTransition();
@@ -123,6 +126,30 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
                     <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                       {formatDate(session.sessionDate)}
                     </p>
+                    {session.batches && session.batches.length > 0 && (
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {session.batches.slice(0, 3).map((b) => (
+                          <span
+                            key={b.batch.id}
+                            style={{
+                              fontSize: 11,
+                              backgroundColor: "#f0f0f0",
+                              color: "#666666",
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                              fontFamily: '"BDO Grotesk", sans-serif',
+                            }}
+                          >
+                            {b.batch.name}
+                          </span>
+                        ))}
+                        {session.batches.length > 3 && (
+                          <span style={{ fontSize: 11, color: "#999999", fontFamily: '"BDO Grotesk", sans-serif' }}>
+                            +{session.batches.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {isAdmin && (
                     <div className="flex gap-2">
@@ -190,6 +217,7 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
             </div>
           )}
 
+          <BatchSelect batches={batchOptions} />
           <Input
             name="title"
             label="Title"
@@ -291,6 +319,10 @@ export function SessionsList({ sessions, isAdmin }: SessionsListProps) {
               </div>
             )}
 
+            <BatchSelect
+              batches={batchOptions}
+              selectedBatchIds={editSession.batches?.map(b => b.batch.id)}
+            />
             <Input
               name="title"
               label="Title"

@@ -26,6 +26,7 @@ export interface UserWithBatch {
   batchName: string;
   batchEndDate?: Date;
   batchStatus?: BatchStatus;
+  userBatchIds: string[];  // All batch IDs user is member of
 }
 
 // Action result type for server actions

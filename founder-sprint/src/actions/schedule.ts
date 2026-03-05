@@ -17,7 +17,7 @@ export async function getScheduleItems(params: {
     const [events, officeHourSlots, sessions] = await Promise.all([
       prisma.event.findMany({
         where: {
-          batchId,
+          batches: { some: { batchId } },
           startTime: { gte: rangeStart, lte: rangeEnd },
         },
         select: {
@@ -45,8 +45,10 @@ export async function getScheduleItems(params: {
           timezone: true,
           status: true,
           googleMeetLink: true,
+          companyId: true,
           groupId: true,
           host: { select: { name: true } },
+          company: { select: { name: true } },
           group: { select: { name: true } },
         },
         orderBy: { startTime: "asc" },
@@ -54,7 +56,7 @@ export async function getScheduleItems(params: {
 
       prisma.session.findMany({
         where: {
-          batchId,
+          batches: { some: { batchId } },
           OR: [
             { startTime: { gte: rangeStart, lte: rangeEnd } },
             {
@@ -78,13 +80,13 @@ export async function getScheduleItems(params: {
 
     let filteredOH = officeHourSlots;
     if (viewerRole === "founder" || viewerRole === "co_founder") {
-      const userGroups = await prisma.groupMember.findMany({
-        where: { userId: viewerId },
-        select: { groupId: true },
+      const userCompanies = await prisma.companyMember.findMany({
+        where: { userId: viewerId, isCurrent: true },
+        select: { companyId: true },
       });
-      const groupIds = new Set(userGroups.map((g) => g.groupId));
+      const companyIds = new Set(userCompanies.map((c) => c.companyId));
       filteredOH = officeHourSlots.filter(
-        (s) => s.groupId === null || groupIds.has(s.groupId)
+        (s) => s.companyId === null || companyIds.has(s.companyId)
       );
     }
 
@@ -109,14 +111,14 @@ export async function getScheduleItems(params: {
       items.push({
         id: oh.id,
         kind: "officeHour",
-        title: `Office Hour${oh.group ? `: ${oh.group.name}` : ""}`,
+        title: `Office Hour${oh.company ? `: ${oh.company.name}` : oh.group ? `: ${oh.group.name}` : ""}`,
         startTime: oh.startTime.toISOString(),
         endTime: oh.endTime.toISOString(),
         timezone: oh.timezone,
         isAllDay: false,
         status: oh.status as ScheduleItem["status"],
         hostName: oh.host.name || undefined,
-        groupName: oh.group?.name || undefined,
+        companyName: oh.company?.name || oh.group?.name || undefined,
         googleMeetLink: oh.googleMeetLink || undefined,
         deepLink: "/office-hours",
       });

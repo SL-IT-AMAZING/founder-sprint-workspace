@@ -33,6 +33,23 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     const batchCheck = await requireActiveBatch(user.batchId);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
+    const selectedBatchIds = formData.getAll("batchIds") as string[];
+    const batchIds = [...new Set((selectedBatchIds.length > 0 ? selectedBatchIds : [user.batchId]).filter(Boolean))];
+
+    const batches = await prisma.batch.findMany({
+      where: { id: { in: batchIds } },
+      select: { id: true, status: true },
+    });
+
+    if (batches.length !== batchIds.length) {
+      return { success: false, error: "One or more selected batches are invalid" };
+    }
+
+    const hasActiveBatch = batches.some((batch) => batch.status === "active");
+    if (!hasActiveBatch) {
+      return { success: false, error: "At least one active batch is required" };
+    }
+
     const data = {
       title: formData.get("title") as string,
       description: formData.get("description") as string | undefined,
@@ -45,27 +62,37 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
      const validated = eventSchema.parse(data);
 
-    const eventCount = await prisma.event.count({ where: { batchId: user.batchId } });
-    if (eventCount >= 20) {
-      return { success: false, error: "Maximum 20 events per batch reached" };
+    for (const bid of batchIds) {
+      const eventCount = await prisma.eventBatch.count({ where: { batchId: bid } });
+      if (eventCount >= 20) {
+        return { success: false, error: "Maximum 20 events reached for batch" };
+      }
     }
 
     const ianaTimezone = toIanaTimezone(validated.timezone);
     const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
     const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
 
-    const event = await prisma.event.create({
-      data: {
-        batchId: user.batchId,
-        creatorId: user.id,
-        title: validated.title,
-        description: validated.description || null,
-        eventType: validated.eventType,
-        startTime: startTimeUtc,
-        endTime: endTimeUtc,
-        timezone: ianaTimezone,
-        location: validated.location || null,
-      },
+    const event = await prisma.$transaction(async (tx) => {
+      const createdEvent = await tx.event.create({
+        data: {
+          batchId: batchIds[0],
+          creatorId: user.id,
+          title: validated.title,
+          description: validated.description || null,
+          eventType: validated.eventType,
+          startTime: startTimeUtc,
+          endTime: endTimeUtc,
+          timezone: ianaTimezone,
+          location: validated.location || null,
+        },
+      });
+
+      await tx.eventBatch.createMany({
+        data: batchIds.map((batchId) => ({ eventId: createdEvent.id, batchId })),
+      });
+
+      return createdEvent;
     });
 
     let warning: string | undefined;
@@ -84,12 +111,11 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
           // Always include the creator + deduplicate
           attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
         } else {
-          // Entire batch (current behavior)
           const batchUsers = await prisma.userBatch.findMany({
-            where: { batchId: user.batchId, status: "active" },
+            where: { batchId: { in: batchIds }, status: "active" },
             include: { user: { select: { email: true } } },
           });
-          attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+          attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
         }
 
         // Use createCalendarEventWithMeet for office_hour events to generate Google Meet link
@@ -128,10 +154,14 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
       }
     }
 
+    for (const bid of batchIds) {
+      revalidateTag(`events-${bid}`);
+      revalidateTag(`schedule-${bid}`);
+      revalidateSchedule(bid);
+    }
     revalidatePath("/events");
-    revalidateTag(`events-${user.batchId}`);
+    revalidatePath("/schedule");
     revalidateTag(`event-${event.id}`);
-    revalidateSchedule(user.batchId);
     return { success: true, data: { id: event.id }, warning };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -151,7 +181,7 @@ export async function getEvents(batchId: string) {
     const events = await unstable_cache(
       () =>
         prisma.event.findMany({
-          where: { batchId },
+          where: { batches: { some: { batchId } } },
           include: {
             creator: {
               select: {
@@ -159,6 +189,16 @@ export async function getEvents(batchId: string) {
                 name: true,
                 email: true,
                 profileImage: true,
+              },
+            },
+            batches: {
+              include: {
+                batch: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -179,8 +219,8 @@ export async function getEvent(eventId: string, batchId?: string) {
   try {
     const event = await unstable_cache(
       () =>
-        prisma.event.findUnique({
-          where: { id: eventId },
+        prisma.event.findFirst({
+          where: batchId ? { id: eventId, batches: { some: { batchId } } } : { id: eventId },
           include: {
             creator: {
               select: {
@@ -190,15 +230,21 @@ export async function getEvent(eventId: string, batchId?: string) {
                 profileImage: true,
               },
             },
+            batches: {
+              include: {
+                batch: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         }),
-      [`event-${eventId}`],
+      [`event-${eventId}-${batchId ?? "all"}`],
       { revalidate: 60, tags: [`event-${eventId}`] }
     )();
-
-    if (batchId && event?.batchId !== batchId) {
-      return null;
-    }
 
     return event;
   } catch (error) {
@@ -217,10 +263,17 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
     // Get the event to check if it has a Google Calendar event ID
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { googleEventId: true, batchId: true },
+      include: { batches: true },
     });
 
-    if (!event || event.batchId !== user.batchId) {
+    if (!event) {
+      return { success: false, error: "Event not found" };
+    }
+
+    const eventBatchIds = event.batches.map((batch) => batch.batchId);
+    const hasAccess = isAdmin(user.role) && (eventBatchIds.includes(user.batchId) || user.role === "super_admin");
+
+    if (!hasAccess) {
       return { success: false, error: "Event not found" };
     }
 
@@ -238,10 +291,14 @@ export async function deleteEvent(eventId: string): Promise<ActionResult> {
       where: { id: eventId },
     });
 
+    for (const bid of eventBatchIds) {
+      revalidateTag(`events-${bid}`);
+      revalidateTag(`schedule-${bid}`);
+      revalidateSchedule(bid);
+    }
     revalidatePath("/events");
-    revalidateTag(`events-${user.batchId}`);
+    revalidatePath("/schedule");
     revalidateTag(`event-${eventId}`);
-    revalidateSchedule(user.batchId);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Failed to delete event:", error);
@@ -267,36 +324,83 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     };
 
     const validated = eventSchema.parse(data);
+    const selectedBatchIds = formData.getAll("batchIds") as string[];
+    const batchIds = [...new Set(selectedBatchIds.filter(Boolean))];
 
-    // Get the event to check if it has a Google Calendar event ID
-    const existingEvent = await prisma.event.findUnique({
+    const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { googleEventId: true, batchId: true },
+      include: { batches: true },
     });
 
-    if (!existingEvent || existingEvent.batchId !== user.batchId) {
+    if (!event) {
       return { success: false, error: "Event not found" };
     }
+
+    const eventBatchIds = event.batches.map((batch) => batch.batchId);
+    const hasAccess = isAdmin(user.role) && (eventBatchIds.includes(user.batchId) || user.role === "super_admin");
+    if (!hasAccess) {
+      return { success: false, error: "Event not found" };
+    }
+
+    if (batchIds.length > 0) {
+      const batches = await prisma.batch.findMany({
+        where: { id: { in: batchIds } },
+        select: { id: true, status: true },
+      });
+
+      if (batches.length !== batchIds.length) {
+        return { success: false, error: "One or more selected batches are invalid" };
+      }
+
+      const hasActiveBatch = batches.some((batch) => batch.status === "active");
+      if (!hasActiveBatch) {
+        return { success: false, error: "At least one active batch is required" };
+      }
+    }
+
+    const targetBatchIds = batchIds.length > 0 ? batchIds : eventBatchIds;
 
     const ianaTimezone = toIanaTimezone(validated.timezone);
     const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
     const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
 
-    await prisma.event.update({
-      where: { id: eventId },
-      data: {
-        title: validated.title,
-        description: validated.description || null,
-        eventType: validated.eventType,
-        startTime: startTimeUtc,
-        endTime: endTimeUtc,
-        timezone: ianaTimezone,
-        location: validated.location || null,
-      },
-    });
+    if (batchIds.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        await tx.eventBatch.deleteMany({ where: { eventId } });
+        await tx.eventBatch.createMany({
+          data: batchIds.map((batchId) => ({ eventId, batchId })),
+        });
+        await tx.event.update({
+          where: { id: eventId },
+          data: {
+            batchId: batchIds[0],
+            title: validated.title,
+            description: validated.description || null,
+            eventType: validated.eventType,
+            startTime: startTimeUtc,
+            endTime: endTimeUtc,
+            timezone: ianaTimezone,
+            location: validated.location || null,
+          },
+        });
+      });
+    } else {
+      await prisma.event.update({
+        where: { id: eventId },
+        data: {
+          title: validated.title,
+          description: validated.description || null,
+          eventType: validated.eventType,
+          startTime: startTimeUtc,
+          endTime: endTimeUtc,
+          timezone: ianaTimezone,
+          location: validated.location || null,
+        },
+      });
+    }
 
     // Attempt to update Google Calendar event if googleEventId exists
-    if (existingEvent?.googleEventId) {
+    if (event.googleEventId) {
       try {
         const groupIds = formData.getAll("groupIds") as string[];
 
@@ -310,15 +414,14 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
           // Always include the creator + deduplicate
           attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
         } else {
-          // Entire batch (current behavior)
           const batchUsers = await prisma.userBatch.findMany({
-            where: { batchId: user.batchId, status: "active" },
+            where: { batchId: { in: targetBatchIds }, status: "active" },
             include: { user: { select: { email: true } } },
           });
-          attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+          attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
         }
 
-        await updateCalendarEvent(existingEvent.googleEventId, {
+        await updateCalendarEvent(event.googleEventId, {
           summary: validated.title,
           description: validated.description || undefined,
           startTime: startTimeUtc,
@@ -333,10 +436,15 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
       }
     }
 
+    const revalidateBatchIds = [...new Set([...eventBatchIds, ...targetBatchIds])];
+    for (const bid of revalidateBatchIds) {
+      revalidateTag(`events-${bid}`);
+      revalidateTag(`schedule-${bid}`);
+      revalidateSchedule(bid);
+    }
     revalidatePath("/events");
-    revalidateTag(`events-${user.batchId}`);
+    revalidatePath("/schedule");
     revalidateTag(`event-${eventId}`);
-    revalidateSchedule(user.batchId);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {
