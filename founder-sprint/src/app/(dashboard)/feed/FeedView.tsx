@@ -146,10 +146,33 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     });
   };
 
-  const handleShare = (postId: string) => {
+  const handleShare = async (postId: string) => {
     const url = `${window.location.origin}/feed/${postId}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Link copied to clipboard");
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!copied) {
+          throw new Error("Clipboard copy command failed");
+        }
+      }
+
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Failed to copy link");
+    }
   };
 
   const handleRestore = async (postId: string) => {
