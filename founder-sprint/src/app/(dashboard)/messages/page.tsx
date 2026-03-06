@@ -1,14 +1,18 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { redirect } from "next/navigation";
-import { getUserConversations } from "@/actions/messaging";
+import { getUserConversations, getAllUsersForMessaging } from "@/actions/messaging";
 import MessagesClient from "./MessagesClient";
 
 export default async function MessagesPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   
-  const result = await getUserConversations();
+  const [result, usersResult] = await Promise.all([
+    getUserConversations(),
+    getAllUsersForMessaging(),
+  ]);
   const conversations = result.success ? result.data : [];
+  const allUsers = usersResult.success ? usersResult.data : [];
   
   return (
     <MessagesClient
@@ -16,6 +20,7 @@ export default async function MessagesPage() {
       currentUserId={user.id}
       currentUserName={user.name}
       currentUserImage={user.profileImage}
+      allUsers={allUsers}
     />
   );
 }

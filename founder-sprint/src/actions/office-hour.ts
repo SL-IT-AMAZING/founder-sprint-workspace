@@ -61,8 +61,6 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
     const batchCheck = await requireActiveBatch(user.batchId, user.role);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
-    const groupId = (formData.get("groupId") as string) || null;
-
     const data = {
       startTime: formData.get("startTime") as string,
       endTime: formData.get("endTime") as string,
@@ -87,7 +85,7 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
         endTime: endTimeUtc,
         timezone: validated.timezone,
         status: "available",
-        groupId,
+        // groupId removed — office hours use companyId now
       },
     });
 
@@ -445,17 +443,7 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
                 },
               },
             },
-            group: {
-              include: {
-                members: {
-                  include: {
-                    user: {
-                      select: { id: true, name: true, email: true, profileImage: true },
-                    },
-                  },
-                },
-              },
-            },
+            // group relation removed — office hours use company now
             requests: {
               include: {
                 requester: {
@@ -478,7 +466,7 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
 
     let filteredSlots = slots;
 
-    // Filter for founders — only show their group's slots + ungrouped slots
+    // Filter for founders — only show their company's slots + unassigned slots
     if (userId && userRole && (userRole === "founder" || userRole === "co_founder")) {
       const userCompanies = await prisma.companyMember.findMany({
         where: { userId, isCurrent: true },
@@ -583,7 +571,7 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
         include: {
           host: { select: { email: true, name: true } },
           company: { select: { name: true } },
-          group: { select: { name: true } },
+          // group relation removed — office hours use company now
         },
       });
       if (slotWithHost?.host) {
@@ -591,7 +579,7 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
           to: slotWithHost.host.email,
           hostName: slotWithHost.host.name || slotWithHost.host.email,
           requesterName: user.name || user.email,
-          companyName: slotWithHost.company?.name || slotWithHost.group?.name,
+          companyName: slotWithHost.company?.name,
           startTime: slotWithHost.startTime,
           endTime: slotWithHost.endTime,
           message: validated.message,
@@ -683,7 +671,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
             }),
           ]);
 
-          // Get attendee emails — if slot has a group, invite all members
+          // Get attendee emails — if slot has a company, invite all members
           let attendeeEmails: string[] = [];
           let calendarSummary = `Office Hour: ${host?.name || "Host"} × ${requester?.name || "Requester"}`;
 

@@ -100,7 +100,7 @@ export function BatchList({ batches }: BatchListProps) {
 
   return (
     <>
-      <div className="flex items-center justify-end gap-3">
+      <div className="mt-2 mb-6 flex items-center justify-end gap-3">
         <Button onClick={() => setShowCreateModal(true)}>
           Create Batch
         </Button>
