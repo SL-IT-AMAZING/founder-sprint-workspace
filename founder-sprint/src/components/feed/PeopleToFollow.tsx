@@ -21,115 +21,125 @@ interface PeopleToFollowProps {
   currentUserId: string;
 }
 
+const VISIBLE_COUNT = 5;
+
+function UserAvatar({ user }: { user: SuggestedUser }) {
+  const [imgError, setImgError] = useState(false);
+  const initial = user.name?.[0]?.toUpperCase() || "?";
+
+  if (user.profileImage && !imgError) {
+    return (
+      <img
+        src={user.profileImage}
+        alt={user.name || "User"}
+        onError={() => setImgError(true)}
+        style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "50%",
+          objectFit: "cover",
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: "40px",
+        height: "40px",
+        borderRadius: "50%",
+        backgroundColor: "#1A1A1A",
+        color: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "14px",
+        fontWeight: 600,
+        flexShrink: 0,
+      }}
+    >
+      {initial}
+    </div>
+  );
+}
+
 export function PeopleToFollow({ suggestions, currentUserId }: PeopleToFollowProps) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   const visibleSuggestions = suggestions.filter(
-    (s) => s.id !== currentUserId && !dismissedIds.has(s.id)
+    (suggestion) => suggestion.id !== currentUserId && !dismissedIds.has(suggestion.id)
   );
+  const sidebarSuggestions = visibleSuggestions.slice(0, VISIBLE_COUNT);
 
   const handleDismiss = (userId: string) => {
     setDismissedIds((prev) => new Set([...prev, userId]));
   };
 
-  if (visibleSuggestions.length === 0) {
+  if (sidebarSuggestions.length === 0) {
     return null;
   }
 
   return (
     <div
       style={{
-        backgroundColor: "#FFFFFF",
-        borderRadius: "8px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-        border: "1px solid #e0e0e0",
-        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: "4px",
+        width: "100%",
+        backgroundColor: "#FCFBF8",
+        border: "1px solid #E8E1D4",
+        borderRadius: "16px",
+        padding: "20px",
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          padding: "14px 16px 10px",
-          borderBottom: "1px solid #f0f0f0",
-        }}
-      >
+      <div style={{ paddingBottom: "4px" }}>
         <h3
           style={{
-            fontSize: "15px",
-            fontWeight: 600,
+            fontSize: "18px",
+            fontWeight: 700,
             color: "#2F2C26",
             margin: 0,
-            fontFamily: '"BDO Grotesk", sans-serif',
+            lineHeight: 1.2,
           }}
         >
           People To Follow
         </h3>
       </div>
 
-      {/* Suggestion list */}
       <div>
-        {visibleSuggestions.map((user) => (
-          <div
-            key={user.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              padding: "10px 16px",
-              borderBottom: "1px solid #f5f5f5",
-              position: "relative",
-            }}
-          >
-            {/* Avatar */}
-            <Link
-              href={`/profile/${user.id}`}
-              style={{ textDecoration: "none", flexShrink: 0 }}
-            >
-              {user.profileImage ? (
-                <img
-                  src={user.profileImage}
-                  alt={user.name || "User"}
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    backgroundColor: "#1A1A1A",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {user.name?.[0]?.toUpperCase() || "?"}
-                </div>
-              )}
-            </Link>
+        {sidebarSuggestions.map((user) => {
+          const subtitle = user.jobTitle && user.company
+            ? `${user.jobTitle} at ${user.company}`
+            : user.jobTitle || user.company || user.headline;
 
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  marginBottom: "1px",
-                }}
+          return (
+            <div
+              key={user.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "10px 0",
+                borderBottom: "1px solid #EEE7DB",
+              }}
+            >
+              {/* Avatar */}
+              <Link
+                href={`/profile/${user.id}`}
+                style={{ textDecoration: "none", flexShrink: 0 }}
               >
+                <UserAvatar user={user} />
+              </Link>
+
+              {/* Name + badge + subtitle */}
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <Link
                   href={`/profile/${user.id}`}
                   style={{
-                    fontSize: "13px",
+                    display: "block",
+                    fontSize: "14px",
                     fontWeight: 600,
                     color: "#2F2C26",
                     textDecoration: "none",
@@ -143,91 +153,85 @@ export function PeopleToFollow({ suggestions, currentUserId }: PeopleToFollowPro
                 {user.batchName && (
                   <span
                     style={{
-                      fontSize: "9px",
-                      fontWeight: 700,
-                      color: "#1A1A1A",
-                      backgroundColor: "rgba(26, 26, 26, 0.1)",
-                      padding: "1px 4px",
-                      borderRadius: "3px",
-                      flexShrink: 0,
-                      fontFamily: '"Roboto Mono", monospace',
+                      display: "inline-block",
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: "#6A6357",
+                      backgroundColor: "#F4EFE4",
+                      padding: "1px 6px",
+                      borderRadius: "999px",
+                      border: "1px solid #E7DFCF",
+                      marginTop: "3px",
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      lineHeight: 1.4,
                     }}
                   >
                     {user.batchName}
                   </span>
                 )}
+                {subtitle && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      lineHeight: 1.4,
+                      color: "#7A7468",
+                      margin: 0,
+                      marginTop: "2px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {subtitle}
+                  </p>
+                )}
               </div>
-              {(user.company || user.jobTitle) && (
-                <p
+
+              {/* Follow + Dismiss */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                <FollowButton
+                  targetUserId={user.id}
+                  isFollowing={false}
+                  size="sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDismiss(user.id)}
                   style={{
+                    background: "none",
+                    border: "none",
+                    color: "#B5AFA5",
+                    cursor: "pointer",
                     fontSize: "12px",
-                    color: "#666666",
-                    margin: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    lineHeight: 1,
+                    padding: "4px",
+                    borderRadius: "4px",
+                    flexShrink: 0,
                   }}
+                  title="Dismiss suggestion"
                 >
-                  {user.jobTitle && user.company
-                    ? `${user.jobTitle} at ${user.company}`
-                    : user.company || user.jobTitle}
-                </p>
-              )}
+                  ✕
+                </button>
+              </div>
             </div>
-
-            {/* Follow button */}
-            <div style={{ flexShrink: 0 }}>
-              <FollowButton
-                targetUserId={user.id}
-                isFollowing={false}
-                size="sm"
-              />
-            </div>
-
-            {/* Dismiss button */}
-            <button
-              onClick={() => handleDismiss(user.id)}
-              style={{
-                position: "absolute",
-                top: "6px",
-                right: "6px",
-                background: "none",
-                border: "none",
-                color: "#999999",
-                cursor: "pointer",
-                fontSize: "14px",
-                lineHeight: 1,
-                padding: "2px",
-                borderRadius: "4px",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#666666";
-                e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "#999999";
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
-              title="Dismiss suggestion"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Footer link */}
-      <div style={{ padding: "10px 16px" }}>
+      <div style={{ paddingTop: "6px" }}>
         <Link
           href="/founders"
           style={{
             fontSize: "13px",
-            fontWeight: 500,
-            color: "#1A1A1A",
+            fontWeight: 600,
+            color: "#2F2C26",
             textDecoration: "none",
           }}
         >
-          View all members →
+          See more →
         </Link>
       </div>
     </div>
