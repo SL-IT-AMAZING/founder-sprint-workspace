@@ -225,16 +225,7 @@ export async function addMembersToGroup(
     })),
   });
 
-  // Auto-set company from group name for new members who don't have one
-  if (group.name) {
-    await prisma.user.updateMany({
-      where: {
-        id: { in: newUserIds },
-        company: null,
-      },
-      data: { company: group.name },
-    });
-  }
+  // Company sync now handled by CompanyMember — removed group.name auto-set
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
@@ -295,12 +286,7 @@ export async function selectGroup(groupId: string): Promise<ActionResult> {
     data: { groupId, userId: user.id },
   });
 
-  if (!user.company && group.name) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { company: group.name },
-    });
-  }
+  // Company sync now handled by CompanyMember — removed group.name auto-set
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);

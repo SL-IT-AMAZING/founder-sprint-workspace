@@ -155,7 +155,7 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
     data: {
       name: parsed.data.name,
       jobTitle: parsed.data.jobTitle || null,
-      company: parsed.data.company || null,
+      // company synced from CompanyMember — not user-editable
       bio: parsed.data.bio || null,
       profileImage: parsed.data.profileImage || null,
     },
@@ -477,7 +477,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
     data: {
       name: parsed.data.name,
       jobTitle: parsed.data.jobTitle || null,
-      company: parsed.data.company || null,
+      // company synced from CompanyMember — not user-editable
       bio: parsed.data.bio || null,
       profileImage: parsed.data.profileImage || null,
       headline: parsed.data.headline || null,

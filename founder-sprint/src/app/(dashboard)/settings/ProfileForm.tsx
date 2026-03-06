@@ -70,7 +70,6 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
       setFields((prev) => ({
         ...prev,
         jobTitle: initialData.jobTitle,
-        company: initialData.company,
       }));
     } else if (section === "bio") {
       setFields((prev) => ({
@@ -102,7 +101,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
     const formData = new FormData();
     formData.append("name", fields.name);
     formData.append("jobTitle", fields.jobTitle);
-    formData.append("company", fields.company);
+    // company is synced from CompanyMember — not submitted
     formData.append("bio", fields.bio);
     formData.append("profileImage", fields.profileImage);
     formData.append("headline", fields.headline);
@@ -301,13 +300,15 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
               maxLength={100}
               placeholder="e.g., CEO, Product Manager"
             />
-            <Input
-              label="Company"
-              value={fields.company}
-              onChange={(e) => updateField("company", e.target.value)}
-              maxLength={100}
-              placeholder="Enter your company name"
-            />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 32, padding: "8px 12px", backgroundColor: "#f9f9f9", borderRadius: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Company:</span>
+              <span style={{ fontSize: 14, color: "#2F2C26" }}>
+                {fields.company || <span style={{ color: "#999999" }}>No company assigned</span>}
+              </span>
+              {fields.company && (
+                <span style={{ fontSize: 12, color: "#999999", marginLeft: 4 }}>(Managed by admin)</span>
+              )}
+            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -317,7 +318,12 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 32 }}>
               <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Company:</span>
-              <span style={{ fontSize: 14, color: "#2F2C26" }}>{fields.company || <span style={{ color: "#999999" }}>Not set</span>}</span>
+              <span style={{ fontSize: 14, color: "#2F2C26" }}>
+                {fields.company || <span style={{ color: "#999999" }}>No company assigned</span>}
+              </span>
+              {fields.company && (
+                <span style={{ fontSize: 12, color: "#999999", marginLeft: 4 }}>(Managed by admin)</span>
+              )}
             </div>
           </div>
         )}

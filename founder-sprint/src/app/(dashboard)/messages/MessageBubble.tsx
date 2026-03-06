@@ -2,6 +2,7 @@
 
 import { format } from "date-fns";
 import type { MessageItem } from "@/actions/messaging";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface MessageBubbleProps {
   message: MessageItem;
@@ -49,24 +50,7 @@ export default function MessageBubble({
     >
       {/* Avatar (only for other's messages and when showAvatar is true) */}
       {showAvatar ? (
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            backgroundColor: "#f1eadd",
-            overflow: "hidden",
-            flexShrink: 0,
-          }}
-        >
-          {message.sender?.profileImage && (
-            <img
-              src={message.sender.profileImage}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          )}
-        </div>
+        <Avatar src={message.sender?.profileImage} name={message.sender?.name} size={32} />
       ) : (
         !isOwn && <div style={{ width: "32px", flexShrink: 0 }} />
       )}

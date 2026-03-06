@@ -100,7 +100,7 @@ export default async function SettingsPage({
                 name: user.name || "",
                 email: user.email,
                 jobTitle: user.jobTitle || "",
-                company: user.company || "",
+                company: profile?.companyMemberships?.find(m => m.isCurrent)?.company.name || user.company || "",
                 bio: user.bio || "",
                 profileImage: user.profileImage || "",
                 headline: profile?.headline || "",
