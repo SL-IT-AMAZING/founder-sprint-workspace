@@ -60,6 +60,9 @@ export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListPr
     startTransition(async () => {
       const result = await createSession(formData);
       if (result.success) {
+        if ('warning' in result && result.warning) {
+          setError(result.warning);
+        }
         setIsModalOpen(false);
         (e.target as HTMLFormElement).reset();
       } else {

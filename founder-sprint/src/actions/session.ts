@@ -162,6 +162,8 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     return createdSession;
   });
 
+  let warning: string | undefined;
+
   if (isCalendarConfigured()) {
     try {
       const groupIds = formData.getAll("groupIds") as string[];
@@ -206,9 +208,12 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
           where: { id: session.id },
           data: { googleEventId: calResult.eventId },
         });
+      } else {
+        warning = "Session created, but Google Calendar sync failed. Please create the calendar event manually.";
       }
     } catch (error) {
       console.error("Failed to sync session with Google Calendar:", error);
+      warning = "Session created, but Google Calendar sync failed. Please create the calendar event manually.";
     }
   }
 
@@ -221,7 +226,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
   for (const bid of batchIds.slice(1)) {
     revalidateTag(`schedule-${bid}`);
   }
-  return { success: true, data: { id: session.id } };
+  return { success: true as const, data: { id: session.id }, warning };
 }
 
 export async function getSessions(batchId: string) {
