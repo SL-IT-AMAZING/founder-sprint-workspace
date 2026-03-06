@@ -14,6 +14,7 @@ interface MessagesClientProps {
   currentUserId: string;
   currentUserName: string | null;
   currentUserImage: string | null;
+  allUsers: { id: string; name: string | null; profileImage: string | null }[];
 }
 
 export default function MessagesClient({
@@ -21,6 +22,7 @@ export default function MessagesClient({
   currentUserId,
   currentUserName,
   currentUserImage,
+  allUsers,
 }: MessagesClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -211,7 +213,7 @@ export default function MessagesClient({
         isOpen={createGroupOpen}
         onClose={() => setCreateGroupOpen(false)}
         onGroupCreated={handleGroupCreated}
-        users={[]}
+        users={allUsers}
       />
     </div>
   );

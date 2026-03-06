@@ -875,3 +875,23 @@ export async function searchConversations(
     return { success: false, error: "Failed to search conversations" };
   }
 }
+
+export async function getAllUsersForMessaging(): Promise<
+  ActionResult<{ id: string; name: string | null; profileImage: string | null }[]>
+> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  // Messaging is cross-batch — return all users except self
+  try {
+    const users = await prisma.user.findMany({
+      where: { id: { not: user.id } },
+      select: { id: true, name: true, profileImage: true },
+      orderBy: { name: "asc" },
+    });
+
+    return { success: true, data: users };
+  } catch {
+    return { success: false, error: "Failed to fetch users" };
+  }
+}
