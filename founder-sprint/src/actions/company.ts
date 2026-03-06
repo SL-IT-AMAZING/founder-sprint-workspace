@@ -324,7 +324,7 @@ export async function addCompanyMember(
   const [company, user, existingMembership] = await Promise.all([
     prisma.company.findUnique({
       where: { id: parsed.data.companyId },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, name: true },
     }),
     prisma.user.findUnique({ where: { id: parsed.data.userId }, select: { id: true } }),
     prisma.companyMember.findFirst({
@@ -354,6 +354,12 @@ export async function addCompanyMember(
     select: { id: true },
   });
 
+  // Sync User.company from CompanyMember
+  await prisma.user.update({
+    where: { id: parsed.data.userId },
+    data: { company: company!.name },
+  });
+
   revalidatePath("/companies");
   revalidatePath(`/companies/${company.slug}`);
   revalidatePath("/admin/companies");
@@ -371,14 +377,25 @@ export async function removeCompanyMember(id: string): Promise<ActionResult> {
       company: {
         select: {
           slug: true,
+          name: true,
         },
       },
     },
   });
-
   if (!membership) return { success: false, error: "Company member not found" };
 
   await prisma.companyMember.delete({ where: { id } });
+
+  // Sync User.company — set to next active membership's company or null
+  const nextMembership = await prisma.companyMember.findFirst({
+    where: { userId: membership.userId, isCurrent: true },
+    include: { company: { select: { name: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  await prisma.user.update({
+    where: { id: membership.userId },
+    data: { company: nextMembership?.company.name || null },
+  });
 
   revalidatePath("/companies");
   revalidatePath(`/companies/${membership.company.slug}`);

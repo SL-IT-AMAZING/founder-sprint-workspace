@@ -5,6 +5,7 @@ import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import type { ConversationDetail, MessageItem } from "@/actions/messaging";
 import MessageBubble from "./MessageBubble";
 import MessageComposer from "./MessageComposer";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface ConversationThreadProps {
   conversationId: string | null;
@@ -155,24 +156,7 @@ export default function ConversationThread({
             {conversationEmoji || "👥"}
           </div>
         ) : (
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              backgroundColor: "#f1eadd",
-              overflow: "hidden",
-              flexShrink: 0,
-            }}
-          >
-            {conversationAvatar && (
-              <img
-                src={conversationAvatar}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            )}
-          </div>
+          <Avatar src={conversationAvatar} name={conversationName} size={36} />
         )}
 
         {/* Name and participant count */}

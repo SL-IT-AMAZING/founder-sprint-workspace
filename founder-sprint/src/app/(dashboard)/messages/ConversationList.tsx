@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { format, isThisYear } from "date-fns";
 import type { ConversationListItem } from "@/actions/messaging";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface ConversationListProps {
   conversations: ConversationListItem[];
@@ -277,23 +278,7 @@ export default function ConversationList({
                       {conversation.groupEmoji || "👥"}
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        backgroundColor: "#f1eadd",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {avatar && (
-                        <img
-                          src={avatar}
-                          alt=""
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                      )}
-                    </div>
+                    <Avatar src={avatar} name={displayName} size={40} />
                   )}
                 </div>
 

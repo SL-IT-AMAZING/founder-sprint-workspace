@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { addCompanyMember, removeCompanyMember } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -29,6 +29,7 @@ interface MemberManagerProps {
 
 export function MemberManager({ companyId, members: initialMembers }: MemberManagerProps) {
   const [members, setMembers] = useState(initialMembers);
+  useEffect(() => { setMembers(initialMembers); }, [initialMembers]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
