@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot, isAdmin } from "@/lib/permissions";
-import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -58,8 +57,6 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
       return { success: false, error: "Unauthorized: staff access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId, user.role);
-    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const data = {
       startTime: formData.get("startTime") as string,
@@ -109,8 +106,6 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   if (!user) return { success: false, error: "Authentication required" };
   if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
 
-  const batchCheck = await requireActiveBatch(user.batchId, user.role);
-  if (batchCheck) return batchCheck;
 
   // 2. Parse formData
   const companyId = formData.get("companyId") as string;
@@ -218,8 +213,6 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
   if (!user) return { success: false, error: "Authentication required" };
   if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
 
-  const batchCheck = await requireActiveBatch(user.batchId, user.role);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   // 2. Parse formData
   const founderId = formData.get("founderId") as string;
@@ -313,8 +306,6 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       return { success: false, error: "Unauthorized: founder access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId, user.role);
-    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const companyId = formData.get("companyId") as string;
     if (!companyId) {
@@ -508,8 +499,6 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
       return { success: false, error: "Unauthorized: founder access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId, user.role);
-    if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     // Validate company membership
     const membership = await prisma.companyMember.findFirst({
