@@ -219,6 +219,9 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     }
 
     if (result.success) {
+      if ('warning' in result && result.warning) {
+        setError(result.warning);
+      }
       setScheduleModalOpen(false);
       setScheduleMode("company");
       setSelectedFounderId("");

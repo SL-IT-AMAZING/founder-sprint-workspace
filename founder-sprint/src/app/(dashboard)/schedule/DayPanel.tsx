@@ -183,6 +183,9 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
         }
 
         if (result.success) {
+          if ('warning' in result && result.warning) {
+            setError(result.warning);
+          }
           handleCloseModal();
           router.refresh();
           return;

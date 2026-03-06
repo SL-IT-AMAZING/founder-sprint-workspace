@@ -200,7 +200,11 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
 
     revalidateTag(`office-hours-${user.batchId}`);
     revalidateSchedule(user.batchId);
-    return { success: true, data: { id: slot.id } };
+    return {
+      success: true as const,
+      data: { id: slot.id },
+      ...(calResult ? {} : { warning: "Office hour created but Google Calendar invite failed. Check calendar configuration." }),
+    };
   } catch (error) {
     console.error("[scheduleGroupOfficeHour] Error:", error);
     return { success: false, error: "Failed to schedule group office hour" };
@@ -292,7 +296,11 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
 
     revalidateTag(`office-hours-${user.batchId}`);
     revalidateSchedule(user.batchId);
-    return { success: true, data: { id: slot.id } };
+    return {
+      success: true as const,
+      data: { id: slot.id },
+      ...(calResult ? {} : { warning: "Office hour created but Google Calendar invite failed. Check calendar configuration." }),
+    };
   } catch (error) {
     console.error("[scheduleIndividualOfficeHour] Error:", error);
     return { success: false, error: "Failed to schedule individual office hour" };
