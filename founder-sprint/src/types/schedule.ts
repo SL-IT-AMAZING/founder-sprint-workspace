@@ -40,8 +40,8 @@ export interface ScheduleItem {
   /** Office Hours only: mentor/host name */
   hostName?: string;
 
-  /** Office Hours only: group name */
-  groupName?: string;
+  /** Office Hours only: company name */
+  companyName?: string;
 
   /** Google Meet link (OH confirmed slots, or Events with meet) */
   googleMeetLink?: string;

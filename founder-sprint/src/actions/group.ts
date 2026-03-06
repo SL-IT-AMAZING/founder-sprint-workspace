@@ -18,7 +18,7 @@ export async function createGroup(formData: FormData): Promise<ActionResult<{ id
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!isAdmin(user.role)) {

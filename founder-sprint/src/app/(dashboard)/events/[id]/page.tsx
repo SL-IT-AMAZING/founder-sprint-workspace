@@ -13,7 +13,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   if (!user) redirect("/auth/login");
 
   const event = await getEvent(id, user.batchId);
-  if (!event || event.batchId !== user.batchId) redirect("/events");
+  const assignedBatchIds = event?.batches?.map((b: { batchId: string }) => b.batchId) ?? [];
+  if (!event || !assignedBatchIds.includes(user.batchId)) redirect("/events");
 
   const isUserAdmin = isAdmin(user.role);
   const isPastEvent = new Date(event.endTime) < new Date();

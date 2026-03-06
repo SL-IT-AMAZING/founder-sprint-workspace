@@ -75,7 +75,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const [ohMode, setOhMode] = useState<"company" | "individual">("company");
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [selectedFounderId, setSelectedFounderId] = useState<string>("");
 
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
@@ -112,7 +112,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
     setCreateType(null);
     setError(null);
     setOhMode("company");
-    setSelectedGroupId("");
+    setSelectedCompanyId("");
     setSelectedFounderId("");
   };
 
@@ -137,7 +137,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
         setError("Please select a founder");
         return;
       }
-      if (ohMode === "company" && !selectedGroupId) {
+      if (ohMode === "company" && !selectedCompanyId) {
         setError("Please select a company");
         return;
       }
@@ -175,7 +175,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
             formData.set("founderId", selectedFounderId);
             result = await scheduleIndividualOfficeHour(formData);
           } else {
-            formData.set("groupId", selectedGroupId);
+            formData.set("companyId", selectedCompanyId);
             result = await scheduleGroupOfficeHour(formData);
           }
         } else {
@@ -507,7 +507,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setOhMode("individual"); setSelectedGroupId(""); }}
+                  onClick={() => { setOhMode("individual"); setSelectedCompanyId(""); }}
                   style={{
                     flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
                     fontFamily: '"BDO Grotesk", sans-serif', border: "none",
@@ -530,8 +530,8 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                     label: c.name,
                     secondary: `${c.memberCount} members`,
                   }))}
-                  value={selectedGroupId}
-                  onChange={setSelectedGroupId}
+                  value={selectedCompanyId}
+                  onChange={setSelectedCompanyId}
                   placeholder="Search for a company..."
                   required
                   emptyMessage="No companies found"
@@ -542,7 +542,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                   options={founders.map((f) => ({
                     id: f.id,
                     label: f.name || f.email,
-                    secondary: f.groupName ? `Company: ${f.groupName}` : f.email,
+                    secondary: f.companyName ? `Company: ${f.companyName}` : f.email,
                     imageUrl: f.profileImage,
                   }))}
                   value={selectedFounderId}

@@ -56,16 +56,64 @@ function toFullDatetime(dateStr: string, timeOrDatetime: string): string {
   return timeOrDatetime.includes("T") ? timeOrDatetime : `${dateStr}T${timeOrDatetime}`;
 }
 
+function toUniqueBatchIds(batchIds: string[], fallbackBatchId: string): string[] {
+  const selected = batchIds.length > 0 ? batchIds : [fallbackBatchId];
+  return [...new Set(selected.filter(Boolean))];
+}
+
+function getSessionBatchIds(
+  session: { batchId: string; batches: Array<{ batchId: string }> }
+): string[] {
+  const relationBatchIds = session.batches.map((b) => b.batchId);
+  if (relationBatchIds.length > 0) {
+    return [...new Set(relationBatchIds)];
+  }
+  return [session.batchId];
+}
+
+export async function getAllBatchesForSelect() {
+  return prisma.batch.findMany({
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      _count: { select: { userBatches: true } },
+    },
+    orderBy: [{ status: "asc" }, { name: "asc" }],
+  });
+}
+
 export async function createSession(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
-
   if (!isAdmin(user.role)) {
     return { success: false, error: "Unauthorized: admin only" };
   }
+
+  const requestedBatchIds = formData.getAll("batchIds") as string[];
+  const batchIds = toUniqueBatchIds(requestedBatchIds, user.batchId);
+  const selectedBatches = await prisma.batch.findMany({
+    where: { id: { in: batchIds } },
+    select: { id: true, status: true },
+  });
+
+  if (selectedBatches.length !== batchIds.length) {
+    return { success: false, error: "Invalid batch selection" };
+  }
+
+  const activeSelectedBatchIds = selectedBatches
+    .filter((batch) => batch.status === "active")
+    .map((batch) => batch.id);
+
+  if (activeSelectedBatchIds.length === 0) {
+    return { success: false, error: "At least one active batch is required" };
+  }
+
+  const firstActiveBatchId =
+    batchIds.find((batchId) => activeSelectedBatchIds.includes(batchId)) || activeSelectedBatchIds[0];
+  const batchCheck = await requireActiveBatch(firstActiveBatchId, user.role);
+  if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   const parsed = CreateSessionSchema.safeParse({
     title: formData.get("title"),
@@ -92,18 +140,26 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     ? fromZonedTime(toFullDatetime(sessionDateStr, parsed.data.endTime!), ianaTimezone)
     : null;
 
-  const session = await prisma.session.create({
-    data: {
-      batchId: user.batchId,
-      title: parsed.data.title,
-      description: parsed.data.description || null,
-      sessionDate: parsed.data.sessionDate,
-      slidesUrl: parsed.data.slidesUrl || null,
-      recordingUrl: parsed.data.recordingUrl || null,
-      startTime: startTimeUtc,
-      endTime: endTimeUtc,
-      timezone: ianaTimezone,
-    },
+  const session = await prisma.$transaction(async (tx) => {
+    const createdSession = await tx.session.create({
+      data: {
+        batchId: batchIds[0],
+        title: parsed.data.title,
+        description: parsed.data.description || null,
+        sessionDate: parsed.data.sessionDate,
+        slidesUrl: parsed.data.slidesUrl || null,
+        recordingUrl: parsed.data.recordingUrl || null,
+        startTime: startTimeUtc,
+        endTime: endTimeUtc,
+        timezone: ianaTimezone,
+      },
+    });
+
+    await tx.sessionBatch.createMany({
+      data: batchIds.map((batchId) => ({ sessionId: createdSession.id, batchId })),
+    });
+
+    return createdSession;
   });
 
   if (isCalendarConfigured()) {
@@ -120,12 +176,11 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
         // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
-        // Entire batch (current behavior)
         const batchUsers = await prisma.userBatch.findMany({
-          where: { batchId: user.batchId, status: "active" },
+          where: { batchId: { in: batchIds }, status: "active" },
           include: { user: { select: { email: true } } },
         });
-        attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
       }
 
       const calResult = hasTimedSession
@@ -158,21 +213,31 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
   }
 
   revalidatePath("/sessions");
-  revalidateTag(`sessions-${user.batchId}`);
+  for (const bid of batchIds) {
+    revalidateTag(`sessions-${bid}`);
+  }
   revalidateTag(`session-${session.id}`);
-  revalidateSchedule(user.batchId);
+  revalidateSchedule(batchIds[0]);
+  for (const bid of batchIds.slice(1)) {
+    revalidateTag(`schedule-${bid}`);
+  }
   return { success: true, data: { id: session.id } };
 }
 
 export async function getSessions(batchId: string) {
   const user = await getCurrentUser();
   if (!user) return [];
-  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+  if (!isAdmin(user.role) && !user.userBatchIds.includes(batchId)) return [];
 
   return unstable_cache(
     () =>
       prisma.session.findMany({
-        where: { batchId },
+        where: { batches: { some: { batchId } } },
+        include: {
+          batches: {
+            include: { batch: { select: { id: true, name: true } } },
+          },
+        },
         orderBy: { sessionDate: "desc" },
       }),
     [`sessions-${batchId}`],
@@ -183,16 +248,22 @@ export async function getSessions(batchId: string) {
 export async function getSession(id: string, batchId?: string) {
   const session = await unstable_cache(
     () =>
-      prisma.session.findUnique({
-        where: { id },
+      prisma.session.findFirst({
+        where: batchId
+          ? {
+              id,
+              batches: { some: { batchId } },
+            }
+          : { id },
+        include: {
+          batches: {
+            include: { batch: { select: { id: true, name: true } } },
+          },
+        },
       }),
-    [`session-${id}`],
+    [`session-${id}-${batchId || "all"}`],
     { revalidate: 60, tags: [`session-${id}`] }
   )();
-
-  if (batchId && session?.batchId !== batchId) {
-    return null;
-  }
 
   return session;
 }
@@ -206,6 +277,25 @@ export async function updateSession(
 
   if (!isAdmin(user.role)) {
     return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  const requestedBatchIds = formData.getAll("batchIds") as string[];
+  const batchIds = toUniqueBatchIds(requestedBatchIds, user.batchId);
+
+  if (requestedBatchIds.length > 0) {
+    const selectedBatches = await prisma.batch.findMany({
+      where: { id: { in: batchIds } },
+      select: { id: true, status: true },
+    });
+
+    if (selectedBatches.length !== batchIds.length) {
+      return { success: false, error: "Invalid batch selection" };
+    }
+
+    const activeSelectedBatchIds = selectedBatches.filter((batch) => batch.status === "active");
+    if (activeSelectedBatchIds.length === 0) {
+      return { success: false, error: "At least one active batch is required" };
+    }
   }
 
   const parsed = UpdateSessionSchema.safeParse({
@@ -225,20 +315,19 @@ export async function updateSession(
 
   const existingSession = await prisma.session.findUnique({
     where: { id },
-    select: {
-      batchId: true,
-      googleEventId: true,
-      title: true,
-      description: true,
-      startTime: true,
-      endTime: true,
-      timezone: true,
+    include: {
+      batches: true,
     },
   });
 
-  if (!existingSession || existingSession.batchId !== user.batchId) {
+  if (!existingSession) {
     return { success: false, error: "Session not found" };
   }
+
+  const sessionBatchIds = getSessionBatchIds(existingSession);
+  const hasBatchAccess = sessionBatchIds.some((batchId) => user.userBatchIds.includes(batchId));
+  const hasAccess = isAdmin(user.role) && (user.role === "super_admin" || hasBatchAccess);
+  if (!hasAccess) return { success: false, error: "Session not found" };
 
   const nextTimezone = parsed.data.timezone
     ? toIanaTimezone(parsed.data.timezone)
@@ -256,19 +345,40 @@ export async function updateSession(
     ? fromZonedTime(toFullDatetime(updateDateStr, parsed.data.endTime!), nextTimezone)
     : undefined;
 
-  await prisma.session.update({
-    where: { id },
-    data: {
-      ...(parsed.data.title && { title: parsed.data.title }),
-      ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-      ...(parsed.data.sessionDate && { sessionDate: parsed.data.sessionDate }),
-      ...(parsed.data.slidesUrl !== undefined && { slidesUrl: parsed.data.slidesUrl || null }),
-      ...(parsed.data.recordingUrl !== undefined && { recordingUrl: parsed.data.recordingUrl || null }),
-      ...(startTimeUtc !== undefined && { startTime: startTimeUtc }),
-      ...(endTimeUtc !== undefined && { endTime: endTimeUtc }),
-      ...(parsed.data.timezone !== undefined && { timezone: nextTimezone }),
-    },
-  });
+  const updateData = {
+    ...(parsed.data.title && { title: parsed.data.title }),
+    ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+    ...(parsed.data.sessionDate && { sessionDate: parsed.data.sessionDate }),
+    ...(parsed.data.slidesUrl !== undefined && { slidesUrl: parsed.data.slidesUrl || null }),
+    ...(parsed.data.recordingUrl !== undefined && { recordingUrl: parsed.data.recordingUrl || null }),
+    ...(startTimeUtc !== undefined && { startTime: startTimeUtc }),
+    ...(endTimeUtc !== undefined && { endTime: endTimeUtc }),
+    ...(parsed.data.timezone !== undefined && { timezone: nextTimezone }),
+  };
+
+  const oldBatchIds = sessionBatchIds;
+  const nextBatchIds = requestedBatchIds.length > 0 ? batchIds : oldBatchIds;
+
+  if (requestedBatchIds.length > 0) {
+    await prisma.$transaction(async (tx) => {
+      await tx.sessionBatch.deleteMany({ where: { sessionId: id } });
+      await tx.sessionBatch.createMany({
+        data: batchIds.map((batchId) => ({ sessionId: id, batchId })),
+      });
+      await tx.session.update({
+        where: { id },
+        data: {
+          ...updateData,
+          batchId: batchIds[0],
+        },
+      });
+    });
+  } else {
+    await prisma.session.update({
+      where: { id },
+      data: updateData,
+    });
+  }
 
   if (existingSession.googleEventId) {
     try {
@@ -284,12 +394,11 @@ export async function updateSession(
         // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
-        // Entire batch (current behavior)
         const batchUsers = await prisma.userBatch.findMany({
-          where: { batchId: user.batchId, status: "active" },
+          where: { batchId: { in: nextBatchIds }, status: "active" },
           include: { user: { select: { email: true } } },
         });
-        attendeeEmails = batchUsers.map((ub: { user: { email: string } }) => ub.user.email);
+        attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
       }
 
       await updateCalendarEvent(existingSession.googleEventId, {
@@ -309,9 +418,15 @@ export async function updateSession(
   }
 
   revalidatePath("/sessions");
-  revalidateTag(`sessions-${user.batchId}`);
+  const batchesToRevalidate = [...new Set([...oldBatchIds, ...nextBatchIds])];
+  for (const batchId of batchesToRevalidate) {
+    revalidateTag(`sessions-${batchId}`);
+    revalidateTag(`schedule-${batchId}`);
+  }
   revalidateTag(`session-${id}`);
-  revalidateSchedule(user.batchId);
+  if (batchesToRevalidate.length > 0) {
+    revalidateSchedule(batchesToRevalidate[0]);
+  }
   return { success: true, data: undefined };
 }
 
@@ -326,12 +441,17 @@ export async function deleteSession(sessionId: string): Promise<ActionResult> {
   try {
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
-      select: { batchId: true, googleEventId: true },
+      include: { batches: true },
     });
 
-    if (!session || session.batchId !== user.batchId) {
+    if (!session) {
       return { success: false, error: "Session not found" };
     }
+
+    const sessionBatchIds = getSessionBatchIds(session);
+    const hasBatchAccess = sessionBatchIds.some((batchId) => user.userBatchIds.includes(batchId));
+    const hasAccess = isAdmin(user.role) && (user.role === "super_admin" || hasBatchAccess);
+    if (!hasAccess) return { success: false, error: "Session not found" };
 
     if (session.googleEventId) {
       try {
@@ -346,9 +466,16 @@ export async function deleteSession(sessionId: string): Promise<ActionResult> {
     });
 
     revalidatePath("/sessions");
-    revalidateTag(`sessions-${user.batchId}`);
+    for (const sb of session.batches) {
+      revalidateTag(`sessions-${sb.batchId}`);
+      revalidateTag(`schedule-${sb.batchId}`);
+    }
+    if (session.batches.length === 0) {
+      revalidateTag(`sessions-${session.batchId}`);
+      revalidateTag(`schedule-${session.batchId}`);
+    }
     revalidateTag(`session-${sessionId}`);
-    revalidateSchedule(user.batchId);
+    revalidateSchedule(session.batches[0]?.batchId || session.batchId);
     return { success: true, data: undefined };
   } catch (error) {
     if (error instanceof Error && error.message.includes("not found")) {

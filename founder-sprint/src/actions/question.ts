@@ -18,7 +18,7 @@ export async function createQuestion(formData: FormData): Promise<ActionResult<{
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (user.role !== "founder" && user.role !== "co_founder") {
@@ -55,7 +55,7 @@ export async function createAnswer(
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!["super_admin", "admin", "mentor"].includes(user.role)) {

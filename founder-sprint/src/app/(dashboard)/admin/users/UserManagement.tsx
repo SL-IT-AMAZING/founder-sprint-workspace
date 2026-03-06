@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmailChipInput } from "@/components/ui/EmailChipInput";
 import { getRoleDisplayName, formatDate, getDisplayName } from "@/lib/utils";
-import { getBatchStatusLabel, isBatchActive } from "@/lib/batch-utils";
+import { getBatchStatusLabel } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
 import type { UserRole, BatchStatus } from "@/types";
 
@@ -208,7 +208,7 @@ export function UserManagement({ batches }: UserManagementProps) {
               onChange={(e) => handleBatchChange(e.target.value)}
             />
           </div>
-          {selectedBatchId && selectedBatch && isBatchActive({ status: selectedBatch.status as BatchStatus, endDate: new Date(selectedBatch.endDate) }) && (
+          {selectedBatchId && selectedBatch && (
             <div className="pt-6">
               <Button onClick={() => setIsInviteModalOpen(true)}>
                 Invite User
@@ -235,7 +235,7 @@ export function UserManagement({ batches }: UserManagementProps) {
           title="No users in this batch"
           description="Invite users to get started"
           action={
-            selectedBatch && isBatchActive({ status: selectedBatch.status as BatchStatus, endDate: new Date(selectedBatch.endDate) }) ? (
+            selectedBatch ? (
               <Button onClick={() => setIsInviteModalOpen(true)}>
                 Invite First User
               </Button>
