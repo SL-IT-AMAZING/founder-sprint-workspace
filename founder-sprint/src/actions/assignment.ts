@@ -255,7 +255,7 @@ export async function submitAssignment(
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   if (!isFounder(user.role)) {

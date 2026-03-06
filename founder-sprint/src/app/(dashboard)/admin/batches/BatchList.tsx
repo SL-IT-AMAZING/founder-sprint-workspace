@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { createBatch, updateBatch, archiveBatch, deleteBatch } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
-import { getEffectiveBatchStatus, getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
+import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
 import type { BatchStatus } from "@/types";
 
@@ -135,8 +135,6 @@ export function BatchList({ batches }: BatchListProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {getEffectiveBatchStatus(batch) === "active" && (
-                    <>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -153,8 +151,6 @@ export function BatchList({ batches }: BatchListProps) {
                       >
                         Archive
                       </Button>
-                    </>
-                  )}
                   <Button
                     variant="ghost"
                     size="sm"

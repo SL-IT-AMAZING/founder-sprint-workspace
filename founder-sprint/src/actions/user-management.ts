@@ -35,6 +35,7 @@ interface InviteUserParams {
   linkedInUrl?: string;
   founderId?: string;
   companyId?: string;
+  callerRole?: string;
 }
 
 async function inviteUserCore(
@@ -46,7 +47,7 @@ async function inviteUserCore(
     return { success: false, error: "founderId is required when inviting a co-founder" };
   }
 
-  const batchCheck = await requireActiveBatch(batchId);
+  const batchCheck = await requireActiveBatch(batchId, params.callerRole as any);
   if (batchCheck) return batchCheck as ActionResult<{ id: string; inviteLink: string }>;
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
@@ -200,7 +201,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  const result = await inviteUserCore(parsed.data);
+  const result = await inviteUserCore({ ...parsed.data, callerRole: user.role });
 
   if (result.success) {
     revalidatePath("/admin/users");
@@ -279,10 +280,11 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
 
   for (const email of uniqueEmails) {
     const result = await inviteUserCore({
-      email,
-      role: parsed.data.role,
-      batchId: parsed.data.batchId,
-    });
+          email,
+          role: parsed.data.role,
+          batchId: parsed.data.batchId,
+          callerRole: user.role,
+        });
 
     if (result.success) {
       results.push({ email, success: true, inviteLink: result.data.inviteLink });

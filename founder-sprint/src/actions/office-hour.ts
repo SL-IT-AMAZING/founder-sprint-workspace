@@ -58,7 +58,7 @@ export async function createOfficeHourSlot(formData: FormData): Promise<ActionRe
       return { success: false, error: "Unauthorized: staff access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId);
+    const batchCheck = await requireActiveBatch(user.batchId, user.role);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const groupId = (formData.get("groupId") as string) || null;
@@ -111,7 +111,7 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   if (!user) return { success: false, error: "Authentication required" };
   if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck;
 
   // 2. Parse formData
@@ -220,7 +220,7 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
   if (!user) return { success: false, error: "Authentication required" };
   if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
 
-  const batchCheck = await requireActiveBatch(user.batchId);
+  const batchCheck = await requireActiveBatch(user.batchId, user.role);
   if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
   // 2. Parse formData
@@ -315,7 +315,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       return { success: false, error: "Unauthorized: founder access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId);
+    const batchCheck = await requireActiveBatch(user.batchId, user.role);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     const companyId = formData.get("companyId") as string;
@@ -520,7 +520,7 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
       return { success: false, error: "Unauthorized: founder access required" };
     }
 
-    const batchCheck = await requireActiveBatch(user.batchId);
+    const batchCheck = await requireActiveBatch(user.batchId, user.role);
     if (batchCheck) return batchCheck as ActionResult<{ id: string }>;
 
     // Validate company membership
