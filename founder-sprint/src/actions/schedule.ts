@@ -47,6 +47,7 @@ export async function getScheduleItems(params: {
           googleMeetLink: true,
           companyId: true,
           groupId: true,
+          requests: { select: { requesterId: true } },
           host: { select: { name: true } },
           company: { select: { name: true } },
           group: { select: { name: true } },
@@ -85,9 +86,11 @@ export async function getScheduleItems(params: {
         select: { companyId: true },
       });
       const companyIds = new Set(userCompanies.map((c) => c.companyId));
-      filteredOH = officeHourSlots.filter(
-        (s) => s.companyId === null || companyIds.has(s.companyId)
-      );
+      filteredOH = officeHourSlots.filter((s) => {
+        const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
+        const matchesDirectRequest = s.requests.some((request) => request.requesterId === viewerId);
+        return matchesCompany || matchesDirectRequest;
+      });
     }
 
     const items: ScheduleItem[] = [];

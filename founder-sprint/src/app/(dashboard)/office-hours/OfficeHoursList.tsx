@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -10,8 +10,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime, getDisplayName } from "@/lib/utils";
-import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
+import { isAdmin, isFounder } from "@/lib/permissions-client";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 import type { FounderOption } from "@/types/invite";
@@ -116,51 +116,22 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
 }
 
 export function OfficeHoursList({ user, slots, companies, founders }: OfficeHoursListProps) {
-   const [createModalOpen, setCreateModalOpen] = useState(false);
+   const searchParams = useSearchParams();
+   const prefillDate = searchParams.get("date");
+   const defaultCompanyId = companies.length === 1 ? companies[0].id : "";
+
    const [requestModalOpen, setRequestModalOpen] = useState(false);
-   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+   const [scheduleModalOpen, setScheduleModalOpen] = useState(Boolean(prefillDate && isAdmin(user.role)));
    const [proposeModalOpen, setProposeModalOpen] = useState(false);
    const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
-   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(defaultCompanyId);
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const toast = useToast();
-   const endTimeRef = useRef<HTMLInputElement>(null);
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
    const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
    const [selectedFounderId, setSelectedFounderId] = useState<string>("");
-
-   const searchParams = useSearchParams();
-   const prefillDate = searchParams.get("date");
-
-   // Auto-select if only one company
-   useEffect(() => {
-     if (companies.length === 1) {
-       setSelectedCompanyId(companies[0].id);
-     }
-   }, [companies]);
-
-   // Auto-open create modal if date is pre-filled
-   useEffect(() => {
-     if (prefillDate && isStaff(user.role)) {
-       setCreateModalOpen(true);
-     }
-   }, [prefillDate, user.role]);
-
-  const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const startVal = e.target.value;
-    if (startVal && endTimeRef.current) {
-      const startDate = new Date(startVal);
-      startDate.setMinutes(startDate.getMinutes() + 30);
-      const year = startDate.getFullYear();
-      const month = String(startDate.getMonth() + 1).padStart(2, "0");
-      const day = String(startDate.getDate()).padStart(2, "0");
-      const hours = String(startDate.getHours()).padStart(2, "0");
-      const minutes = String(startDate.getMinutes()).padStart(2, "0");
-      endTimeRef.current.value = `${year}-${month}-${day}T${hours}:${minutes}`;
-    }
-  };
 
   const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const startVal = e.target.value;
@@ -258,35 +229,9 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     setLoading(false);
   };
 
-  const isStaffUser = isStaff(user.role);
+  const isAdminUser = isAdmin(user.role);
   const isFounderUser = isFounder(user.role);
-  const canCreateSlot = isStaffUser;
   const canRequest = isFounderUser;
-
-  const handleCreateSlot = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const formData = new FormData(e.currentTarget);
-    const startTime = formData.get("startTime") as string;
-    const endTime = formData.get("endTime") as string;
-    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
-      setError("End time must be after start time");
-      setLoading(false);
-      return;
-    }
-    const result = await createOfficeHourSlot(formData);
-
-    if (result.success) {
-      setCreateModalOpen(false);
-      (e.target as HTMLFormElement).reset();
-    } else {
-      setError(result.error);
-    }
-
-    setLoading(false);
-  };
 
   const handleRequestSlot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -354,29 +299,24 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             Request Office Hour
           </Button>
         )}
-        {isStaffUser && (
-          <>
-            <button
-              onClick={() => setScheduleModalOpen(true)}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--color-success)" }}
-            >
-              Schedule Company Office Hour
-            </button>
-            <Button onClick={() => setCreateModalOpen(true)} size="sm">
-              Create Slot
-            </Button>
-          </>
+        {isAdminUser && (
+          <button
+            onClick={() => setScheduleModalOpen(true)}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: "var(--color-success)" }}
+          >
+            Schedule Office Hour
+          </button>
         )}
       </div>
 
       {slots.length === 0 ? (
         <EmptyState
           title="No office hours available"
-          description="Office hour slots will appear here when created"
+          description="Office hour sessions will appear here when scheduled"
           action={
-            canCreateSlot ? (
-              <Button onClick={() => setCreateModalOpen(true)}>Create Slot</Button>
+            isAdminUser ? (
+              <Button onClick={() => setScheduleModalOpen(true)}>Schedule Office Hour</Button>
             ) : undefined
           }
         />
@@ -548,60 +488,6 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
         </div>
       )}
 
-      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create Office Hour Slot">
-        <form onSubmit={handleCreateSlot} className="space-y-4">
-          {error && (
-            <div
-              className="p-3 rounded text-sm"
-              style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
-            >
-              {error}
-            </div>
-          )}
-           <Input
-             label="Start Time"
-             name="startTime"
-             type="datetime-local"
-             required
-             onChange={handleStartTimeChange}
-             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
-           />
-          <Input
-            label="End Time"
-            name="endTime"
-            type="datetime-local"
-            required
-            ref={endTimeRef}
-          />
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Timezone</label>
-            <select
-              name="timezone"
-              defaultValue="UTC"
-              className="w-full px-3 py-2 rounded-md border text-sm"
-              style={{
-                backgroundColor: "var(--color-background)",
-                borderColor: "var(--color-border)",
-                color: "var(--color-foreground)",
-              }}
-            >
-              <option value="UTC">UTC</option>
-              <option value="KST">KST (Korea Standard Time)</option>
-              <option value="PST">PST (Pacific Standard Time)</option>
-              <option value="EST">EST (Eastern Standard Time)</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              Create Slot
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
       <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Request Office Hour">
         <form onSubmit={handleRequestSlot} className="space-y-4">
           {error && (
@@ -657,7 +543,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
         </form>
       </Modal>
 
-      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }} title={scheduleMode === "individual" ? "Schedule Individual Office Hour" : "Schedule Company Office Hour"}>
+      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }} title="Schedule Office Hour">
         <form onSubmit={handleScheduleOH} className="space-y-4">
           {error && (
             <div
@@ -679,7 +565,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 transition: "background-color 0.15s, color 0.15s",
               }}
             >
-              Company
+              Company Team
             </button>
             <button
               type="button"
@@ -693,7 +579,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 transition: "background-color 0.15s, color 0.15s",
               }}
             >
-              Individual Founder
+              Primary Founder
             </button>
           </div>
           {scheduleMode === "company" ? (
@@ -718,16 +604,16 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
           ) : (
             <div className="space-y-1.5">
               <SearchableSelect
-                label="Founder"
+                label="Primary founder contact"
                 options={founders.map((f) => ({
                   id: f.id,
                   label: f.name || f.email,
-                  secondary: f.companyName ? `Company: ${f.companyName}` : f.email,
+                  secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
                   imageUrl: f.profileImage,
                 }))}
                 value={selectedFounderId}
                 onChange={setSelectedFounderId}
-                placeholder="Search for a founder..."
+                placeholder="Search by founder name or email..."
                 required
                 emptyMessage="No founders found"
               />
@@ -739,6 +625,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             type="datetime-local"
             required
             onChange={handleScheduleStartTimeChange}
+            defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
           />
           <Input
             label="End Time"

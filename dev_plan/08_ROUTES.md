@@ -19,8 +19,7 @@
 │   ├── /events/new        → 이벤트 생성 (Super Admin, Admin만)
 │   └── /events/[id]       → 이벤트 상세
 │
-├── /office-hours          → 오피스아워 슬롯 관리
-│   ├── /office-hours/new  → 슬롯 등록 (Super Admin, Admin, Mentor)
+├── /office-hours          → 오피스아워 일정 관리/요청
 │   └── /office-hours/[id] → 슬롯 상세 + 요청/승인
 │
 ├── /sessions              → 세션 목록 (슬라이드/녹화)
@@ -123,16 +122,15 @@
 
 | 경로 | 메서드 | 설명 | 접근 권한 |
 |------|--------|------|-----------|
-| `/office-hours` | GET | 오피스아워 슬롯 목록 | 전체 |
-| `/office-hours/new` | GET | 슬롯 등록 폼 | Super Admin, Admin, Mentor |
-| `/office-hours/new` | POST | 슬롯 생성 (Server Action) | Super Admin, Admin, Mentor |
+| `/office-hours` | GET | 오피스아워 목록 + 관리자 스케줄링 UI | 전체 |
 | `/office-hours/[id]` | GET | 슬롯 상세 | 전체 |
 
 **오피스아워 액션:**
 
 | 액션 | Server Action | 접근 권한 |
 |------|--------------|-----------|
-| 슬롯 등록 | `createSlot` | Super Admin, Admin, Mentor |
+| 회사 오피스아워 생성 | `scheduleGroupOfficeHour` | Super Admin, Admin |
+| 개인 오피스아워 생성 | `scheduleIndividualOfficeHour` | Super Admin, Admin |
 | 슬롯 수정 | `updateSlot` | 슬롯 소유자 (요청 없을 때만) |
 | 슬롯 삭제 | `deleteSlot` | 슬롯 소유자 (요청 없을 때만) |
 | 요청 | `requestSlot` | **Founder, Co-founder만** |
@@ -280,7 +278,6 @@ const adminRoutes = [
 const mentorRoutes = [
   '/submissions',
   '/submissions/*',
-  '/office-hours/new',
 ];
 
 const founderOnlyRoutes = [

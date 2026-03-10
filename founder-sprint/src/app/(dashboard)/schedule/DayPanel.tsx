@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { CompanySelect } from "@/components/ui/CompanySelect";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { createEvent } from "@/actions/event";
-import { createOfficeHourSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour } from "@/actions/office-hour";
+import { scheduleGroupOfficeHour, scheduleIndividualOfficeHour } from "@/actions/office-hour";
 import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
@@ -506,7 +506,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                     transition: "background-color 0.15s, color 0.15s",
                   }}
                 >
-                  Company
+                  Company Team
                 </button>
                 <button
                   type="button"
@@ -520,7 +520,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                     transition: "background-color 0.15s, color 0.15s",
                   }}
                 >
-                  Individual Founder
+                  Primary Founder
                 </button>
               </div>
 
@@ -541,16 +541,16 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                 />
               ) : (
                 <SearchableSelect
-                  label="Founder"
+                  label="Primary founder contact"
                   options={founders.map((f) => ({
                     id: f.id,
                     label: f.name || f.email,
-                    secondary: f.companyName ? `Company: ${f.companyName}` : f.email,
+                    secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
                     imageUrl: f.profileImage,
                   }))}
                   value={selectedFounderId}
                   onChange={setSelectedFounderId}
-                  placeholder="Search for a founder..."
+                  placeholder="Search by founder name or email..."
                   required
                   emptyMessage="No founders found"
                 />

@@ -26,7 +26,7 @@
 | 5 | Question Create | `/questions/new` |
 | 6 | Event/Office Hour Calendar | `/events` |
 | 7 | Event Creation | `/events/new` |
-| 8 | Office Hour Slot Registration | `/office-hours/new` |
+| 8 | Office Hour Scheduling | `/office-hours` |
 | 9 | Session List | `/sessions` |
 | 10 | Session Create/Edit | `/sessions/new`, `/sessions/[id]/edit` |
 | 11 | Assignment List | `/assignments` |
@@ -187,9 +187,9 @@
 
 | 항목 | 내용 |
 |------|------|
-| **플로우 제목** | 오피스아워 슬롯 등록부터 Google Meet 미팅 완료까지 |
-| **설명** | Mentor/Admin이 30분 슬롯을 등록하고, Founder가 요청하면, Host가 승인하여 Google Calendar + Meet가 자동 생성되는 플로우 |
-| **주요 Actor** | Mentor/Admin (슬롯 등록, 승인), Founder/Co-founder (요청), System (Google Calendar 연동) |
+| **플로우 제목** | 관리자 스케줄링부터 Google Meet 미팅 완료까지 |
+| **설명** | Admin/Super Admin이 회사 또는 메인 Founder 연락처를 지정해 오피스아워를 스케줄링하고, 필요 시 Founder 요청/승인 플로우가 이어지는 흐름 |
+| **주요 Actor** | Admin/Super Admin (스케줄링), Founder/Co-founder (요청), Mentor/Admin (승인), System (Google Calendar 연동) |
 | **관련 화면** | Screen 2, 6, 8 |
 | **관련 규칙** | BR 5 / PERM 2.4 |
 
@@ -198,7 +198,7 @@
 - 모든 참여자가 LinkedIn OIDC로 인증 완료
 - Active Batch에 소속
 - Google Calendar 연동: peter@outsome.co 서비스 계정 설정 완료
-- 슬롯 등록자: Mentor, Admin, 또는 Super Admin 역할
+- 스케줄링 담당자: Admin 또는 Super Admin 역할
 
 ### 상태 머신
 
@@ -245,16 +245,17 @@ Request 상태:
 
 ### 단계별 플로우
 
-#### Phase A: 슬롯 등록 (Mentor/Admin)
+#### Phase A: 관리자 스케줄링 (Admin/Super Admin)
 
 | 단계 | 화면 | 행위자 | 액션 | 상세 |
 |------|------|--------|------|------|
-| A1 | Screen 6 | Mentor | 캘린더에서 "슬롯 등록" 클릭 | 또는 Dashboard에서 바로가기 |
-| A2 | Screen 8 | Mentor | 슬롯 등록 폼 진입 | ROUTE `/office-hours/new` |
-| A3 | Screen 8 | Mentor | 날짜/시간 선택 | 30분 고정 단위 (BR 5.1) |
-| A4 | Screen 8 | Mentor | 시간대 확인 | UTC 저장, PST/KST 표시 (BR 13.1) |
-| A5 | Screen 8 | Mentor | "슬롯 등록" 클릭 | Server Action: `createSlot` |
-| A6 | Screen 6 | System | 캘린더에 슬롯 표시 (available) | |
+| A1 | Screen 6 | Admin | 오피스아워 페이지에서 "Schedule Office Hour" 클릭 | |
+| A2 | Screen 8 | Admin | 스케줄링 모달 진입 | ROUTE `/office-hours` |
+| A3 | Screen 8 | Admin | Company Team 또는 Primary Founder 선택 | Founder는 이름/이메일로 검색 |
+| A4 | Screen 8 | Admin | 날짜/시간 선택 | 30분 고정 단위 (BR 5.1) |
+| A5 | Screen 8 | Admin | 시간대 확인 | UTC 저장, PST/KST 표시 (BR 13.1) |
+| A6 | Screen 8 | Admin | 일정 생성 및 초대 발송 | Server Action: `scheduleGroupOfficeHour` 또는 `scheduleIndividualOfficeHour` |
+| A7 | Screen 6 | System | 캘린더에 확정 세션 표시 | Google Calendar + Meet 연동 |
 
 **분기점 - 과거 시간 검증:**
 

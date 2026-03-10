@@ -50,56 +50,6 @@ const responseSchema = z.object({
   status: z.enum(["approved", "rejected"]),
 });
 
-export async function createOfficeHourSlot(formData: FormData): Promise<ActionResult<{ id: string }>> {
-  try {
-    const user = await getCurrentUser();
-    if (!user || !isStaff(user.role)) {
-      return { success: false, error: "Unauthorized: staff access required" };
-    }
-
-
-    const data = {
-      startTime: formData.get("startTime") as string,
-      endTime: formData.get("endTime") as string,
-      timezone: (formData.get("timezone") as string) || "UTC",
-    };
-
-     const validated = slotSchema.parse(data);
-
-     const ianaTimezone = toIanaTimezone(validated.timezone);
-     const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
-     const endTimeUtc = fromZonedTime(validated.endTime, ianaTimezone);
-
-     if (startTimeUtc < new Date()) {
-       throw new Error("Cannot create office hour slot in the past");
-     }
-
-     const slot = await prisma.officeHourSlot.create({
-      data: {
-        batchId: user.batchId,
-        hostId: user.id,
-        startTime: startTimeUtc,
-        endTime: endTimeUtc,
-        timezone: validated.timezone,
-        status: "available",
-        // groupId removed — office hours use companyId now
-      },
-    });
-
-    revalidatePath("/office-hours");
-    revalidateTag(`office-hours-${user.batchId}`);
-    revalidateSchedule(user.batchId);
-    return { success: true, data: { id: slot.id } };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0].message };
-    }
-    const message = error instanceof Error ? error.message : "Failed to create office hour slot";
-    console.error("Failed to create office hour slot:", error);
-    return { success: false, error: message };
-  }
-}
-
 export async function scheduleGroupOfficeHour(formData: FormData) {
   // 1. Auth check — staff only (admin/super_admin/mentor)
   const user = await getCurrentUser();
@@ -117,7 +67,6 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
     return { success: false, error: "Company, start time, and end time are required" };
   }
 
-  // 3. Validate timezone (same pattern as createOfficeHourSlot)
   const timezoneMap: Record<string, string> = {
     UTC: "UTC",
     KST: "Asia/Seoul",
@@ -249,17 +198,21 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
   const founder = await prisma.user.findFirst({
     where: {
       id: founderId,
+      role: { in: ["founder", "co_founder"] },
       userBatches: {
         some: { batchId: user.batchId, status: "active" },
       },
     },
-    select: { id: true, name: true, email: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
   });
 
   if (!founder) return { success: false, error: "Founder not found in this batch" };
 
   try {
-    // 6. Create slot as confirmed without groupId
     const slot = await prisma.officeHourSlot.create({
       data: {
         batchId: user.batchId,
@@ -268,7 +221,15 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
         endTime: end,
         timezone,
         status: "confirmed",
-        // No groupId — individual
+      },
+    });
+
+    await prisma.officeHourRequest.create({
+      data: {
+        slotId: slot.id,
+        requesterId: founder.id,
+        status: "approved",
+        respondedAt: new Date(),
       },
     });
 
@@ -465,16 +426,17 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
 
     let filteredSlots = slots;
 
-    // Filter for founders — only show their company's slots + unassigned slots
     if (userId && userRole && (userRole === "founder" || userRole === "co_founder")) {
       const userCompanies = await prisma.companyMember.findMany({
         where: { userId, isCurrent: true },
         select: { companyId: true },
       });
       const companyIds = new Set(userCompanies.map((c) => c.companyId));
-      filteredSlots = filteredSlots.filter(
-        (s) => s.companyId === null || companyIds.has(s.companyId)
-      );
+      filteredSlots = filteredSlots.filter((s) => {
+        const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
+        const matchesDirectRequest = s.requests.some((request) => request.requester.id === userId);
+        return matchesCompany || matchesDirectRequest;
+      });
     }
 
     return filteredSlots;

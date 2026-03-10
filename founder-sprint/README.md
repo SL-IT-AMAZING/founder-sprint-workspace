@@ -25,7 +25,7 @@ Accelerator program management platform built by Outsome. Manages batches of fou
 - **Q&A** -- Founders ask questions, mentors/admins answer, admins summarize and close
 - **Feed** -- Community posts with images, comments, and likes
 - **Events** -- One-off events, office hours, and in-person events with Google Calendar integration
-- **Office Hours** -- Mentors create slots, founders request, auto-generates Google Meet links
+- **Office Hours** -- Admins schedule office hours for company teams or primary founders, with Meet links generated automatically
 - **Sessions** -- Program sessions with slides and recording links
 - **Assignments** -- Create assignments with due dates, founders submit, mentors provide feedback
 - **Groups** -- Founder groups with dedicated feeds and office hours
@@ -38,7 +38,7 @@ Accelerator program management platform built by Outsome. Manages batches of fou
 |------|-------------|
 | `super_admin` | Full system access across all batches |
 | `admin` | Batch-level administration and user management |
-| `mentor` | Answer Q&A, create office hour slots, provide assignment feedback |
+| `mentor` | Answer Q&A and provide assignment feedback |
 | `founder` | Core participant -- ask questions, submit assignments, request office hours |
 | `co_founder` | Associated with a founder, similar permissions |
 

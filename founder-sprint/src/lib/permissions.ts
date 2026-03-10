@@ -159,7 +159,7 @@ export function canManageUsers(role: UserRole): boolean {
 }
 
 export function canCreateOfficeHourSlot(role: UserRole): boolean {
-  return isStaff(role);
+  return isAdmin(role);
 }
 
 export function canManageGroups(role: UserRole): boolean {

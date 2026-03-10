@@ -41,7 +41,7 @@ requesterId는 required로 유지. 팀 요청 시 제출자 = requesterId.
 
 ### 신규: scheduleGroupOfficeHour(formData)
 - **파일**: src/actions/office-hour.ts
-- **권한**: Staff only (admin/super_admin/mentor)
+- **권한**: Admin only (admin/super_admin)
 - **입력**: groupId, startTime, endTime, timezone
 - **동작**:
   1. 그룹 검증 (존재, 같은 배치, 멤버 1명+)
@@ -49,8 +49,8 @@ requesterId는 required로 유지. 팀 요청 시 제출자 = requesterId.
   3. Google Calendar + Meet 생성 (그룹 전원 초대)
   4. Meet 링크 저장
 
-### 수정: createOfficeHourSlot
-- optional groupId 추가 (사전 그룹 지정 가능)
+### 수정: scheduleGroupOfficeHour
+- 회사/그룹 대상 관리자 스케줄링의 기본 생성 경로로 사용
 
 ### 수정: requestOfficeHour(slotId, groupId, message?)
 - groupId 필수 — 그룹 멤버 검증
