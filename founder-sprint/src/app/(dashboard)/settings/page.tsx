@@ -78,6 +78,7 @@ export default async function SettingsPage({
                 linkedinUrl: profile?.linkedinUrl || "",
                 twitterUrl: profile?.twitterUrl || "",
                 websiteUrl: profile?.websiteUrl || "",
+                timezone: profile?.timezone || user.timezone || "UTC",
               }}
             />
           </SettingsSectionCard>
@@ -102,6 +103,7 @@ export default async function SettingsPage({
               linkedinUrl: profile?.linkedinUrl,
               twitterUrl: profile?.twitterUrl,
               websiteUrl: profile?.websiteUrl,
+              timezone: profile?.timezone || user.timezone,
             }}
           />
         </div>

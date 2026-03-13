@@ -4,15 +4,33 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { addFeedback } from "@/actions/assignment";
+import type { ChecklistItem } from "@/actions/assignment";
 
 interface FeedbackFormProps {
   submissionId: string;
+  reviewCriteria?: string[];
+  parentId?: string;
+  submitLabel?: string;
 }
 
-export function FeedbackForm({ submissionId }: FeedbackFormProps) {
+export function FeedbackForm({
+  submissionId,
+  reviewCriteria = [],
+  parentId,
+  submitLabel = "Submit Feedback",
+}: FeedbackFormProps) {
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(
+    reviewCriteria.map((label) => ({ label, checked: false }))
+  );
+
+  const toggleChecklistItem = (idx: number) => {
+    setChecklist((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, checked: !item.checked } : item))
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,9 +39,15 @@ export function FeedbackForm({ submissionId }: FeedbackFormProps) {
     setError("");
 
     startTransition(async () => {
-      const result = await addFeedback(submissionId, content);
+      const result = await addFeedback(
+        submissionId,
+        content,
+        checklist.length > 0 ? checklist : undefined,
+        parentId
+      );
       if (result.success) {
         setContent("");
+        setChecklist(reviewCriteria.map((label) => ({ label, checked: false })));
       } else {
         setError(result.error);
       }
@@ -35,6 +59,25 @@ export function FeedbackForm({ submissionId }: FeedbackFormProps) {
       {error && (
         <div className="form-error p-3 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+
+      {!parentId && checklist.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium" style={{ color: "var(--color-foreground-muted)" }}>
+            Review Criteria
+          </p>
+          {checklist.map((item, idx) => (
+            <label key={idx} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={item.checked}
+                onChange={() => toggleChecklistItem(idx)}
+                className="rounded"
+              />
+              <span className="text-sm">{item.label}</span>
+            </label>
+          ))}
         </div>
       )}
 
@@ -55,7 +98,7 @@ export function FeedbackForm({ submissionId }: FeedbackFormProps) {
           loading={isPending}
           disabled={!content.trim()}
         >
-          Submit Feedback
+          {submitLabel}
         </Button>
       </div>
     </form>

@@ -26,15 +26,17 @@ interface Session {
   recordingUrl: string | null;
   createdAt: Date;
   batches?: { batch: { id: string; name: string } }[];
+  targetGroup?: { id: string; name: string } | null;
 }
 
 interface SessionsListProps {
   sessions: Session[];
   isAdmin: boolean;
   batchOptions: BatchOption[];
+  groupOptions: Array<{ id: string; name: string }>;
 }
 
-export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListProps) {
+export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: SessionsListProps) {
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editSession, setEditSession] = useState<Session | null>(null);
    const [isPending, startTransition] = useTransition();
@@ -151,6 +153,11 @@ export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListPr
                             +{session.batches.length - 3} more
                           </span>
                         )}
+                      </div>
+                    )}
+                    {session.targetGroup && (
+                      <div className="mt-1">
+                        <Badge variant="default">Group: {session.targetGroup.name}</Badge>
                       </div>
                     )}
                   </div>
@@ -277,14 +284,33 @@ export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListPr
            </div>
 
            <Input
-             name="slidesUrl"
-             label="Slides URL"
-             type="url"
-             placeholder="https://docs.google.com/presentation/..."
-           />
+              name="slidesUrl"
+              label="Slides URL"
+              type="url"
+              placeholder="https://docs.google.com/presentation/..."
+            />
 
-          <Input
-            name="recordingUrl"
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Target Group (optional)</label>
+              <select
+                name="targetGroupId"
+                defaultValue=""
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                <option value="">Entire selected batch</option>
+                {groupOptions.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </div>
+
+           <Input
+             name="recordingUrl"
             label="Recording URL"
             type="url"
             placeholder="https://www.youtube.com/watch?v=..."
@@ -384,15 +410,34 @@ export function SessionsList({ sessions, isAdmin, batchOptions }: SessionsListPr
              </div>
 
              <Input
-               name="slidesUrl"
-               label="Slides URL"
-               type="url"
-               placeholder="https://docs.google.com/presentation/..."
-               defaultValue={editSession.slidesUrl || ""}
-             />
+                name="slidesUrl"
+                label="Slides URL"
+                type="url"
+                placeholder="https://docs.google.com/presentation/..."
+                defaultValue={editSession.slidesUrl || ""}
+              />
 
-            <Input
-              name="recordingUrl"
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Target Group (optional)</label>
+                <select
+                  name="targetGroupId"
+                  defaultValue={editSession.targetGroup?.id || ""}
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Entire selected batch</option>
+                  {groupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </div>
+
+             <Input
+               name="recordingUrl"
               label="Recording URL"
               type="url"
               placeholder="https://www.youtube.com/watch?v=..."

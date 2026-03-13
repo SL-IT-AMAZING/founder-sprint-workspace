@@ -10,6 +10,7 @@ export interface SettingsSidebarProps {
     linkedinUrl?: string | null;
     twitterUrl?: string | null;
     websiteUrl?: string | null;
+    timezone?: string | null;
   };
 }
 
@@ -17,6 +18,7 @@ export function SettingsSidebar({ user }: SettingsSidebarProps) {
   const infoRows = [
     { label: "Batch", value: user.batchName },
     { label: "Location", value: user.location },
+    { label: "Timezone", value: user.timezone },
     { label: "LinkedIn", value: user.linkedinUrl, isUrl: true },
     { label: "Twitter", value: user.twitterUrl, isUrl: true },
     { label: "Website", value: user.websiteUrl, isUrl: true },

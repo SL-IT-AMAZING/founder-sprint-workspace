@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
-import { getAssignment } from "@/actions/assignment";
+import { getAssignment, getAssignmentNonSubmitters } from "@/actions/assignment";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, getDisplayName } from "@/lib/utils";
 import { SubmissionForm } from "./SubmissionForm";
 import { SubmissionsList } from "./SubmissionsList";
+import { SendReminderButton } from "./SendReminderButton";
 
 export default async function AssignmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,7 +22,10 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
     );
   }
 
-  const userSubmission = assignment.submissions.find((s) => s.authorId === user.id);
+  const [userSubmission, nonSubmitters] = await Promise.all([
+    Promise.resolve(assignment.submissions.find((s) => s.authorId === user.id)),
+    isStaff(user.role) ? getAssignmentNonSubmitters(id) : Promise.resolve([]),
+  ]);
   const now = new Date();
   const isOverdue = now > assignment.dueDate;
 
@@ -36,6 +41,14 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
             <Badge variant="error">Overdue</Badge>
           ) : (
             <Badge variant="warning">Open</Badge>
+          )}
+          {assignment.targetGroup && (
+            <Badge variant="default">Group: {assignment.targetGroup.name}</Badge>
+          )}
+          {assignment.targetUserIds.length > 0 && (
+            <Badge variant="default">
+              {assignment.targetUserIds.length} specific user{assignment.targetUserIds.length > 1 ? "s" : ""}
+            </Badge>
           )}
         </div>
       </div>
@@ -70,13 +83,37 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
       )}
 
       {isStaff(user.role) && (
-        <SubmissionsList submissions={assignment.submissions} isStaff={true} />
+        <div className="space-y-4">
+          {nonSubmitters.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h3 className="text-lg font-medium">Non-submitters ({nonSubmitters.length})</h3>
+                <SendReminderButton assignmentId={id} />
+              </div>
+              <div className="space-y-1">
+                {nonSubmitters.map((person) => (
+                  <p key={person.id} className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                    {getDisplayName(person)} ({person.email})
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+          <SubmissionsList
+            submissions={assignment.submissions}
+            isStaff={true}
+            reviewCriteria={assignment.reviewCriteria ?? []}
+          />
+        </div>
       )}
 
       {isFounder(user.role) && userSubmission && (
         <div className="card">
           <h3 className="text-lg font-medium mb-3">Your Submission</h3>
           <div className="space-y-3">
+            <Link href={`/submissions/${userSubmission.id}`} className="text-sm" style={{ color: "var(--color-primary)" }}>
+              Open full feedback thread →
+            </Link>
             {userSubmission.content && (
               <div>
                 <p className="text-sm font-medium mb-1">Content</p>
@@ -104,12 +141,24 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
             {userSubmission.feedbacks.length > 0 && (
               <div className="space-y-3 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
                 <p className="text-sm font-medium">Feedback</p>
-                {userSubmission.feedbacks.map((feedback) => (
+                {userSubmission.feedbacks.filter((feedback) => !feedback.parentId).map((feedback) => (
                   <div key={feedback.id} className="space-y-1">
                      <p className="text-sm font-medium">{getDisplayName(feedback.author)}</p>
                     <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                       {feedback.content}
                     </p>
+                    {(feedback.replies || []).length > 0 && (
+                      <div className="pl-3 border-l space-y-1" style={{ borderColor: "var(--color-card-border)" }}>
+                        {feedback.replies?.map((reply) => (
+                          <div key={reply.id}>
+                            <p className="text-xs font-medium">{getDisplayName(reply.author)}</p>
+                            <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                              {reply.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

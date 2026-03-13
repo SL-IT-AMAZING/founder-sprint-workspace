@@ -1,12 +1,13 @@
 // Role and status types (matching Prisma enums)
 export type UserRole = "super_admin" | "admin" | "mentor" | "founder" | "co_founder";
+export type UserStatus = "active" | "inactive" | (string & {});
 export type BatchStatus = "active" | "archived";
 export type UserBatchStatus = "invited" | "active";
 export type QuestionStatus = "open" | "closed";
 export type OfficeHourSlotStatus = "available" | "requested" | "confirmed" | "completed" | "cancelled";
 export type OfficeHourRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 export type LikeTargetType = "post" | "comment";
-export type EventType = "one_off" | "office_hour" | "in_person";
+export type EventType = "one_off" | "office_hour" | "in_person" | "virtual" | "general_session";
 
 // Helper types
 export type AdminRole = Extract<UserRole, "super_admin" | "admin">;
@@ -18,10 +19,13 @@ export interface UserWithBatch {
   email: string;
   name: string | null;
   profileImage: string | null;
+  timezone: string | null;
+  status: UserStatus;
   jobTitle: string | null;
   company: string | null;
   bio: string | null;
   role: UserRole;
+  additionalRoles: string[];
   batchId: string;
   batchName: string;
   batchEndDate?: Date;

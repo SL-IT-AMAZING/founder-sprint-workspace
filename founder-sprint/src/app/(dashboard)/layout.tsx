@@ -15,7 +15,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const userIsAdmin = checkIsAdmin(user.role);
+  const userIsAdmin = checkIsAdmin(user);
 
   const batchResult = await getUserBatches();
   const userBatches = batchResult.success ? batchResult.data : [];

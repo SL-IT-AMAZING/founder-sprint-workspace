@@ -35,7 +35,38 @@ interface InviteUserParams {
   linkedInUrl?: string;
   founderId?: string;
   companyId?: string;
-  callerRole?: string;
+  callerRole?: UserRole;
+}
+
+type AdminActor = {
+  id: string;
+  email: string;
+  name: string | null;
+};
+
+const USER_ADMIN_AUDIT_ACTIONS = [
+  "user_role_changed",
+  "user_additional_roles_changed",
+  "user_deactivated",
+  "user_reactivated",
+  "invite_resent",
+] as const;
+
+async function createAuditLogEntry(params: {
+  actor: AdminActor;
+  action: (typeof USER_ADMIN_AUDIT_ACTIONS)[number];
+  targetId?: string;
+  details?: Record<string, unknown>;
+}) {
+  await prisma.auditLog.create({
+    data: {
+      action: params.action,
+      userId: params.actor.id,
+      userName: params.actor.name?.trim() || params.actor.email,
+      targetId: params.targetId,
+      details: params.details ? JSON.stringify(params.details) : null,
+    },
+  });
 }
 
 async function inviteUserCore(
@@ -47,7 +78,7 @@ async function inviteUserCore(
     return { success: false, error: "founderId is required when inviting a co-founder" };
   }
 
-  const batchCheck = await requireActiveBatch(batchId, params.callerRole as any);
+  const batchCheck = await requireActiveBatch(batchId, params.callerRole);
   if (batchCheck) return batchCheck as ActionResult<{ id: string; inviteLink: string }>;
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
@@ -103,8 +134,8 @@ async function inviteUserCore(
 
   const invitedUser = await prisma.user.upsert({
     where: { email },
-    create: { email, name: name || email.split("@")[0] },
-    update: name ? { name } : {},
+    create: { email, name: name || email.split("@")[0], status: "active" },
+    update: { ...(name ? { name } : {}), status: "active" },
   });
 
   const existing = await prisma.userBatch.findUnique({
@@ -334,9 +365,96 @@ export async function updateUserRole(
     return { success: false, error: "Only Super Admin can assign Super Admin role" };
   }
 
+  const existingMembership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    include: {
+      user: {
+        select: { email: true },
+      },
+    },
+  });
+
+  if (!existingMembership) {
+    return { success: false, error: "User not found in this batch" };
+  }
+
+  const previousRole = existingMembership.role as UserRole;
+
+  if (previousRole !== newRole) {
+    await prisma.userBatch.update({
+      where: { userId_batchId: { userId, batchId } },
+      data: { role: newRole as import("@prisma/client").$Enums.UserRole },
+    });
+
+    await createAuditLogEntry({
+      actor: user,
+      action: "user_role_changed",
+      targetId: userId,
+      details: {
+        batchId,
+        userEmail: existingMembership.user.email,
+        previousRole,
+        newRole,
+      },
+    });
+  }
+
+  revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+export async function updateAdditionalRoles(
+  userId: string,
+  batchId: string,
+  additionalRoles: string[]
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const existingMembership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    include: {
+      user: {
+        select: { email: true },
+      },
+    },
+  });
+
+  if (!existingMembership) {
+    return { success: false, error: "User not found in this batch" };
+  }
+
+  const normalizedRoles = Array.from(
+    new Set(
+      additionalRoles
+        .map((role) => role.trim())
+        .filter((role) => role.length > 0)
+    )
+  );
+
   await prisma.userBatch.update({
     where: { userId_batchId: { userId, batchId } },
-    data: { role: newRole as import("@prisma/client").$Enums.UserRole },
+    data: { additionalRoles: normalizedRoles },
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "user_additional_roles_changed",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: existingMembership.user.email,
+      previousAdditionalRoles: existingMembership.additionalRoles,
+      newAdditionalRoles: normalizedRoles,
+    },
   });
 
   revalidatePath("/admin/users");
@@ -374,14 +492,15 @@ export async function removeUserFromBatch(
       where: { userId_batchId: { userId, batchId } },
     });
 
-    // If no remaining batch memberships, delete the user entirely
     const remainingBatches = await tx.userBatch.count({
       where: { userId },
     });
 
     if (remainingBatches === 0) {
-      await tx.invitationToken.deleteMany({ where: { userId } });
-      await tx.user.delete({ where: { id: userId } });
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "inactive" },
+      });
     }
   });
 
@@ -416,8 +535,17 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
     return { success: false, error: "Cannot cancel invite for active user" };
   }
 
-  await prisma.user.delete({
-    where: { id: userId },
+  await prisma.$transaction(async (tx) => {
+    await tx.invitationToken.deleteMany({ where: { userId } });
+    await tx.userBatch.deleteMany({ where: { userId, status: "invited" } });
+
+    const hasAnyMembership = await tx.userBatch.count({ where: { userId } });
+    if (hasAnyMembership === 0) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "inactive" },
+      });
+    }
   });
 
   revalidatePath("/admin/users");
@@ -429,10 +557,292 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
+export async function resendInvite(
+  userId: string,
+  batchId: string
+): Promise<ActionResult<{ inviteLink: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const targetMembership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+        },
+      },
+      batch: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!targetMembership) {
+    return { success: false, error: "User not found in this batch" };
+  }
+
+  if (targetMembership.status !== "invited") {
+    return { success: false, error: "Invite can only be resent for invited users" };
+  }
+
+  const token = randomUUID();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.invitationToken.deleteMany({
+      where: {
+        userId,
+        batchId,
+        usedAt: null,
+      },
+    });
+
+    await tx.invitationToken.create({
+      data: {
+        token,
+        userId,
+        batchId,
+        email: targetMembership.user.email,
+        expiresAt,
+      },
+    });
+  });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const inviteLink = `${appUrl}/invite/${token}`;
+
+  const emailResult = await sendInvitationEmail({
+    to: targetMembership.user.email,
+    inviteeName: targetMembership.user.name || undefined,
+    batchName: targetMembership.batch.name,
+    role: targetMembership.role,
+    inviteLink,
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "invite_resent",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: targetMembership.user.email,
+      role: targetMembership.role,
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/batches");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+
+  if (!emailResult.success) {
+    return {
+      success: true,
+      data: { inviteLink },
+      warning: "Invite was renewed but the email could not be sent. Share the invite link directly.",
+    };
+  }
+
+  return { success: true, data: { inviteLink } };
+}
+
+export async function deactivateUser(
+  userId: string,
+  batchId: string
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (userId === user.id) {
+    return { success: false, error: "Cannot deactivate your own account" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, status: true },
+  });
+
+  if (!targetUser) {
+    return { success: false, error: "User not found" };
+  }
+
+  if (targetUser.status === "inactive") {
+    return { success: false, error: "User is already deactivated" };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { status: "inactive" },
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "user_deactivated",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: targetUser.email,
+      previousStatus: targetUser.status,
+      newStatus: "inactive",
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+export async function reactivateUser(
+  userId: string,
+  batchId: string
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, status: true },
+  });
+
+  if (!targetUser) {
+    return { success: false, error: "User not found" };
+  }
+
+  if (targetUser.status === "active") {
+    return { success: false, error: "User is already active" };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { status: "active" },
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "user_reactivated",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: targetUser.email,
+      previousStatus: targetUser.status,
+      newStatus: "active",
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+export async function getRecentUserManagementAuditLogs(batchId: string, limit = 12) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return [];
+  }
+
+  return prisma.auditLog.findMany({
+    where: {
+      action: {
+        in: [...USER_ADMIN_AUDIT_ACTIONS],
+      },
+      details: {
+        contains: `"batchId":"${batchId}"`,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(Math.max(limit, 1), 50),
+  });
+}
+
+export async function getFounderActivitySummaries(batchId: string) {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return [];
+  }
+
+  const founders = await prisma.userBatch.findMany({
+    where: {
+      batchId,
+      status: "active",
+      role: { in: ["founder", "co_founder"] },
+    },
+    select: {
+      userId: true,
+      role: true,
+      user: {
+        select: {
+          name: true,
+          email: true,
+          profileImage: true,
+        },
+      },
+    },
+    orderBy: { user: { name: "asc" } },
+  });
+
+  return Promise.all(
+    founders.map(async (founder) => {
+      const [submissionCount, feedbackCount, officeHourCount, postCount] = await Promise.all([
+        prisma.submission.count({ where: { authorId: founder.userId, assignment: { batchId } } }),
+        prisma.feedback.count({ where: { submission: { authorId: founder.userId, assignment: { batchId } } } }),
+        prisma.officeHourRequest.count({ where: { requesterId: founder.userId, slot: { batchId } } }),
+        prisma.post.count({ where: { authorId: founder.userId, batchId } }),
+      ]);
+
+      return {
+        userId: founder.userId,
+        name: founder.user.name,
+        email: founder.user.email,
+        profileImage: founder.user.profileImage,
+        role: founder.role,
+        submissionCount,
+        feedbackCount,
+        officeHourCount,
+        postCount,
+      };
+    })
+  );
+}
+
 export async function getBatchUsers(batchId: string) {
   const user = await getCurrentUser();
   if (!user) return [];
-  if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+  if (!isAdmin(user) && user.batchId !== batchId) return [];
 
   return unstable_cache(
     () =>

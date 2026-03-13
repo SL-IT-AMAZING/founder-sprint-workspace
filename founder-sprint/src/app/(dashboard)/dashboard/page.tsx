@@ -407,6 +407,8 @@ function getEventTypeName(type: string): string {
     one_off: "One-off",
     office_hour: "Office Hour",
     in_person: "In Person",
+    virtual: "Virtual",
+    general_session: "General Session",
   };
   return names[type] || type;
 }

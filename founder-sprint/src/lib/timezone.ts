@@ -30,3 +30,24 @@ export const TIMEZONE_OPTIONS = [
   { value: "UTC", label: "UTC" },
   { value: "America/New_York", label: "EST (Eastern)" },
 ] as const;
+
+export function displayInUserTimezone(
+  date: Date | string,
+  userTimezone: string | null | undefined,
+  fallbackTimezone: string = "UTC",
+  formatString: string = "MMM d, yyyy h:mm a zzz"
+): string {
+  const targetTimezone = userTimezone || fallbackTimezone || "UTC";
+  return formatInTimeZone(date, targetTimezone, formatString);
+}
+
+export function displayRangeInUserTimezone(
+  start: Date | string,
+  end: Date | string,
+  userTimezone: string | null | undefined,
+  fallbackTimezone: string = "UTC"
+): string {
+  const targetTimezone = userTimezone || fallbackTimezone || "UTC";
+  return `${formatInTimeZone(start, targetTimezone, "MMM d, yyyy h:mm a")} - ${formatInTimeZone(end, targetTimezone, "h:mm a zzz")}`;
+}
+import { formatInTimeZone } from "date-fns-tz";

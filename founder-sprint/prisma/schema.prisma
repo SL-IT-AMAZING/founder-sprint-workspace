@@ -57,6 +57,8 @@ enum EventType {
   one_off
   office_hour
   in_person
+  virtual
+  general_session
 }
 
 // ============================================
@@ -71,6 +73,8 @@ model User {
   role          UserRole? @default(founder) @map("global_role")
   linkedinId    String?   @unique @map("linkedin_id")
   profileImage  String?   @map("profile_image")
+  timezone      String?   @map("timezone") @db.VarChar(100)
+  status        String    @default("active") @map("status") @db.VarChar(32)
   jobTitle      String?   @map("job_title") @db.VarChar(100)
   company       String?   @db.VarChar(100)
   bio           String?   @db.VarChar(500)
@@ -112,6 +116,8 @@ model User {
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]
   createdConversations     Conversation[] @relation("ConversationCreator")
+  officeHourCredits        OfficeHourCredit[]
+  notifications            Notification[]
   @@map("users")
 }
 
@@ -139,6 +145,7 @@ model Batch {
   companies        CompanyBatch[]
   sessionBatches  SessionBatch[]
   eventBatches     EventBatch[]
+  officeHourCredits OfficeHourCredit[]
   @@map("batches")
 }
 
@@ -148,6 +155,7 @@ model UserBatch {
   userId    String          @map("user_id") @db.Uuid
   batchId   String          @map("batch_id") @db.Uuid
   role      UserRole
+  additionalRoles String[]  @default([]) @map("additional_roles")
   founderId String?         @map("founder_id") @db.Uuid // For co-founders: links to their main founder
   invitedAt DateTime        @default(now()) @map("invited_at")
   joinedAt  DateTime?       @map("joined_at")
@@ -274,6 +282,8 @@ model OfficeHourRequest {
   slotId      String                   @map("slot_id") @db.Uuid
   requesterId String                   @map("requester_id") @db.Uuid
   message     String?                  @db.Text
+  agenda      String?                  @db.Text
+  noShow      Boolean                  @default(false) @map("no_show")
   status      OfficeHourRequestStatus  @default(pending)
   createdAt   DateTime                 @default(now()) @map("created_at")
   respondedAt DateTime?                @map("responded_at")
@@ -283,6 +293,22 @@ model OfficeHourRequest {
   requester User           @relation(fields: [requesterId], references: [id], onDelete: Cascade)
 
   @@map("office_hour_requests")
+}
+
+model OfficeHourCredit {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  batchId   String   @map("batch_id") @db.Uuid
+  credits   Int      @default(1)
+  grantedBy String?  @map("granted_by") @db.Uuid
+  reason    String?  @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, batchId])
+  @@map("office_hour_credits")
 }
 
 // 10. Session - Program sessions
@@ -298,12 +324,14 @@ model Session {
   slidesUrl     String?   @map("slides_url")
   recordingUrl  String?   @map("recording_url")
   googleEventId String?   @map("google_event_id")
+  targetGroupId String?   @map("target_group_id") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  batches SessionBatch[]
+  batch       Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  targetGroup Group?  @relation("TargetedSessions", fields: [targetGroupId], references: [id], onDelete: SetNull)
+  batches     SessionBatch[]
 
   @@map("sessions")
 }
@@ -315,12 +343,16 @@ model Assignment {
   title       String   @db.VarChar(200)
   description String   @db.Text
   templateUrl String?  @map("template_url")
+  reviewCriteria String[] @default([]) @map("review_criteria")
+  targetGroupId String? @map("target_group_id") @db.Uuid
+  targetUserIds String[] @default([]) @map("target_user_ids")
   dueDate     DateTime @map("due_date")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
   batch       Batch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  targetGroup Group?       @relation("TargetedAssignments", fields: [targetGroupId], references: [id], onDelete: SetNull)
   submissions Submission[]
 
   @@index([batchId, dueDate])
@@ -335,6 +367,7 @@ model Submission {
   content      String?  @db.Text
   linkUrl      String?  @map("link_url")
   isLate       Boolean  @default(false) @map("is_late")
+  status       String   @default("pending") @map("status") @db.VarChar(32)
   submittedAt  DateTime @default(now()) @map("submitted_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -342,6 +375,7 @@ model Submission {
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   feedbacks  Feedback[]
+  versions   SubmissionVersion[]
 
   @@unique([assignmentId, authorId])
   @@index([assignmentId])
@@ -352,16 +386,36 @@ model Submission {
 model Feedback {
   id           String   @id @default(uuid()) @db.Uuid
   submissionId String   @map("submission_id") @db.Uuid
+  parentId     String?  @map("parent_id") @db.Uuid
   authorId     String   @map("author_id") @db.Uuid
   content      String   @db.Text
+  checklist    Json?    @map("checklist")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
   submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  parent     Feedback?  @relation("FeedbackThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Feedback[] @relation("FeedbackThread")
   author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
+  @@index([submissionId, parentId])
   @@map("feedbacks")
+}
+
+model SubmissionVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  submissionId String   @map("submission_id") @db.Uuid
+  version      Int
+  content      String?  @db.Text
+  linkUrl      String?  @map("link_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@unique([submissionId, version])
+  @@map("submission_versions")
 }
 
 // 14. Event - Batch events
@@ -403,6 +457,8 @@ model Group {
   batch           Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
   creator         User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   members         GroupMember[]
+  targetAssignments Assignment[] @relation("TargetedAssignments")
+  targetSessions  Session[]      @relation("TargetedSessions")
   posts           Post[]
   officeHourSlots OfficeHourSlot[]
 
@@ -761,4 +817,34 @@ model EventBatch {
   @@index([batchId])
   @@index([eventId])
   @@map("event_batches")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  action    String   @db.VarChar(100)
+  userId    String   @map("user_id") @db.Uuid
+  userName  String   @map("user_name") @db.VarChar(200)
+  targetId  String?  @map("target_id") @db.Uuid
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  type      String   @db.VarChar(50)
+  userId    String   @map("user_id") @db.Uuid
+  entityId  String?  @map("entity_id") @db.Uuid
+  title     String   @db.VarChar(200)
+  message   String?  @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
 }

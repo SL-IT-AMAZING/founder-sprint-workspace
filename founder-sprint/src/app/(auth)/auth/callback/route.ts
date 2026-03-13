@@ -217,7 +217,7 @@ export async function GET(request: Request) {
     if (fullName && (!user.name || user.name === email.split("@")[0])) {
       updateData.name = fullName;
     }
-    if (avatarUrl && !user.profileImage) {
+    if (avatarUrl && user.profileImage !== avatarUrl) {
       updateData.profileImage = avatarUrl;
     }
 

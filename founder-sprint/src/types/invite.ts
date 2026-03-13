@@ -6,6 +6,13 @@ export interface FounderOption {
   companyName: string | null;
 }
 
+export interface MentorOption {
+  id: string;
+  name: string | null;
+  email: string;
+  profileImage: string | null;
+}
+
 export interface CompanyOption {
   id: string;
   name: string;

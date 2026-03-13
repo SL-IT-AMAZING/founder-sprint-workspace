@@ -15,6 +15,7 @@ interface ScheduleViewProps {
   selectedDay: string | null;
   typeFilter: ScheduleItemKind | null;
   isAdmin: boolean;
+  userTimezone: string | null;
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
@@ -28,6 +29,7 @@ export function ScheduleView({
   selectedDay,
   typeFilter,
   isAdmin,
+  userTimezone,
   companies,
   founders,
   totalBatchMembers,
@@ -146,6 +148,7 @@ export function ScheduleView({
             items={dayItems}
             selectedDay={selectedDayDate}
             isAdmin={isAdmin}
+            userTimezone={userTimezone}
             companies={companies}
             founders={founders}
             totalBatchMembers={totalBatchMembers}

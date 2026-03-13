@@ -1,210 +1,187 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createAssignment } from "@/actions/assignment";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createAssignment, updateAssignment, deleteAssignment } from "@/actions/assignment";
+import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
-import { useToast } from "@/hooks/useToast";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
+
+interface AssignmentItem {
+  id: string;
+  title: string;
+  description: string;
+  templateUrl: string | null;
+  dueDate: Date;
+  targetGroup?: { id: string; name: string } | null;
+  targetUserIds?: string[];
+  batch?: { id: string; name: string } | null;
+  _count?: { submissions: number };
+}
 
 interface BatchOption {
   id: string;
   name: string;
 }
 
-interface Assignment {
+interface TargetGroupOption {
   id: string;
-  title: string;
-  description: string;
-  dueDate: Date;
-  batch?: { id: string; name: string };
-  _count: {
-    submissions: number;
-  };
+  name: string;
+}
+
+interface TargetUserOption {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
 }
 
 interface AssignmentsListProps {
-  assignments: Assignment[];
+  assignments: AssignmentItem[];
   canCreate: boolean;
-  isAdmin?: boolean;
-  batches?: BatchOption[];
-  currentBatchId?: string;
+  isAdmin: boolean;
+  batches: BatchOption[];
+  currentBatchId: string;
+  availableGroups: TargetGroupOption[];
+  availableUsers: TargetUserOption[];
 }
 
-export function AssignmentsList({ assignments, canCreate, isAdmin, batches = [], currentBatchId = "" }: AssignmentsListProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
+export function AssignmentsList({
+  assignments,
+  canCreate,
+  isAdmin,
+  batches,
+  currentBatchId,
+  availableGroups,
+  availableUsers,
+}: AssignmentsListProps) {
+  const [createOpen, setCreateOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState("");
-  const router = useRouter();
-  const toast = useToast();
-  const [selectedBatchId, setSelectedBatchId] = useState(currentBatchId);
+  const [targetMode, setTargetMode] = useState<"all" | "group" | "users">("all");
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [showThisWeekOnly, setShowThisWeekOnly] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
+  const weekStart = new Date();
+  const day = weekStart.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  weekStart.setDate(weekStart.getDate() + diff);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
 
-    const formData = new FormData(e.currentTarget);
+  const visibleAssignments = assignments.filter((assignment) => {
+    if (!showThisWeekOnly) return true;
+    const dueAt = new Date(assignment.dueDate);
+    return dueAt >= weekStart && dueAt < weekEnd;
+  });
+
+  const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    if (targetMode === "all") {
+      formData.delete("targetGroupId");
+    }
+
+    if (targetMode !== "users") {
+      formData.delete("targetUserIds");
+    } else {
+      selectedUsers.forEach((userId) => formData.append("targetUserIds", userId));
+    }
 
     startTransition(async () => {
       const result = await createAssignment(formData);
       if (result.success) {
-        setIsModalOpen(false);
-        (e.target as HTMLFormElement).reset();
+        setCreateOpen(false);
+        setSelectedUsers([]);
+        setTargetMode("all");
+        form.reset();
       } else {
         setError(result.error);
       }
     });
   };
 
-  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editAssignment) return;
-    setError("");
-
-    const formData = new FormData(e.currentTarget);
-
-    startTransition(async () => {
-      const result = await updateAssignment(editAssignment.id, formData);
-      if (result.success) {
-        setEditAssignment(null);
-      } else {
-        setError(result.error);
-      }
-    });
-  };
-
-  const handleDelete = (e: React.MouseEvent, assignmentId: string, title: string) => {
-    e.stopPropagation();
-    const confirmMsg = `Are you sure you want to delete "${title}"? This will also delete all submissions and feedback.`;
-    if (!confirm(confirmMsg)) return;
-
-    startTransition(async () => {
-      const result = await deleteAssignment(assignmentId);
-      if (!result.success) {
-        toast.error(result.error);
-      }
-    });
-  };
-
-  const getDueDateBadge = (dueDate: Date) => {
-    const now = new Date();
-    const due = new Date(dueDate);
-    const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return <Badge variant="error">Overdue</Badge>;
-    } else if (diffDays <= 3) {
-      return <Badge variant="warning">Due soon</Badge>;
-    } else {
-      return <Badge>Upcoming</Badge>;
-    }
+  const toggleUser = (userId: string) => {
+    setSelectedUsers((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Assignments</h1>
-        {canCreate && (
-          <Button onClick={() => setIsModalOpen(true)}>Create Assignment</Button>
-        )}
+      <div className="flex items-center justify-between gap-4">
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>
+          Assignments
+        </h1>
+        {canCreate && <Button onClick={() => setCreateOpen(true)}>Create Assignment</Button>}
       </div>
 
       {assignments.length === 0 ? (
         <EmptyState
           title="No assignments yet"
-          description="Assignments will appear here once created"
-          action={
-            canCreate ? (
-              <Button onClick={() => setIsModalOpen(true)}>Create First Assignment</Button>
-            ) : undefined
-          }
+          description="Assignments will appear here once they are published."
+          action={canCreate ? <Button onClick={() => setCreateOpen(true)}>Create Assignment</Button> : undefined}
         />
       ) : (
         <div className="space-y-4">
-          {assignments.map((assignment) => (
-            <div
-              key={assignment.id}
-              className="card cursor-pointer"
-              onClick={() => router.push(`/assignments/${assignment.id}`)}
-              style={{ transition: "border-color 0.2s" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--color-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--color-card-border)";
-              }}
-            >
+          <label className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+            <input
+              type="checkbox"
+              checked={showThisWeekOnly}
+              onChange={(event) => setShowThisWeekOnly(event.target.checked)}
+            />
+            This week only
+          </label>
+
+          {visibleAssignments.length === 0 && (
+            <div className="card">
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                No assignments due this week.
+              </p>
+            </div>
+          )}
+
+          {visibleAssignments.map((assignment) => (
+            <div key={assignment.id} className="card">
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-medium">{assignment.title}</h3>
-                      {isAdmin && assignment.batch && (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontFamily: '"Roboto Mono", monospace',
-                            backgroundColor: "#f0f0f0",
-                            color: "#666666",
-                            padding: "2px 8px",
-                            borderRadius: 4,
-                            fontWeight: 500,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {assignment.batch.name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                      Due {formatDate(assignment.dueDate)}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-medium">{assignment.title}</h3>
+                    <p className="text-sm" style={{ color: "var(--color-foreground-secondary)", whiteSpace: "pre-wrap" }}>
+                      {assignment.description}
                     </p>
                   </div>
-                  <div className="self-start">
-                    {getDueDateBadge(assignment.dueDate)}
-                  </div>
+                  <Badge variant="warning">Due {formatDate(assignment.dueDate)}</Badge>
                 </div>
-                <p
-                  className="text-sm line-clamp-2"
-                  style={{ color: "var(--color-foreground-secondary)" }}
-                >
-                  {assignment.description}
-                </p>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                    <span>{assignment._count.submissions} submissions</span>
-                  </div>
-                  {isAdmin && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditAssignment(assignment);
-                        }}
-                        disabled={isPending || assignment._count.submissions > 0}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={(e) => handleDelete(e, assignment.id, assignment.title)}
-                        disabled={isPending}
-                      >
-                        Delete
-                      </Button>
-                    </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {assignment.batch && <Badge variant="default">{assignment.batch.name}</Badge>}
+                  {assignment.targetGroup && <Badge variant="success">Group: {assignment.targetGroup.name}</Badge>}
+                  {(assignment.targetUserIds?.length || 0) > 0 && (
+                    <Badge variant="success">Users: {assignment.targetUserIds?.length}</Badge>
                   )}
+                  {assignment.templateUrl && (
+                    <a href={assignment.templateUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-primary)" }}>
+                      Template →
+                    </a>
+                  )}
+                  <span style={{ color: "var(--color-foreground-muted)" }}>
+                    {(assignment._count?.submissions || 0)} submission(s)
+                  </span>
+                </div>
+
+                <div>
+                  <Link href={`/assignments/${assignment.id}`} style={{ color: "var(--color-primary)", fontSize: 14 }}>
+                    View assignment →
+                  </Link>
                 </div>
               </div>
             </div>
@@ -212,134 +189,61 @@ export function AssignmentsList({ assignments, canCreate, isAdmin, batches = [],
         </div>
       )}
 
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Assignment">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="form-error p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setError(null); }} title="Create Assignment">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <Input name="title" label="Title" required disabled={isPending} />
+          <Textarea name="description" label="Description" required rows={5} disabled={isPending} />
+          <Input name="templateUrl" label="Template URL" type="url" disabled={isPending} />
+          <Input name="dueDate" label="Due Date" type="date" required disabled={isPending} />
 
           {isAdmin && batches.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <SearchableSelect
-                label="Target Batch"
-                options={batches.map((b) => ({
-                  id: b.id,
-                  label: b.name,
-                }))}
-                value={selectedBatchId}
-                onChange={setSelectedBatchId}
-                placeholder="Select batch..."
-                required
-                emptyMessage="No active batches"
-              />
-              <input type="hidden" name="batchId" value={selectedBatchId} />
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Batch</label>
+              <select name="batchId" defaultValue={currentBatchId} className="w-full px-3 py-2 rounded-lg border" disabled={isPending}>
+                {batches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
             </div>
           )}
 
-          <Input
-            name="title"
-            label="Title"
-            placeholder="Assignment 1: Business Model Canvas"
-            required
-          />
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Target</label>
+            <div className="flex gap-2 flex-wrap">
+              <Button type="button" variant={targetMode === "all" ? "primary" : "ghost"} onClick={() => { setTargetMode("all"); setSelectedUsers([]); }} disabled={isPending}>All founders</Button>
+              <Button type="button" variant={targetMode === "group" ? "primary" : "ghost"} onClick={() => { setTargetMode("group"); setSelectedUsers([]); }} disabled={isPending}>Specific group</Button>
+              <Button type="button" variant={targetMode === "users" ? "primary" : "ghost"} onClick={() => setTargetMode("users")} disabled={isPending}>Specific founders</Button>
+            </div>
 
-          <Textarea
-            name="description"
-            label="Description"
-            placeholder="Detailed instructions for the assignment"
-            rows={4}
-            required
-          />
-
-          <Input
-            name="templateUrl"
-            label="Template URL (optional)"
-            type="url"
-            placeholder="https://docs.google.com/document/..."
-          />
-
-          <Input
-            name="dueDate"
-            label="Due Date"
-            type="datetime-local"
-            required
-          />
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsModalOpen(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={isPending}>
-              Create Assignment
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={!!editAssignment}
-        onClose={() => {
-          setEditAssignment(null);
-          setError("");
-        }}
-        title="Edit Assignment"
-      >
-        {editAssignment && (
-          <form onSubmit={handleEdit} className="space-y-4">
-            {error && (
-              <div className="form-error p-3 rounded-lg text-sm">
-                {error}
-              </div>
+            {targetMode === "group" && (
+              <select name="targetGroupId" className="w-full px-3 py-2 rounded-lg border" disabled={isPending} defaultValue="">
+                <option value="">Select a group</option>
+                {availableGroups.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
             )}
 
-            <Input
-              name="title"
-              label="Title"
-              defaultValue={editAssignment.title}
-              required
-            />
+            {targetMode === "users" && (
+              <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid var(--color-card-border)", borderRadius: 8, padding: 12 }}>
+                {availableUsers.map((user) => (
+                  <label key={user.id} className="flex items-center gap-2 py-1" style={{ cursor: "pointer" }}>
+                    <input type="checkbox" checked={selectedUsers.includes(user.id)} onChange={() => toggleUser(user.id)} disabled={isPending} />
+                    <span>{user.name || user.email}</span>
+                    <span style={{ color: "var(--color-foreground-muted)", fontSize: 12 }}>({user.role})</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
 
-            <Textarea
-              name="description"
-              label="Description"
-              defaultValue={editAssignment.description}
-              rows={4}
-              required
-            />
+          {error && <div className="form-error p-3 rounded-lg text-sm">{error}</div>}
 
-            <Input
-              name="dueDate"
-              label="Due Date"
-              type="datetime-local"
-              defaultValue={new Date(editAssignment.dueDate).toISOString().slice(0, 16)}
-              required
-            />
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setEditAssignment(null);
-                  setError("");
-                }}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" loading={isPending}>
-                Save Changes
-              </Button>
-            </div>
-          </form>
-        )}
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => { setCreateOpen(false); setError(null); }} disabled={isPending}>Cancel</Button>
+            <Button type="submit" loading={isPending}>Create Assignment</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

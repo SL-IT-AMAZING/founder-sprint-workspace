@@ -18,21 +18,21 @@ import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
 import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
+import { displayRangeInUserTimezone } from "@/lib/timezone";
 
 interface DayPanelProps {
   items: ScheduleItem[];
   selectedDay: Date | null;
   isAdmin: boolean;
+  userTimezone: string | null;
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
 }
 
-function formatItemTime(item: ScheduleItem): string {
+function formatItemTime(item: ScheduleItem, userTimezone: string | null): string {
   if (item.isAllDay) return "All day";
-  const start = format(parseISO(item.startTime), "h:mm a");
-  const end = format(parseISO(item.endTime), "h:mm a");
-  return `${start} - ${end}`;
+  return displayRangeInUserTimezone(item.startTime, item.endTime, userTimezone, item.timezone);
 }
 
 function getStatusVariant(
@@ -58,7 +58,9 @@ type CreateType = "event" | "officeHour" | "session";
 
 const eventTypeOptions = [
   { value: "one_off", label: "One-off Event" },
+  { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
+  { value: "virtual", label: "Virtual Event" },
   { value: "in_person", label: "In-person Event" },
 ];
 
@@ -68,7 +70,7 @@ const timezoneOptions = [
   { value: "UTC", label: "UTC" },
 ];
 
-export function DayPanel({ items, selectedDay, isAdmin, companies, founders, totalBatchMembers }: DayPanelProps) {
+export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<CreateType | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -310,7 +312,7 @@ export function DayPanel({ items, selectedDay, isAdmin, companies, founders, tot
                         marginBottom: 4,
                       }}
                     >
-                      {formatItemTime(item)}
+                          {formatItemTime(item, userTimezone)}
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                       <span

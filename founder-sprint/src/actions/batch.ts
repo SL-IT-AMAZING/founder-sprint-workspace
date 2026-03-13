@@ -22,6 +22,14 @@ const UpdateBatchSchema = z.object({
   endDate: z.date().optional(),
 });
 
+const CloneBatchSchema = z.object({
+  sourceBatchId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+  startDate: z.string().transform((s) => new Date(s)),
+  endDate: z.string().transform((s) => new Date(s)),
+});
+
 export async function createBatch(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -161,6 +169,109 @@ export async function deleteBatch(batchId: string): Promise<ActionResult> {
   revalidatePath("/admin/batches");
   revalidateTag("batches");
   return { success: true, data: undefined };
+}
+
+export async function cloneBatchStructure(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = CloneBatchSchema.safeParse({
+    sourceBatchId: formData.get("sourceBatchId"),
+    name: formData.get("name"),
+    description: formData.get("description"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const sourceBatch = await prisma.batch.findUnique({ where: { id: parsed.data.sourceBatchId } });
+  if (!sourceBatch) {
+    return { success: false, error: "Source batch not found" };
+  }
+
+  const [sourceAssignments, sourceSessions] = await Promise.all([
+    prisma.assignment.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
+    prisma.session.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
+  ]);
+
+  const clonedBatch = await prisma.$transaction(async (tx) => {
+    const newBatch = await tx.batch.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description || null,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+      },
+    });
+
+    await tx.userBatch.create({
+      data: {
+        userId: user.id,
+        batchId: newBatch.id,
+        role: user.role as import("@prisma/client").$Enums.UserRole,
+        status: "active",
+        joinedAt: new Date(),
+      },
+    });
+
+    if (sourceAssignments.length > 0) {
+      await tx.assignment.createMany({
+        data: sourceAssignments.map((assignment) => ({
+          batchId: newBatch.id,
+          title: assignment.title,
+          description: assignment.description,
+          templateUrl: assignment.templateUrl,
+          reviewCriteria: assignment.reviewCriteria,
+          targetGroupId: null,
+          targetUserIds: [],
+          dueDate: assignment.dueDate,
+        })),
+      });
+    }
+
+    if (sourceSessions.length > 0) {
+      await tx.session.createMany({
+        data: sourceSessions.map((session) => ({
+          batchId: newBatch.id,
+          title: session.title,
+          description: session.description,
+          sessionDate: session.sessionDate,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          timezone: session.timezone,
+          slidesUrl: null,
+          recordingUrl: null,
+          googleEventId: null,
+          targetGroupId: null,
+        })),
+      });
+    }
+
+    return newBatch;
+  });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  revalidateTag("batches-active");
+  revalidateTag("current-user");
+
+  return {
+    success: true,
+    data: { id: clonedBatch.id },
+    warning:
+      sourceAssignments.length || sourceSessions.length
+        ? `Cloned ${sourceAssignments.length} assignment(s) and ${sourceSessions.length} session(s).`
+        : "Batch created. Source batch had no assignments or sessions to clone.",
+  };
 }
 
 export async function getBatches() {

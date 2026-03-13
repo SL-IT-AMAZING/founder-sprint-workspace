@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { getBatchUsers, inviteUser, bulkInviteUsers, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
+import {
+  getBatchUsers,
+  inviteUser,
+  bulkInviteUsers,
+  updateUserRole,
+  updateAdditionalRoles,
+  removeUserFromBatch,
+  cancelInvite,
+  resendInvite,
+  deactivateUser,
+  reactivateUser,
+  getRecentUserManagementAuditLogs,
+  getFounderActivitySummaries,
+} from "@/actions/user-management";
 import { getCompaniesForSelect } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -32,6 +45,7 @@ interface BatchUser {
   userId: string;
   batchId: string;
   role: UserRole;
+  additionalRoles: string[];
   status: "invited" | "active";
   invitedAt: Date;
   user: {
@@ -39,12 +53,33 @@ interface BatchUser {
     email: string;
     name: string | null;
     profileImage: string | null;
+    status: "active" | "inactive" | string;
   };
   batch: {
     id: string;
     name: string;
     status: string;
   };
+}
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  userName: string;
+  createdAt: Date;
+  details: string | null;
+}
+
+interface FounderActivityEntry {
+  userId: string;
+  name: string | null;
+  email: string;
+  profileImage: string | null;
+  role: UserRole;
+  submissionCount: number;
+  feedbackCount: number;
+  officeHourCount: number;
+  postCount: number;
 }
 
 const roleOptions = [
@@ -70,6 +105,10 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
   const [bulkEmails, setBulkEmails] = useState<string[]>([]);
   const [bulkResults, setBulkResults] = useState<Array<{ email: string; success: boolean; error?: string; inviteLink?: string }> | null>(null);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -82,8 +121,11 @@ export function UserManagement({ batches }: UserManagementProps) {
   const handleBatchChange = (batchId: string) => {
     setSelectedBatchId(batchId);
     setUsers([]); // Clear users when changing batch
+    setAuditEntries([]);
     if (batchId) {
       loadUsers(batchId);
+      loadAuditLogs(batchId);
+      loadFounderActivity(batchId);
     }
   };
 
@@ -94,6 +136,22 @@ export function UserManagement({ batches }: UserManagementProps) {
       .then((data) => setUsers(data as BatchUser[]))
       .catch(() => setUsers([]))
       .finally(() => setIsLoadingUsers(false));
+  };
+
+  const loadAuditLogs = (batchId: string) => {
+    setIsLoadingAudit(true);
+    getRecentUserManagementAuditLogs(batchId)
+      .then((data) => setAuditEntries(data as AuditEntry[]))
+      .catch(() => setAuditEntries([]))
+      .finally(() => setIsLoadingAudit(false));
+  };
+
+  const loadFounderActivity = (batchId: string) => {
+    setIsLoadingActivity(true);
+    getFounderActivitySummaries(batchId)
+      .then((data) => setActivityEntries(data as FounderActivityEntry[]))
+      .catch(() => setActivityEntries([]))
+      .finally(() => setIsLoadingActivity(false));
   };
 
   // Fetch companies (not batch-scoped)
@@ -162,6 +220,26 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
+  const handleEditAdditionalRoles = async (userBatch: BatchUser) => {
+    const currentValue = userBatch.additionalRoles.join(", ");
+    const nextValue = window.prompt("Additional roles (comma-separated)", currentValue);
+    if (nextValue === null) return;
+
+    const roles = nextValue
+      .split(",")
+      .map((role) => role.trim())
+      .filter((role) => role.length > 0);
+
+    startTransition(async () => {
+      const result = await updateAdditionalRoles(userBatch.userId, selectedBatchId, roles);
+      if (result.success) {
+        loadUsers(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
   const handleRemoveUser = async (userId: string) => {
     startTransition(async () => {
       const result = await removeUserFromBatch(userId, selectedBatchId);
@@ -185,6 +263,86 @@ export function UserManagement({ batches }: UserManagementProps) {
         toast.error(result.error);
       }
     });
+  };
+
+  const handleResendInvite = async (userId: string) => {
+    startTransition(async () => {
+      const result = await resendInvite(userId, selectedBatchId);
+      if (result.success) {
+        if (result.warning) {
+          toast.warning(result.warning);
+          setInviteLink(result.data.inviteLink);
+        } else {
+          toast.success("Invitation resent");
+        }
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleDeactivateUser = async (userId: string, userName: string) => {
+    if (!confirm(`Deactivate ${userName}? They will no longer be able to sign in.`)) return;
+
+    startTransition(async () => {
+      const result = await deactivateUser(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("User deactivated");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleReactivateUser = async (userId: string) => {
+    startTransition(async () => {
+      const result = await reactivateUser(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("User reactivated");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const getAuditDescription = (entry: AuditEntry) => {
+    let details: Record<string, unknown> = {};
+    try {
+      details = entry.details ? JSON.parse(entry.details) : {};
+    } catch {
+      details = {};
+    }
+
+    const userEmail = typeof details.userEmail === "string" ? details.userEmail : "user";
+    const previousRole = typeof details.previousRole === "string" ? details.previousRole : undefined;
+    const newRole = typeof details.newRole === "string" ? details.newRole : undefined;
+
+    if (entry.action === "user_role_changed") {
+      return `${entry.userName} changed ${userEmail} role from ${previousRole || "unknown"} to ${newRole || "unknown"}`;
+    }
+
+    if (entry.action === "user_additional_roles_changed") {
+      return `${entry.userName} updated additional roles for ${userEmail}`;
+    }
+
+    if (entry.action === "user_deactivated") {
+      return `${entry.userName} deactivated ${userEmail}`;
+    }
+
+    if (entry.action === "user_reactivated") {
+      return `${entry.userName} reactivated ${userEmail}`;
+    }
+
+    if (entry.action === "invite_resent") {
+      return `${entry.userName} resent an invite to ${userEmail}`;
+    }
+
+    return `${entry.userName} performed ${entry.action}`;
   };
 
   const batchOptions = batches.map((batch) => ({
@@ -269,10 +427,22 @@ export function UserManagement({ batches }: UserManagementProps) {
                   </div>
                   
                   <div className="flex items-center justify-between gap-2">
-                    <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
-                    <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
-                      {userBatch.status}
-                    </Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
+                      {userBatch.additionalRoles.map((additionalRole) => (
+                        <Badge key={`${userBatch.id}-${additionalRole}`} variant="outline">
+                          +{getRoleDisplayName(additionalRole)}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
+                        {userBatch.status}
+                      </Badge>
+                      {userBatch.user.status === "inactive" && (
+                        <Badge variant="error">Deactivated</Badge>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
@@ -292,14 +462,51 @@ export function UserManagement({ batches }: UserManagementProps) {
                       <option value="founder">Founder</option>
                       <option value="co_founder">Co-founder</option>
                     </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditAdditionalRoles(userBatch)}
+                      disabled={isPending}
+                    >
+                      Additional Roles
+                    </Button>
                     {userBatch.status === "invited" && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResendInvite(userBatch.userId)}
+                          disabled={isPending}
+                        >
+                          Resend Invite
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                          disabled={isPending}
+                        >
+                          Cancel Invite
+                        </Button>
+                      </>
+                    )}
+                    {userBatch.user.status === "inactive" ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                        onClick={() => handleReactivateUser(userBatch.userId)}
                         disabled={isPending}
                       >
-                        Cancel Invite
+                        Reactivate
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                        disabled={isPending}
+                      >
+                        Deactivate
                       </Button>
                     )}
                     <Button
@@ -362,12 +569,24 @@ export function UserManagement({ batches }: UserManagementProps) {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
+                        {userBatch.additionalRoles.map((additionalRole) => (
+                          <Badge key={`${userBatch.id}-desktop-${additionalRole}`} variant="outline">
+                            +{getRoleDisplayName(additionalRole)}
+                          </Badge>
+                        ))}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
-                      <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
-                        {userBatch.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
+                          {userBatch.status}
+                        </Badge>
+                        {userBatch.user.status === "inactive" && (
+                          <Badge variant="error">Deactivated</Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <span style={{ color: "var(--color-foreground-secondary)", fontSize: "14px" }}>
@@ -388,14 +607,51 @@ export function UserManagement({ batches }: UserManagementProps) {
                           <option value="founder">Founder</option>
                           <option value="co_founder">Co-founder</option>
                         </select>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditAdditionalRoles(userBatch)}
+                          disabled={isPending}
+                        >
+                          Additional Roles
+                        </Button>
                         {userBatch.status === "invited" && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvite(userBatch.userId)}
+                              disabled={isPending}
+                            >
+                              Resend Invite
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                              disabled={isPending}
+                            >
+                              Cancel Invite
+                            </Button>
+                          </>
+                        )}
+                        {userBatch.user.status === "inactive" ? (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                            onClick={() => handleReactivateUser(userBatch.userId)}
                             disabled={isPending}
                           >
-                            Cancel Invite
+                            Reactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                            disabled={isPending}
+                          >
+                            Deactivate
                           </Button>
                         )}
                         <Button
@@ -415,6 +671,87 @@ export function UserManagement({ batches }: UserManagementProps) {
           </div>
         </div>
       </div>
+      )}
+
+      {selectedBatchId && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-medium">Recent Audit Entries</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => loadAuditLogs(selectedBatchId)}
+              disabled={isPending || isLoadingAudit}
+            >
+              Refresh
+            </Button>
+          </div>
+          {isLoadingAudit ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>Loading recent activity...</p>
+          ) : auditEntries.length === 0 ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>No recent role or lifecycle changes.</p>
+          ) : (
+            <div className="space-y-2">
+              {auditEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-3 rounded-lg"
+                  style={{ border: "1px solid var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}
+                >
+                  <p className="text-sm">{getAuditDescription(entry)}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-foreground-secondary)" }}>
+                    {formatDate(entry.createdAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedBatchId && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-medium">Founder Activity</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => loadFounderActivity(selectedBatchId)}
+              disabled={isPending || isLoadingActivity}
+            >
+              Refresh
+            </Button>
+          </div>
+          {isLoadingActivity ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>Loading founder activity...</p>
+          ) : activityEntries.length === 0 ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>No founder activity yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {activityEntries.map((entry) => (
+                <div
+                  key={entry.userId}
+                  className="p-3 rounded-lg flex items-center justify-between gap-4"
+                  style={{ border: "1px solid var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar src={entry.profileImage} name={getDisplayName(entry)} size={36} />
+                    <div>
+                      <p className="text-sm font-medium">{getDisplayName(entry)}</p>
+                      <p className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>{entry.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                    <Badge variant="default">Submissions {entry.submissionCount}</Badge>
+                    <Badge variant="default">Feedback {entry.feedbackCount}</Badge>
+                    <Badge variant="default">OH {entry.officeHourCount}</Badge>
+                    <Badge variant="default">Posts {entry.postCount}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Invite Modal */}

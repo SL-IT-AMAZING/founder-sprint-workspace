@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
@@ -26,11 +30,17 @@ function getSizeValue(size: AvatarSize | number): number {
 
 export function Avatar({ src, name, size = "md", badge }: AvatarProps) {
   const sizeValue = getSizeValue(size);
+  const [imgError, setImgError] = useState(false);
 
-  const avatarElement = src ? (
+  useEffect(() => {
+    setImgError(false);
+  }, [src]);
+
+  const avatarElement = src && !imgError ? (
     <img
       src={src}
       alt={name || ""}
+      onError={() => setImgError(true)}
       className="rounded-full object-cover"
       style={{
         width: sizeValue,

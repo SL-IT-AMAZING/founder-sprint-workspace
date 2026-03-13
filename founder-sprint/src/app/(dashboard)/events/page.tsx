@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getEvents } from "@/actions/event";
 import { getAllBatchesForSelect } from "@/actions/session";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { EventsList } from "./EventsList";
 
 export const revalidate = 60;
@@ -25,6 +26,13 @@ export default async function EventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Events</h1>
+        <Link
+          href="/schedule"
+          className="text-sm font-medium underline"
+          style={{ color: "var(--color-primary)" }}
+        >
+          Open Unified Schedule
+        </Link>
       </div>
       <EventsList user={user} events={events} batchOptions={batchOptions} />
     </div>

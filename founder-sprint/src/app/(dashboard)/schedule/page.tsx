@@ -64,6 +64,7 @@ export default async function SchedulePage({
         selectedDay={selectedDay}
         typeFilter={typeFilter}
         isAdmin={user.role === "admin" || user.role === "super_admin"}
+        userTimezone={user.timezone}
         companies={companies}
         founders={founders}
         totalBatchMembers={totalBatchMembers}

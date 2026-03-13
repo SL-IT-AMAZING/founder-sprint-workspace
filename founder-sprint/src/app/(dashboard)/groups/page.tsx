@@ -11,5 +11,5 @@ export default async function GroupsPage() {
 
   const groups = await getGroups(user.batchId);
 
-  return <GroupsList groups={groups} isAdmin={isAdmin(user.role)} />;
+  return <GroupsList groups={groups} isAdmin={isAdmin(user)} />;
 }

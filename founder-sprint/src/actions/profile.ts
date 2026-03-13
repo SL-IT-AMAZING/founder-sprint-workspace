@@ -7,6 +7,7 @@ import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+import { toIanaTimezone } from "@/lib/timezone";
 
 const UpdateProfileSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
@@ -31,6 +32,7 @@ const UpdateProfileSchema = z.object({
     .url("Website URL must be a valid URL")
     .max(500, "Website URL must be 500 characters or less")
     .optional(),
+  timezone: z.string().max(100, "Timezone must be 100 characters or less").optional(),
 });
 
 const ExperienceInputSchema = z
@@ -122,6 +124,7 @@ export async function getProfile(): Promise<ActionResult<{
       jobTitle: true,
       company: true,
       bio: true,
+      timezone: true,
     },
   });
 
@@ -249,6 +252,7 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
   groups: { id: string; name: string }[];
   officeHourSlots: { id: string; startTime: string; endTime: string; status: string }[];
   headline: string | null;
+  timezone: string | null;
   followerCount: number;
   followingCount: number;
   location: string | null;
@@ -322,6 +326,7 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
       linkedinUrl: true,
       twitterUrl: true,
       websiteUrl: true,
+      timezone: true,
       userBatches: {
         where: {
           status: "active",
@@ -406,6 +411,7 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
       linkedinUrl: profile.linkedinUrl,
       twitterUrl: profile.twitterUrl,
       websiteUrl: profile.websiteUrl,
+      timezone: profile.timezone,
       experiences: profile.experiences.map((exp) => ({
         id: exp.id,
         company: exp.company,
@@ -462,6 +468,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
     linkedinUrl: optionalString(formData.get("linkedinUrl")),
     twitterUrl: optionalString(formData.get("twitterUrl")),
     websiteUrl: optionalString(formData.get("websiteUrl")),
+    timezone: optionalString(formData.get("timezone")),
   };
 
   const parsed = UpdateProfileSchema.safeParse(raw);
@@ -485,6 +492,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
       linkedinUrl: parsed.data.linkedinUrl || null,
       twitterUrl: parsed.data.twitterUrl || null,
       websiteUrl: parsed.data.websiteUrl || null,
+      timezone: parsed.data.timezone ? toIanaTimezone(parsed.data.timezone) : null,
     },
   });
 

@@ -11,6 +11,13 @@ interface SubmissionFormProps {
   existingSubmission?: {
     content: string | null;
     linkUrl: string | null;
+    versions?: Array<{
+      id: string;
+      version: number;
+      content: string | null;
+      linkUrl: string | null;
+      createdAt: Date;
+    }>;
   };
 }
 
@@ -89,6 +96,35 @@ export function SubmissionForm({ assignmentId, existingSubmission }: SubmissionF
           </Button>
         </div>
       </form>
+
+      {existingSubmission?.versions && existingSubmission.versions.length > 0 && (
+        <div className="mt-6 pt-4 border-t space-y-3" style={{ borderColor: "var(--color-card-border)" }}>
+          <h4 className="text-sm font-medium">Previous versions</h4>
+          {existingSubmission.versions.map((version) => (
+            <div key={version.id} className="rounded-lg p-3" style={{ backgroundColor: "var(--color-background)" }}>
+              <p className="text-xs mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                v{version.version} • {new Date(version.createdAt).toLocaleString()}
+              </p>
+              {version.content && (
+                <p className="text-sm" style={{ whiteSpace: "pre-wrap", color: "var(--color-foreground-secondary)" }}>
+                  {version.content}
+                </p>
+              )}
+              {version.linkUrl && (
+                <a
+                  href={version.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  {version.linkUrl}
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

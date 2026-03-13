@@ -22,6 +22,7 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [memberImageErrors, setMemberImageErrors] = useState<Record<string, boolean>>({});
 
   const styles = {
     card: {
@@ -199,8 +200,18 @@ export const CompanyCard: React.FC<CompanyCardProps> = ({
         <div style={styles.teamContainer}>
           {teamMembers.slice(0, 5).map((member, index) => (
             <div key={index} style={styles.avatar(index)} title={member.name}>
-                 {member.avatarUrl ? (
-                    <img src={member.avatarUrl} alt={member.name} style={styles.avatarImg} />
+                 {member.avatarUrl && !memberImageErrors[`${index}-${member.name}`] ? (
+                    <img
+                      src={member.avatarUrl}
+                      alt={member.name}
+                      style={styles.avatarImg}
+                      onError={() =>
+                        setMemberImageErrors((current) => ({
+                          ...current,
+                          [`${index}-${member.name}`]: true,
+                        }))
+                      }
+                    />
                  ) : (
                     <div style={styles.avatarFallback}>{member.name.charAt(0)}</div>
                  )}

@@ -27,6 +27,7 @@ const CreateSessionSchema = z.object({
   startTime: TimeOrDateTime.optional(),
   endTime: TimeOrDateTime.optional(),
   timezone: z.string().default("UTC"),
+  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 }).refine(
   (data) => {
     if (!!data.startTime !== !!data.endTime) return false;
@@ -50,7 +51,30 @@ const UpdateSessionSchema = z.object({
   startTime: TimeOrDateTime.optional(),
   endTime: TimeOrDateTime.optional(),
   timezone: z.string().optional(),
+  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
+
+async function resolveSessionTargetGroup(
+  targetGroupIdRaw: string | undefined,
+  allowedBatchIds: string[]
+) {
+  const targetGroupId = targetGroupIdRaw?.trim() || "";
+  if (!targetGroupId) return { targetGroupId: null } as const;
+
+  const group = await prisma.group.findFirst({
+    where: {
+      id: targetGroupId,
+      batchId: { in: allowedBatchIds },
+    },
+    select: { id: true },
+  });
+
+  if (!group) {
+    return { error: "Selected target group is invalid for the selected batch." } as const;
+  }
+
+  return { targetGroupId } as const;
+}
 
 function toFullDatetime(dateStr: string, timeOrDatetime: string): string {
   return timeOrDatetime.includes("T") ? timeOrDatetime : `${dateStr}T${timeOrDatetime}`;
@@ -124,6 +148,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     startTime: (formData.get("startTime") as string) || undefined,
     endTime: (formData.get("endTime") as string) || undefined,
     timezone: (formData.get("timezone") as string) || "UTC",
+    targetGroupId: (formData.get("targetGroupId") as string) || undefined,
   });
 
   if (!parsed.success) {
@@ -140,6 +165,11 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     ? fromZonedTime(toFullDatetime(sessionDateStr, parsed.data.endTime!), ianaTimezone)
     : null;
 
+  const resolvedTargetGroup = await resolveSessionTargetGroup(parsed.data.targetGroupId || undefined, batchIds);
+  if ("error" in resolvedTargetGroup && typeof resolvedTargetGroup.error === "string") {
+    return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+  }
+
   const session = await prisma.$transaction(async (tx) => {
     const createdSession = await tx.session.create({
       data: {
@@ -152,6 +182,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
         startTime: startTimeUtc,
         endTime: endTimeUtc,
         timezone: ianaTimezone,
+        targetGroupId: resolvedTargetGroup.targetGroupId,
       },
     });
 
@@ -166,16 +197,12 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
 
   if (isCalendarConfigured()) {
     try {
-      const groupIds = formData.getAll("groupIds") as string[];
-
       let attendeeEmails: string[];
-      if (groupIds.length > 0) {
-        // Specific companies selected — get their members
+      if (resolvedTargetGroup.targetGroupId) {
         const groupMembers = await prisma.groupMember.findMany({
-          where: { groupId: { in: groupIds } },
+          where: { groupId: resolvedTargetGroup.targetGroupId },
           include: { user: { select: { email: true } } },
         });
-        // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({
@@ -234,11 +261,31 @@ export async function getSessions(batchId: string) {
   if (!user) return [];
   if (!isAdmin(user.role) && !user.userBatchIds.includes(batchId)) return [];
 
+  if (!isAdmin(user.role)) {
+    return prisma.session.findMany({
+      where: {
+        batches: { some: { batchId } },
+        OR: [
+          { targetGroupId: null },
+          { targetGroup: { members: { some: { userId: user.id } } } },
+        ],
+      },
+      include: {
+        targetGroup: { select: { id: true, name: true } },
+        batches: {
+          include: { batch: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { sessionDate: "desc" },
+    });
+  }
+
   return unstable_cache(
     () =>
       prisma.session.findMany({
         where: { batches: { some: { batchId } } },
         include: {
+          targetGroup: { select: { id: true, name: true } },
           batches: {
             include: { batch: { select: { id: true, name: true } } },
           },
@@ -251,6 +298,9 @@ export async function getSessions(batchId: string) {
 }
 
 export async function getSession(id: string, batchId?: string) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
   const session = await unstable_cache(
     () =>
       prisma.session.findFirst({
@@ -261,6 +311,7 @@ export async function getSession(id: string, batchId?: string) {
             }
           : { id },
         include: {
+          targetGroup: { select: { id: true, name: true } },
           batches: {
             include: { batch: { select: { id: true, name: true } } },
           },
@@ -269,6 +320,19 @@ export async function getSession(id: string, batchId?: string) {
     [`session-${id}-${batchId || "all"}`],
     { revalidate: 60, tags: [`session-${id}`] }
   )();
+
+  if (!session) return null;
+
+  if (!isAdmin(user.role) && session.targetGroupId) {
+    const isMember = await prisma.groupMember.findFirst({
+      where: {
+        groupId: session.targetGroupId,
+        userId: user.id,
+      },
+      select: { id: true },
+    });
+    if (!isMember) return null;
+  }
 
   return session;
 }
@@ -312,6 +376,7 @@ export async function updateSession(
     startTime: (formData.get("startTime") as string) || undefined,
     endTime: (formData.get("endTime") as string) || undefined,
     timezone: (formData.get("timezone") as string) || undefined,
+    targetGroupId: (formData.get("targetGroupId") as string) || undefined,
   });
 
   if (!parsed.success) {
@@ -359,10 +424,17 @@ export async function updateSession(
     ...(startTimeUtc !== undefined && { startTime: startTimeUtc }),
     ...(endTimeUtc !== undefined && { endTime: endTimeUtc }),
     ...(parsed.data.timezone !== undefined && { timezone: nextTimezone }),
-  };
+  } as Record<string, unknown>;
 
   const oldBatchIds = sessionBatchIds;
   const nextBatchIds = requestedBatchIds.length > 0 ? batchIds : oldBatchIds;
+  const resolvedTargetGroup = await resolveSessionTargetGroup(parsed.data.targetGroupId || undefined, nextBatchIds);
+  if ("error" in resolvedTargetGroup && typeof resolvedTargetGroup.error === "string") {
+    return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+  }
+  if (parsed.data.targetGroupId !== undefined) {
+    updateData.targetGroupId = resolvedTargetGroup.targetGroupId;
+  }
 
   if (requestedBatchIds.length > 0) {
     await prisma.$transaction(async (tx) => {
@@ -387,16 +459,17 @@ export async function updateSession(
 
   if (existingSession.googleEventId) {
     try {
-      const groupIds = formData.getAll("groupIds") as string[];
-
       let attendeeEmails: string[];
-      if (groupIds.length > 0) {
-        // Specific companies selected — get their members
+      const finalTargetGroupId =
+        resolvedTargetGroup.targetGroupId !== undefined
+          ? resolvedTargetGroup.targetGroupId
+          : existingSession.targetGroupId;
+
+      if (finalTargetGroupId) {
         const groupMembers = await prisma.groupMember.findMany({
-          where: { groupId: { in: groupIds } },
+          where: { groupId: finalTargetGroupId },
           include: { user: { select: { email: true } } },
         });
-        // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({

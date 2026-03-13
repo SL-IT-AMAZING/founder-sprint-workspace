@@ -35,6 +35,9 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                 <Badge variant={isPastSession ? "default" : "success"}>
                   {isPastSession ? "Past Session" : "Upcoming"}
                 </Badge>
+                {session.targetGroup && (
+                  <Badge variant="default">Group: {session.targetGroup.name}</Badge>
+                )}
               </div>
             </div>
             {isUserAdmin && (
