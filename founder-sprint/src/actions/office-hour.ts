@@ -12,6 +12,7 @@ import { sendOfficeHourRequestEmail, sendOfficeHourBookingConfirmEmail } from "@
 import { revalidateSchedule } from "@/lib/cache-helpers";
 import type { UserWithBatch } from "@/types";
 import type { CompanyOption, FounderOption, MentorOption } from "@/types/invite";
+import { getEffectiveBatchStatus } from "@/lib/batch-utils";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -56,18 +57,23 @@ const responseSchema = z.object({
 
 const WEEKLY_OFFICE_HOUR_LIMIT = 2;
 
-async function getRequesterStats(userId: string, batchId: string) {
-  const [grantedCredits, reservedRequests, weeklyRequests] = await Promise.all([
+interface RequesterStats {
+  totalCredits: number | null;
+  remainingCredits: number | null;
+  weeklyLimit: number;
+  remainingWeeklyRequests: number;
+  isBatchActive: boolean;
+}
+
+async function getRequesterStats(userId: string, batchId: string): Promise<RequesterStats> {
+  const [batch, grantedCredits, weeklyRequests] = await Promise.all([
+    prisma.batch.findUnique({
+      where: { id: batchId },
+      select: { status: true, endDate: true },
+    }),
     prisma.officeHourCredit.aggregate({
       where: { userId, batchId },
       _sum: { credits: true },
-    }),
-    prisma.officeHourRequest.count({
-      where: {
-        requesterId: userId,
-        status: { in: ["pending", "approved"] },
-        slot: { batchId },
-      },
     }),
     prisma.officeHourRequest.count({
       where: {
@@ -79,13 +85,38 @@ async function getRequesterStats(userId: string, batchId: string) {
     }),
   ]);
 
-  const totalCredits = 1 + (grantedCredits._sum.credits ?? 0);
+  const batchStatus = batch
+    ? getEffectiveBatchStatus({ status: batch.status, endDate: batch.endDate })
+    : "expired";
+  const isBatchActive = batchStatus === "active";
+  const batchEndBoundary = batch?.endDate ? new Date(batch.endDate) : null;
+  if (batchEndBoundary) {
+    batchEndBoundary.setHours(23, 59, 59, 999);
+  }
+
+  const reservedRequests = await prisma.officeHourRequest.count({
+    where: {
+      requesterId: userId,
+      status: { in: ["pending", "approved"] },
+      slot: { batchId },
+      ...(isBatchActive || !batchEndBoundary
+        ? {}
+        : {
+            createdAt: { gte: batchEndBoundary },
+          }),
+    },
+  });
+
+  const grantedTotal = grantedCredits._sum.credits ?? 0;
+  const endedBatchCredits = 1 + grantedTotal;
+  const totalCredits = isBatchActive ? null : endedBatchCredits;
 
   return {
     totalCredits,
-    remainingCredits: Math.max(totalCredits - reservedRequests, 0),
+    remainingCredits: isBatchActive ? null : Math.max(endedBatchCredits - reservedRequests, 0),
     weeklyLimit: WEEKLY_OFFICE_HOUR_LIMIT,
     remainingWeeklyRequests: Math.max(WEEKLY_OFFICE_HOUR_LIMIT - weeklyRequests, 0),
+    isBatchActive,
   };
 }
 
@@ -190,6 +221,7 @@ export async function getOfficeHourRequesterStats(batchId?: string) {
       remainingCredits: 0,
       weeklyLimit: WEEKLY_OFFICE_HOUR_LIMIT,
       remainingWeeklyRequests: 0,
+      isBatchActive: false,
     };
   }
 
@@ -488,9 +520,9 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
     }
 
     const requesterStats = await getRequesterStats(user.id, targetBatch.batchId);
-    if (requesterStats.remainingCredits <= 0) {
-      return { success: false, error: "You have no remaining office hour credits" };
-    }
+  if (requesterStats.remainingCredits !== null && requesterStats.remainingCredits <= 0) {
+    return { success: false, error: "You have no remaining office hour credits" };
+  }
     if (requesterStats.remainingWeeklyRequests <= 0) {
       return { success: false, error: `Weekly office hour limit (${requesterStats.weeklyLimit}) reached` };
     }
@@ -772,9 +804,9 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
     }
 
     const requesterStats = await getRequesterStats(user.id, user.batchId);
-    if (requesterStats.remainingCredits <= 0) {
-      return { success: false, error: "You have no remaining office hour credits" };
-    }
+  if (requesterStats.remainingCredits !== null && requesterStats.remainingCredits <= 0) {
+    return { success: false, error: "You have no remaining office hour credits" };
+  }
     if (requesterStats.remainingWeeklyRequests <= 0) {
       return { success: false, error: `Weekly office hour limit (${requesterStats.weeklyLimit}) reached` };
     }

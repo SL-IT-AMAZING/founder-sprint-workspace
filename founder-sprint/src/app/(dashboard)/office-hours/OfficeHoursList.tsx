@@ -84,10 +84,11 @@ interface OfficeHoursListProps {
   founders: FounderOption[];
   mentors: MentorOption[];
   requesterStats: {
-    totalCredits: number;
-    remainingCredits: number;
+    totalCredits: number | null;
+    remainingCredits: number | null;
     weeklyLimit: number;
     remainingWeeklyRequests: number;
+    isBatchActive: boolean;
   };
   batchOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
@@ -406,7 +407,11 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       <div className="flex items-center justify-end gap-2">
         {isFounderUser && (
           <div className="mr-auto flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-            <Badge variant="default">Credits {requesterStats.remainingCredits}/{requesterStats.totalCredits}</Badge>
+            {requesterStats.isBatchActive ? (
+              <Badge variant="success">Unlimited during active batch</Badge>
+            ) : (
+              <Badge variant="default">Credits {requesterStats.remainingCredits}/{requesterStats.totalCredits}</Badge>
+            )}
             <Badge variant="warning">Weekly requests left {requesterStats.remainingWeeklyRequests}/{requesterStats.weeklyLimit}</Badge>
           </div>
         )}
