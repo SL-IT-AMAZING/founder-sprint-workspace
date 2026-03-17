@@ -14,8 +14,13 @@ import {
   isSameDay,
   isToday,
 } from "date-fns";
-import type { ScheduleItem, ScheduleItemKind } from "@/types/schedule";
-import { SCHEDULE_COLORS } from "@/types/schedule";
+import type { ScheduleItem, ScheduleItemKind, VisibleScheduleFilter } from "@/types/schedule";
+import {
+  SCHEDULE_COLORS,
+  VISIBLE_SCHEDULE_COLORS,
+  getVisibleScheduleFilterForItem,
+  matchesVisibleScheduleFilter,
+} from "@/types/schedule";
 
 function safeDateKey(value: Date | string | null | undefined): string | null {
   if (!value) return null;
@@ -38,7 +43,7 @@ interface CalendarProps {
   onMonthChange?: (month: Date) => void;
   selectedDay?: Date | null;
   onDayClick?: (date: Date) => void;
-  typeFilter?: ScheduleItemKind | null;
+  typeFilter?: VisibleScheduleFilter | null;
 }
 
 export function Calendar({
@@ -76,16 +81,24 @@ export function Calendar({
   const itemsByDate = useMemo(() => {
     if (!items) return null;
     const filtered = typeFilter
-      ? items.filter((i) => i.kind === typeFilter)
+      ? items.filter((item) => matchesVisibleScheduleFilter(item, typeFilter))
       : items;
-    const map = new Map<string, { kinds: Set<ScheduleItemKind>; count: number }>();
+    const map = new Map<string, { kinds: Set<ScheduleItemKind>; count: number; visibleKinds: Set<VisibleScheduleFilter> }>();
     filtered.forEach((item) => {
       const dateKey = item.isAllDay
         ? (typeof item.startTime === "string" ? item.startTime.slice(0, 10) : safeDateKey(item.startTime))
         : safeDateKey(item.startTime);
       if (!dateKey) return;
-      const existing = map.get(dateKey) || { kinds: new Set<ScheduleItemKind>(), count: 0 };
+      const existing = map.get(dateKey) || {
+        kinds: new Set<ScheduleItemKind>(),
+        count: 0,
+        visibleKinds: new Set<VisibleScheduleFilter>(),
+      };
       existing.kinds.add(item.kind);
+      const visibleKind = getVisibleScheduleFilterForItem(item);
+      if (visibleKind) {
+        existing.visibleKinds.add(visibleKind);
+      }
       existing.count += 1;
       map.set(dateKey, existing);
     });
@@ -156,9 +169,10 @@ export function Calendar({
           const legacyHasEvents = eventsByDate ? (eventsByDate.get(dateKey)?.length ?? 0) > 0 : false;
           const scheduleData = itemsByDate?.get(dateKey);
           const scheduleKinds = scheduleData?.kinds;
+          const scheduleVisibleKinds = scheduleData?.visibleKinds;
           const scheduleCount = scheduleData?.count ?? 0;
-          const filteredKindActive = Boolean(isScheduleMode && typeFilter && scheduleKinds?.has(typeFilter));
-          const filteredKindBorder = filteredKindActive && typeFilter ? `inset 0 0 0 2px ${SCHEDULE_COLORS[typeFilter]}` : "none";
+          const filteredKindActive = Boolean(isScheduleMode && typeFilter && scheduleVisibleKinds?.has(typeFilter));
+          const filteredKindColor = filteredKindActive && typeFilter ? VISIBLE_SCHEDULE_COLORS[typeFilter] : null;
 
           return (
             <button
@@ -173,10 +187,15 @@ export function Calendar({
                   ? "var(--color-primary)"
                   : isSelected
                   ? "rgba(26, 26, 26, 0.06)"
+                  : filteredKindColor
+                  ? `${filteredKindColor}22`
                   : "transparent",
                 boxShadow: isSelected && !isCurrentDay
                   ? "inset 0 0 0 2px var(--color-primary)"
-                  : filteredKindBorder,
+                  : filteredKindColor
+                  ? `inset 0 0 0 2px ${filteredKindColor}`
+                  : "none",
+                borderRadius: filteredKindColor ? 8 : 6,
                 color: isCurrentDay
                   ? "white"
                   : isCurrentMonth
@@ -200,20 +219,20 @@ export function Calendar({
                 />
               )}
 
-              {isScheduleMode && scheduleKinds && scheduleKinds.size > 0 && !filteredKindActive && (
+              {isScheduleMode && scheduleVisibleKinds && scheduleVisibleKinds.size > 0 && !filteredKindActive && (
                 <span
                   className="absolute bottom-1 left-1/2 transform -translate-x-1/2"
                   style={{ display: "flex", gap: 2, alignItems: "center" }}
                 >
-                  {(["event", "officeHour", "session"] as ScheduleItemKind[]).map((kind) =>
-                    scheduleKinds.has(kind) ? (
+                  {(["in_person", "virtual", "general_session", "office_hour"] as VisibleScheduleFilter[]).map((kind) =>
+                    scheduleVisibleKinds.has(kind) ? (
                       <span
                         key={kind}
                         style={{
                           width: 6,
                           height: 6,
                           borderRadius: "50%",
-                          backgroundColor: isCurrentDay ? "white" : SCHEDULE_COLORS[kind],
+                          backgroundColor: isCurrentDay ? "white" : VISIBLE_SCHEDULE_COLORS[kind],
                         }}
                       />
                     ) : null
