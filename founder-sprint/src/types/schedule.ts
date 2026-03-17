@@ -35,7 +35,7 @@ export interface ScheduleItem {
   status?: "available" | "requested" | "confirmed" | "completed" | "cancelled";
 
   /** Events only: event sub-type */
-  eventType?: "one_off" | "office_hour" | "in_person";
+  eventType?: "one_off" | "office_hour" | "in_person" | "virtual" | "general_session";
 
   /** Office Hours only: mentor/host name */
   hostName?: string;

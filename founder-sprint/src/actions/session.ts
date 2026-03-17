@@ -9,6 +9,7 @@ import type { ActionResult } from "@/types";
 import { revalidateSchedule } from "@/lib/cache-helpers";
 import { toIanaTimezone } from "@/lib/timezone";
 import { fromZonedTime } from "date-fns-tz";
+import { format } from "date-fns";
 import { isCalendarConfigured, createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "@/lib/google-calendar";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
@@ -18,15 +19,21 @@ const TimeOrDateTime = z.string().refine(
   "Must be HH:mm or a valid datetime"
 );
 
+const SessionDateString = z.string().refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  "Invalid session date"
+);
+
 const CreateSessionSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().optional(),
-  sessionDate: z.string().transform((s) => new Date(s)),
+  sessionDate: SessionDateString.transform((s) => new Date(s)),
   slidesUrl: z.string().url().optional().or(z.literal("")),
   recordingUrl: z.string().url().optional().or(z.literal("")),
   startTime: TimeOrDateTime.optional(),
   endTime: TimeOrDateTime.optional(),
   timezone: z.string().default("UTC"),
+  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 }).refine(
   (data) => {
     if (!!data.startTime !== !!data.endTime) return false;
@@ -44,13 +51,36 @@ const CreateSessionSchema = z.object({
 const UpdateSessionSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().optional(),
-  sessionDate: z.string().transform((s) => new Date(s)).optional(),
+  sessionDate: SessionDateString.transform((s) => new Date(s)).optional(),
   slidesUrl: z.string().url().optional().or(z.literal("")),
   recordingUrl: z.string().url().optional().or(z.literal("")),
   startTime: TimeOrDateTime.optional(),
   endTime: TimeOrDateTime.optional(),
   timezone: z.string().optional(),
+  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
+
+async function resolveSessionTargetGroup(
+  targetGroupIdRaw: string | undefined,
+  allowedBatchIds: string[]
+) {
+  const targetGroupId = targetGroupIdRaw?.trim() || "";
+  if (!targetGroupId) return { targetGroupId: null } as const;
+
+  const group = await prisma.group.findFirst({
+    where: {
+      id: targetGroupId,
+      batchId: { in: allowedBatchIds },
+    },
+    select: { id: true },
+  });
+
+  if (!group) {
+    return { error: "Selected target group is invalid for the selected batch." } as const;
+  }
+
+  return { targetGroupId } as const;
+}
 
 function toFullDatetime(dateStr: string, timeOrDatetime: string): string {
   return timeOrDatetime.includes("T") ? timeOrDatetime : `${dateStr}T${timeOrDatetime}`;
@@ -81,6 +111,94 @@ export async function getAllBatchesForSelect() {
     },
     orderBy: [{ status: "asc" }, { name: "asc" }],
   });
+}
+
+export async function getSessionTemplates() {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) return [];
+
+  try {
+    return await prisma.sessionTemplate.findMany({
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        title: true,
+        description: true,
+        timezone: true,
+        slidesUrl: true,
+        recordingUrl: true,
+        defaultStartTime: true,
+        defaultEndTime: true,
+        createdAt: true,
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load session templates:", error);
+    return [];
+  }
+}
+
+export async function saveSessionAsTemplate(
+  sessionId: string,
+  templateName?: string
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  const session = await prisma.session.findFirst({
+    where: {
+      id: sessionId,
+      batches: { some: { batchId: { in: user.userBatchIds } } },
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      timezone: true,
+      slidesUrl: true,
+      recordingUrl: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  if (!session) {
+    return { success: false, error: "Session not found" };
+  }
+
+  let template;
+  try {
+    template = await prisma.sessionTemplate.create({
+      data: {
+        name: templateName?.trim() || session.title,
+        title: session.title,
+        description: session.description,
+        timezone: session.timezone,
+        slidesUrl: session.slidesUrl,
+        recordingUrl: session.recordingUrl,
+        defaultStartTime: session.startTime ? format(session.startTime, "HH:mm") : null,
+        defaultEndTime: session.endTime ? format(session.endTime, "HH:mm") : null,
+        createdBy: user.id,
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("Failed to save session template:", error);
+    return { success: false, error: "Template storage is currently unavailable" };
+  }
+
+  revalidatePath("/sessions");
+  return { success: true, data: { id: template.id } };
 }
 
 export async function createSession(formData: FormData): Promise<ActionResult<{ id: string }>> {
@@ -124,6 +242,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     startTime: (formData.get("startTime") as string) || undefined,
     endTime: (formData.get("endTime") as string) || undefined,
     timezone: (formData.get("timezone") as string) || "UTC",
+    targetGroupId: (formData.get("targetGroupId") as string) || undefined,
   });
 
   if (!parsed.success) {
@@ -140,6 +259,11 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     ? fromZonedTime(toFullDatetime(sessionDateStr, parsed.data.endTime!), ianaTimezone)
     : null;
 
+  const resolvedTargetGroup = await resolveSessionTargetGroup(parsed.data.targetGroupId || undefined, batchIds);
+  if ("error" in resolvedTargetGroup && typeof resolvedTargetGroup.error === "string") {
+    return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+  }
+
   const session = await prisma.$transaction(async (tx) => {
     const createdSession = await tx.session.create({
       data: {
@@ -152,6 +276,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
         startTime: startTimeUtc,
         endTime: endTimeUtc,
         timezone: ianaTimezone,
+        targetGroupId: resolvedTargetGroup.targetGroupId,
       },
     });
 
@@ -162,18 +287,16 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
     return createdSession;
   });
 
+  let warning: string | undefined;
+
   if (isCalendarConfigured()) {
     try {
-      const groupIds = formData.getAll("groupIds") as string[];
-
       let attendeeEmails: string[];
-      if (groupIds.length > 0) {
-        // Specific companies selected — get their members
+      if (resolvedTargetGroup.targetGroupId) {
         const groupMembers = await prisma.groupMember.findMany({
-          where: { groupId: { in: groupIds } },
+          where: { groupId: resolvedTargetGroup.targetGroupId },
           include: { user: { select: { email: true } } },
         });
-        // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({
@@ -206,9 +329,12 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
           where: { id: session.id },
           data: { googleEventId: calResult.eventId },
         });
+      } else {
+        warning = "Session created, but Google Calendar sync failed. Please create the calendar event manually.";
       }
     } catch (error) {
       console.error("Failed to sync session with Google Calendar:", error);
+      warning = "Session created, but Google Calendar sync failed. Please create the calendar event manually.";
     }
   }
 
@@ -221,7 +347,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
   for (const bid of batchIds.slice(1)) {
     revalidateTag(`schedule-${bid}`);
   }
-  return { success: true, data: { id: session.id } };
+  return { success: true as const, data: { id: session.id }, warning };
 }
 
 export async function getSessions(batchId: string) {
@@ -229,11 +355,31 @@ export async function getSessions(batchId: string) {
   if (!user) return [];
   if (!isAdmin(user.role) && !user.userBatchIds.includes(batchId)) return [];
 
+  if (!isAdmin(user.role)) {
+    return prisma.session.findMany({
+      where: {
+        batches: { some: { batchId } },
+        OR: [
+          { targetGroupId: null },
+          { targetGroup: { members: { some: { userId: user.id } } } },
+        ],
+      },
+      include: {
+        targetGroup: { select: { id: true, name: true } },
+        batches: {
+          include: { batch: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { sessionDate: "desc" },
+    });
+  }
+
   return unstable_cache(
     () =>
       prisma.session.findMany({
         where: { batches: { some: { batchId } } },
         include: {
+          targetGroup: { select: { id: true, name: true } },
           batches: {
             include: { batch: { select: { id: true, name: true } } },
           },
@@ -246,6 +392,9 @@ export async function getSessions(batchId: string) {
 }
 
 export async function getSession(id: string, batchId?: string) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
   const session = await unstable_cache(
     () =>
       prisma.session.findFirst({
@@ -256,6 +405,7 @@ export async function getSession(id: string, batchId?: string) {
             }
           : { id },
         include: {
+          targetGroup: { select: { id: true, name: true } },
           batches: {
             include: { batch: { select: { id: true, name: true } } },
           },
@@ -264,6 +414,19 @@ export async function getSession(id: string, batchId?: string) {
     [`session-${id}-${batchId || "all"}`],
     { revalidate: 60, tags: [`session-${id}`] }
   )();
+
+  if (!session) return null;
+
+  if (!isAdmin(user.role) && session.targetGroupId) {
+    const isMember = await prisma.groupMember.findFirst({
+      where: {
+        groupId: session.targetGroupId,
+        userId: user.id,
+      },
+      select: { id: true },
+    });
+    if (!isMember) return null;
+  }
 
   return session;
 }
@@ -307,6 +470,7 @@ export async function updateSession(
     startTime: (formData.get("startTime") as string) || undefined,
     endTime: (formData.get("endTime") as string) || undefined,
     timezone: (formData.get("timezone") as string) || undefined,
+    targetGroupId: (formData.get("targetGroupId") as string) || undefined,
   });
 
   if (!parsed.success) {
@@ -354,10 +518,17 @@ export async function updateSession(
     ...(startTimeUtc !== undefined && { startTime: startTimeUtc }),
     ...(endTimeUtc !== undefined && { endTime: endTimeUtc }),
     ...(parsed.data.timezone !== undefined && { timezone: nextTimezone }),
-  };
+  } as Record<string, unknown>;
 
   const oldBatchIds = sessionBatchIds;
   const nextBatchIds = requestedBatchIds.length > 0 ? batchIds : oldBatchIds;
+  const resolvedTargetGroup = await resolveSessionTargetGroup(parsed.data.targetGroupId || undefined, nextBatchIds);
+  if ("error" in resolvedTargetGroup && typeof resolvedTargetGroup.error === "string") {
+    return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+  }
+  if (parsed.data.targetGroupId !== undefined) {
+    updateData.targetGroupId = resolvedTargetGroup.targetGroupId;
+  }
 
   if (requestedBatchIds.length > 0) {
     await prisma.$transaction(async (tx) => {
@@ -382,16 +553,17 @@ export async function updateSession(
 
   if (existingSession.googleEventId) {
     try {
-      const groupIds = formData.getAll("groupIds") as string[];
-
       let attendeeEmails: string[];
-      if (groupIds.length > 0) {
-        // Specific companies selected — get their members
+      const finalTargetGroupId =
+        resolvedTargetGroup.targetGroupId !== undefined
+          ? resolvedTargetGroup.targetGroupId
+          : existingSession.targetGroupId;
+
+      if (finalTargetGroupId) {
         const groupMembers = await prisma.groupMember.findMany({
-          where: { groupId: { in: groupIds } },
+          where: { groupId: finalTargetGroupId },
           include: { user: { select: { email: true } } },
         });
-        // Always include the creator + deduplicate
         attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({

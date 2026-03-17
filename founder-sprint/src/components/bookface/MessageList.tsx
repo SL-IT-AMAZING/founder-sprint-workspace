@@ -175,6 +175,7 @@ export const MessageItem: React.FC<{
   onClick?: () => void;
 }> = ({ message, isSelected, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const displayName = message.isGroup ? message.groupName : message.participant.name;
 
   return (
@@ -189,8 +190,13 @@ export const MessageItem: React.FC<{
       onMouseLeave={() => setIsHovered(false)}
     >
       <div style={{ position: 'relative' }}>
-        {message.participant.avatarUrl ? (
-          <img src={message.participant.avatarUrl} alt={displayName} style={styles.avatar} />
+        {message.participant.avatarUrl && !avatarError ? (
+          <img
+            src={message.participant.avatarUrl}
+            alt={displayName}
+            style={styles.avatar}
+            onError={() => setAvatarError(true)}
+          />
         ) : (
           <div style={styles.avatarPlaceholder}>
             {(displayName || '?').charAt(0).toUpperCase()}

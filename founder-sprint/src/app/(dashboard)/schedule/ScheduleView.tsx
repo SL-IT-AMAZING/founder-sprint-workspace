@@ -15,9 +15,12 @@ interface ScheduleViewProps {
   selectedDay: string | null;
   typeFilter: ScheduleItemKind | null;
   isAdmin: boolean;
+  userTimezone: string | null;
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
+  batchOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 const ALL_KINDS: ScheduleItemKind[] = ["event", "officeHour", "session"];
@@ -28,9 +31,12 @@ export function ScheduleView({
   selectedDay,
   typeFilter,
   isAdmin,
+  userTimezone,
   companies,
   founders,
   totalBatchMembers,
+  batchOptions,
+  currentBatchId,
 }: ScheduleViewProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -146,9 +152,12 @@ export function ScheduleView({
             items={dayItems}
             selectedDay={selectedDayDate}
             isAdmin={isAdmin}
+            userTimezone={userTimezone}
             companies={companies}
             founders={founders}
             totalBatchMembers={totalBatchMembers}
+            batchOptions={batchOptions}
+            currentBatchId={currentBatchId}
           />
         </div>
       </div>

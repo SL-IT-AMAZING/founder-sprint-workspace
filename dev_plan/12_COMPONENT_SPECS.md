@@ -870,11 +870,11 @@ interface EventFormData {
 
 ---
 
-### SlotRegistrationForm
+### OfficeHourSchedulingForm
 
 **outsome-react 매핑**: `OfficeHoursForm` (재사용 가능, 커스터마이즈)
 
-오피스아워 슬롯 신청 폼.
+관리자가 회사 팀 또는 메인 Founder 연락처를 지정해 오피스아워를 스케줄링하는 폼.
 
 | Props | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -909,7 +909,7 @@ interface SlotRequestData {
 
 **Events**: `onSubmit`
 
-**사용 화면**: #8 Office Hour Slot Registration
+**사용 화면**: #8 Office Hour Scheduling
 
 ---
 

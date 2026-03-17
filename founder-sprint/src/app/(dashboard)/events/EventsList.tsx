@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { isSameDay } from "date-fns";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -16,6 +17,7 @@ import { createEvent, deleteEvent } from "@/actions/event";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import type { UserWithBatch, EventType } from "@/types";
+import { displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
 
 type ViewMode = "list" | "calendar";
 
@@ -44,16 +46,19 @@ interface EventsListProps {
 }
 
 const eventTypeOptions = [
-  { value: "one_off", label: "One-off Event" },
+  { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
+  { value: "virtual", label: "Virtual Event" },
   { value: "in_person", label: "In-person Event" },
 ];
 
 function getEventTypeBadgeVariant(type: EventType): "default" | "success" | "warning" {
   switch (type) {
     case "one_off":
+    case "general_session":
       return "default";
     case "office_hour":
+    case "virtual":
       return "success";
     case "in_person":
       return "warning";
@@ -66,8 +71,12 @@ function getEventTypeLabel(type: EventType): string {
   switch (type) {
     case "one_off":
       return "One-off";
+    case "general_session":
+      return "General Session";
     case "office_hour":
       return "Office Hour";
+    case "virtual":
+      return "Virtual";
     case "in_person":
       return "In-person";
     default:
@@ -100,7 +109,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
     : events.filter((e) => e.eventType === selectedType);
 
   const handleDayClick = (date: Date) => {
-    setSelectedDate(date);
+    setSelectedDate((prev) => (prev && isSameDay(prev, date) ? null : date));
   };
 
   const selectedDateEvents = selectedDate
@@ -161,11 +170,11 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
             All
           </button>
           <button
-            onClick={() => setSelectedType("one_off")}
-            className={selectedType === "one_off" ? "btn btn-primary" : "btn btn-secondary"}
+            onClick={() => setSelectedType("general_session")}
+            className={selectedType === "general_session" ? "btn btn-primary" : "btn btn-secondary"}
             style={{ fontSize: 14, height: 36, padding: "0 16px" }}
           >
-            One-off
+            General Session
           </button>
           <button
             onClick={() => setSelectedType("office_hour")}
@@ -173,6 +182,13 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
             style={{ fontSize: 14, height: 36, padding: "0 16px" }}
           >
             Office Hour
+          </button>
+          <button
+            onClick={() => setSelectedType("virtual")}
+            className={selectedType === "virtual" ? "btn btn-primary" : "btn btn-secondary"}
+            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
+          >
+            Virtual
           </button>
           <button
             onClick={() => setSelectedType("in_person")}
@@ -220,7 +236,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
       {viewMode === "calendar" ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <Calendar events={filteredEvents} onDayClick={handleDayClick} />
+            <Calendar events={filteredEvents} onDayClick={handleDayClick} selectedDay={selectedDate} />
           </div>
           <div className="space-y-3">
             <h3 className="font-medium">
@@ -240,7 +256,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
                   </Badge>
                 </div>
                 <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
-                  {formatDateTime(event.startTime)} - {formatDateTime(event.endTime)}
+                  {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
                 </p>
               </div>
             ))}
@@ -297,10 +313,10 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
                   )}
                   <div className="flex flex-wrap gap-4 text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     <div>
-                      <strong>Start:</strong> {formatDateTime(event.startTime)}
+                    <strong>Start:</strong> {displayInUserTimezone(event.startTime, user.timezone, event.timezone)}
                     </div>
                     <div>
-                      <strong>End:</strong> {formatDateTime(event.endTime)}
+                    <strong>End:</strong> {displayInUserTimezone(event.endTime, user.timezone, event.timezone)}
                     </div>
                     {event.location && (
                       <div>

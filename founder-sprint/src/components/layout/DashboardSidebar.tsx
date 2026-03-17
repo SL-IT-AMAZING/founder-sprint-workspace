@@ -19,7 +19,6 @@ const NAV_ITEMS: NavItemData[] = [
   { id: 'feed', label: 'Feed', iconSrc: '/images/icon-decorative-messaging.svg', href: '/feed', prefetch: true },
   { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments', prefetch: true },
   { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions', prefetch: true },
-  { id: 'submissions', label: 'Submissions', iconSrc: '/images/icon-interface-arrow-up-right.svg', href: '/submissions' },
   { id: 'groups', label: 'Companies', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
   {
     id: 'schedule',
@@ -278,7 +277,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ isAdmin = fa
   const allNavItems = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
 
   return (
-    <aside style={styles.container}>
+    <aside className="lg:hidden" style={styles.container}>
       <nav style={{ width: '100%' }}>
         {allNavItems.map((item) => {
           const isActive =

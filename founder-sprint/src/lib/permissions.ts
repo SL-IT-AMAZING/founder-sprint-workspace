@@ -3,7 +3,49 @@ import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import type { UserRole, UserWithBatch } from "@/types";
+import type { UserRole, UserStatus, UserWithBatch } from "@/types";
+
+type PermissionSubject =
+  | UserRole
+  | {
+      role?: UserRole | null;
+      additionalRoles?: string[] | null;
+      status?: string | null;
+    }
+  | null
+  | undefined;
+
+function getPermissionContext(subject: PermissionSubject): { isActive: boolean; roles: Set<string> } {
+  if (!subject) {
+    return { isActive: false, roles: new Set<string>() };
+  }
+
+  if (typeof subject === "string") {
+    return { isActive: true, roles: new Set<string>([subject]) };
+  }
+
+  const roles = new Set<string>();
+
+  if (subject.role) {
+    roles.add(subject.role);
+  }
+
+  for (const additionalRole of subject.additionalRoles || []) {
+    if (additionalRole) {
+      roles.add(additionalRole);
+    }
+  }
+
+  const isActive = !subject.status || subject.status === "active";
+
+  return { isActive, roles };
+}
+
+function hasAnyRole(subject: PermissionSubject, allowedRoles: UserRole[]): boolean {
+  const { isActive, roles } = getPermissionContext(subject);
+  if (!isActive) return false;
+  return allowedRoles.some((allowedRole) => roles.has(allowedRole));
+}
 
 const getCachedUserByEmail = (email: string, batchId?: string) =>
   unstable_cache(
@@ -52,13 +94,29 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   const { data: { user: authUser } } = await supabase.auth.getUser();
   if (!authUser?.email) return null;
   const authEmail = authUser.email;
+  const authAvatarUrl = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || null;
 
   let user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
+  if (authAvatarUrl && user.profileImage !== authAvatarUrl) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { profileImage: authAvatarUrl },
+    });
+    user = {
+      ...user,
+      profileImage: authAvatarUrl,
+    };
+  }
+  const userStatus = (user as { status?: string }).status ?? "active";
+  if (userStatus !== "active") return null;
+
+  const globalRole = user.role as UserRole | null;
+  const isGlobalAdmin = globalRole === "super_admin" || globalRole === "admin";
 
   // Fallback: if cookie pointed to an invalid batch, clear it and retry
-  if (batchId && user.userBatches.length === 0) {
+  if (batchId && user.userBatches.length === 0 && !isGlobalAdmin) {
     try {
       const cookieStore = await cookies();
       cookieStore.delete("selected_batch_id");
@@ -76,20 +134,38 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   });
   const userBatchIds = allBatchMemberships.map(b => b.batchId);
 
+  const userTimezone = (user as { timezone?: string | null }).timezone ?? null;
+
   if (user.userBatches.length === 0) {
-    const globalRole = user.role as UserRole | null;
-    if (globalRole === "super_admin" || globalRole === "admin") {
+    if (isGlobalAdmin) {
+      const selectedBatch =
+        (batchId
+          ? await prisma.batch.findUnique({
+              where: { id: batchId },
+              select: { id: true, name: true, endDate: true, status: true },
+            })
+          : null) ||
+        (await prisma.batch.findFirst({
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          select: { id: true, name: true, endDate: true, status: true },
+        }));
+
       return {
         id: user.id,
         email: user.email,
         name: user.name,
         profileImage: user.profileImage,
+        timezone: userTimezone,
+        status: userStatus as UserStatus,
         jobTitle: user.jobTitle,
         company: user.company,
         bio: user.bio,
         role: globalRole,
-        batchId: "",
-        batchName: "",
+        additionalRoles: [],
+        batchId: selectedBatch?.id || "",
+        batchName: selectedBatch?.name || "",
+        batchEndDate: selectedBatch?.endDate,
+        batchStatus: selectedBatch?.status as import("@/types").BatchStatus | undefined,
         userBatchIds,
       };
     }
@@ -97,15 +173,20 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   }
 
   const ub = user.userBatches[0];
+  const additionalRoles = (ub as { additionalRoles?: string[] }).additionalRoles ?? [];
+
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     profileImage: user.profileImage,
+    timezone: userTimezone,
+    status: userStatus as UserStatus,
     jobTitle: user.jobTitle,
     company: user.company,
     bio: user.bio,
-    role: ub.role as UserRole,
+    role: isGlobalAdmin ? globalRole! : (ub.role as UserRole),
+    additionalRoles: isGlobalAdmin ? [] : additionalRoles,
     batchId: ub.batchId,
     batchName: ub.batch.name,
     batchEndDate: ub.batch.endDate,
@@ -114,60 +195,60 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   };
 });
 
-export function isAdmin(role: UserRole): boolean {
-  return role === "super_admin" || role === "admin";
+export function isAdmin(subject: PermissionSubject): boolean {
+  return hasAnyRole(subject, ["super_admin", "admin"]);
 }
 
-export function isStaff(role: UserRole): boolean {
-  return role === "super_admin" || role === "admin" || role === "mentor";
+export function isStaff(subject: PermissionSubject): boolean {
+  return hasAnyRole(subject, ["super_admin", "admin", "mentor"]);
 }
 
-export function isSuperAdmin(role: UserRole): boolean {
-  return role === "super_admin";
+export function isSuperAdmin(subject: PermissionSubject): boolean {
+  return hasAnyRole(subject, ["super_admin"]);
 }
 
-export function isFounder(role: UserRole): boolean {
-  return role === "founder" || role === "co_founder";
+export function isFounder(subject: PermissionSubject): boolean {
+  return hasAnyRole(subject, ["founder", "co_founder"]);
 }
 
-export function canCreateQuestion(role: UserRole): boolean {
-  return role === "founder" || role === "co_founder";
+export function canCreateQuestion(subject: PermissionSubject): boolean {
+  return isFounder(subject);
 }
 
-export function canAnswerQuestion(role: UserRole): boolean {
-  return isStaff(role);
+export function canAnswerQuestion(subject: PermissionSubject): boolean {
+  return isStaff(subject);
 }
 
-export function canCreateSummary(role: UserRole): boolean {
-  return isAdmin(role);
+export function canCreateSummary(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function canCreateEvent(role: UserRole): boolean {
-  return isAdmin(role);
+export function canCreateEvent(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function canCreateAssignment(role: UserRole): boolean {
-  return isAdmin(role) || role === "mentor";
+export function canCreateAssignment(subject: PermissionSubject): boolean {
+  return isAdmin(subject) || hasAnyRole(subject, ["mentor"]);
 }
 
-export function canManageBatch(role: UserRole): boolean {
-  return isAdmin(role);
+export function canManageBatch(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function canManageUsers(role: UserRole): boolean {
-  return isAdmin(role);
+export function canManageUsers(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function canCreateOfficeHourSlot(role: UserRole): boolean {
-  return isStaff(role);
+export function canCreateOfficeHourSlot(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function canManageGroups(role: UserRole): boolean {
-  return isAdmin(role);
+export function canManageGroups(subject: PermissionSubject): boolean {
+  return isAdmin(subject);
 }
 
-export function requireRole(role: UserRole, allowedRoles: UserRole[]): void {
-  if (!allowedRoles.includes(role)) {
+export function requireRole(subject: PermissionSubject, allowedRoles: UserRole[]): void {
+  if (!hasAnyRole(subject, allowedRoles)) {
     throw new Error("Unauthorized: insufficient permissions");
   }
 }

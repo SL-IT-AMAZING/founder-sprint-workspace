@@ -108,6 +108,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   onProfileClick,
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   return (
     <div style={styles.container}>
@@ -125,8 +126,13 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             onMouseLeave={() => setHoveredId(null)}
             onClick={() => onProfileClick?.(participant.id)}
           >
-            {participant.avatarUrl ? (
-              <img src={participant.avatarUrl} alt={participant.name} style={styles.avatar} />
+            {participant.avatarUrl && !imageErrors[participant.id] ? (
+              <img
+                src={participant.avatarUrl}
+                alt={participant.name}
+                style={styles.avatar}
+                onError={() => setImageErrors((current) => ({ ...current, [participant.id]: true }))}
+              />
             ) : (
               <div style={styles.avatarPlaceholder}>
                 {participant.name.charAt(0).toUpperCase()}

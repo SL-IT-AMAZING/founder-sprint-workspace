@@ -1,128 +1,83 @@
 import { test, expect } from "./fixtures";
 
+function futureDateRange(daysFromNow: number) {
+  const start = new Date();
+  start.setDate(start.getDate() + daysFromNow);
+  start.setHours(14, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 30);
+
+  return {
+    start: start.toISOString().slice(0, 16),
+    end: end.toISOString().slice(0, 16),
+  };
+}
+
 test.describe("Office Hours", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("mentor can view office hours page", async ({ mentorPage }) => {
-    await mentorPage.goto("/office-hours");
-    await expect(mentorPage).toHaveURL(/\/office-hours/);
-    await expect(mentorPage.locator("h1")).toContainText(/office.*hour/i);
+  test("admin can view office hours page", async ({ adminPage }) => {
+    test.slow();
+    await adminPage.goto("/office-hours", { waitUntil: "domcontentloaded" });
+    await expect(adminPage).toHaveURL(/\/office-hours/);
+    await expect(adminPage.locator("h1")).toContainText(/office.*hour/i);
+    await expect(adminPage.getByRole("button", { name: /schedule office hour/i }).first()).toBeVisible();
   });
 
-  test("mentor can create an office hour slot in the future", async ({ mentorPage }) => {
-    await mentorPage.goto("/office-hours");
+  test("admin can schedule an individual office hour for a founder", async ({ adminPage }) => {
+    await adminPage.goto("/office-hours", { waitUntil: "domcontentloaded" });
 
-    const createButton = mentorPage.getByRole("button", { name: /create|add|new/i }).first();
-    await createButton.click();
+    await adminPage.getByRole("button", { name: /schedule office hour/i }).first().click();
 
-    const modal = mentorPage.locator("dialog[open]").first();
+    const modal = adminPage.locator("dialog[open]").first();
     await expect(modal).toBeVisible();
+    await expect(modal.getByText(/schedule office hour/i)).toBeVisible();
 
-    const isReadOnlyBatch = (await modal.locator("text=This batch has ended").count()) > 0;
-    test.skip(isReadOnlyBatch, "Batch is read-only (ended), so slot creation is unavailable.");
+    await modal.getByRole("button", { name: /primary founder/i }).click();
+    await modal.getByRole("button", { name: /search by founder name or email/i }).click();
+    await modal.getByPlaceholder("Search...").fill("@");
+    await modal.locator("button").filter({ hasText: /@/ }).first().click();
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(14, 0, 0, 0);
-    const endTime = new Date(tomorrow);
-    endTime.setMinutes(endTime.getMinutes() + 30);
-    const startStr = tomorrow.toISOString().slice(0, 16);
-    const endStr = endTime.toISOString().slice(0, 16);
-
-    await modal.getByLabel(/start.*time/i).fill(startStr);
-    await modal.getByLabel(/end.*time/i).fill(endStr);
-
-    await modal.getByRole("button", { name: /create|save|submit/i }).click();
-
-    const batchEnded = (await mentorPage.locator("text=This batch has ended").count()) > 0;
-    if (batchEnded) {
-      test.skip(true, "Batch is read-only (ended)");
-      return;
-    }
+    const { start, end } = futureDateRange(1);
+    await modal.getByLabel(/start time/i).fill(start);
+    await modal.getByLabel(/end time/i).fill(end);
+    await modal.getByRole("button", { name: /schedule & send invite/i }).click();
 
     await expect(modal).not.toBeVisible({ timeout: 5000 });
-    await expect(mentorPage.getByText(/14:00|2:00.*pm/i).first()).toBeVisible();
+    await expect(adminPage.getByText(/confirmed/i).first()).toBeVisible();
   });
 
-  test("cannot create office hour slot in the past", async ({ mentorPage }) => {
-    await mentorPage.goto("/office-hours");
+  test("admin cannot schedule office hours in the past", async ({ adminPage }) => {
+    await adminPage.goto("/office-hours", { waitUntil: "domcontentloaded" });
 
-    const createButton = mentorPage.getByRole("button", { name: /create|add|new/i }).first();
-    await createButton.click();
+    await adminPage.getByRole("button", { name: /schedule office hour/i }).first().click();
 
-    const modal = mentorPage.locator("dialog[open]").first();
+    const modal = adminPage.locator("dialog[open]").first();
     await expect(modal).toBeVisible();
 
-    const isReadOnlyBatch = (await modal.locator("text=This batch has ended").count()) > 0;
-    test.skip(isReadOnlyBatch, "Batch is read-only (ended), so slot creation validation cannot be tested.");
+    const companySelect = modal.getByLabel(/company/i);
+    const optionCount = await companySelect.locator("option").count();
+    test.skip(optionCount <= 1, "No company options available for admin scheduling.");
+    await companySelect.selectOption({ index: 1 });
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(14, 0, 0, 0);
-    const endTime = new Date(yesterday);
-    endTime.setMinutes(endTime.getMinutes() + 30);
-    const startStr = yesterday.toISOString().slice(0, 16);
-    const endStr = endTime.toISOString().slice(0, 16);
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(14, 0, 0, 0);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + 30);
 
-    await modal.getByLabel(/start.*time/i).fill(startStr);
-    await modal.getByLabel(/end.*time/i).fill(endStr);
-    await modal.getByRole("button", { name: /create|save|submit/i }).click();
+    await modal.getByLabel(/start time/i).fill(start.toISOString().slice(0, 16));
+    await modal.getByLabel(/end time/i).fill(end.toISOString().slice(0, 16));
+    await modal.getByRole("button", { name: /schedule & send invites/i }).click();
 
-    const errorMessage = mentorPage.getByText(/past|cannot.*create/i).first();
-    await expect(errorMessage).toBeVisible();
+    await expect(adminPage.getByText(/past|cannot schedule/i).first()).toBeVisible();
   });
 
-  test("founder can request an available office hour slot", async ({ founderPage }) => {
-    await founderPage.goto("/office-hours");
+  test("founder does not see create or schedule admin actions", async ({ founderPage }) => {
+    await founderPage.goto("/office-hours", { waitUntil: "domcontentloaded" });
 
-    const requestButton = founderPage.getByRole("button", { name: /request/i }).first();
-
-    if (await requestButton.isVisible()) {
-      await requestButton.click();
-
-      const topicInput = founderPage.getByLabel(/topic|subject|agenda/i);
-      if (await topicInput.isVisible()) {
-        await topicInput.fill("Test meeting topic");
-      }
-
-      const submitButton = founderPage.getByRole("button", { name: /submit|request|confirm/i });
-      await submitButton.click();
-
-      await expect(founderPage.getByText(/requested|pending/i)).toBeVisible({ timeout: 5000 });
-    }
-  });
-
-  test("mentor can approve office hour request", async ({ mentorPage }) => {
-    await mentorPage.goto("/office-hours");
-
-    const approveButton = mentorPage.getByRole("button", { name: /approve|accept/i }).first();
-
-    if (await approveButton.isVisible()) {
-      await approveButton.click();
-
-      const confirmButton = mentorPage.getByRole("button", { name: /confirm|yes/i });
-      if (await confirmButton.isVisible()) {
-        await confirmButton.click();
-      }
-
-      await expect(mentorPage.getByText(/confirmed|approved/i)).toBeVisible({ timeout: 5000 });
-    }
-  });
-
-  test("mentor can cancel office hour slot", async ({ mentorPage }) => {
-    await mentorPage.goto("/office-hours");
-
-    const cancelButton = mentorPage.getByRole("button", { name: /cancel/i }).first();
-
-    if (await cancelButton.isVisible()) {
-      await cancelButton.click();
-
-      const confirmButton = mentorPage.getByRole("button", { name: /confirm|yes/i });
-      if (await confirmButton.isVisible()) {
-        await confirmButton.click();
-      }
-
-      await mentorPage.waitForResponse((r) => r.url().includes("office-hour") && r.ok());
-    }
+    await expect(founderPage.getByRole("button", { name: /create slot/i })).toHaveCount(0);
+    await expect(founderPage.getByRole("button", { name: /schedule office hour/i })).toHaveCount(0);
   });
 });

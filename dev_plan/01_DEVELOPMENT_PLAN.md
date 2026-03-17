@@ -28,7 +28,7 @@ This document contains **POC-verified** package versions and code patterns. The 
 1. LinkedIn OAuth Login (OIDC)
 2. Batch-based data separation
 3. Question -> Answer -> Summary (Q&A)
-4. Office Hours slot registration/request/approval + Google Calendar integration
+4. Office Hours admin scheduling/request/approval + Google Calendar integration
 5. Session & Slides management
 6. Assignment submission & feedback
 7. Community board
@@ -429,7 +429,7 @@ npx prisma generate
 - [ ] 5 roles assigned correctly (Super Admin, Admin, Mentor, Founder, Co-founder)
 - [ ] Question CRUD works (Founder/Co-founder only)
 - [ ] Answer/Summary works (Mentor/Admin, Admin only for summary)
-- [ ] Office Hour slot registration works (Mentor/Admin)
+- [ ] Office Hour scheduling works (Admin/Super Admin)
 - [ ] Office Hour request/approval works (Founder request, Host approve)
 - [ ] Google Calendar + Meet link auto-generation works
 - [ ] Event CRUD works (3 types: One-off, Office Hour, In-person)

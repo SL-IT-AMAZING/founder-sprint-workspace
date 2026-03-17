@@ -1,11 +1,9 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
-import { getGroups, getUserGroups } from "@/actions/group";
 import { getEnhancedUserProfile } from "@/actions/profile";
 
 export const revalidate = 60;
 import { ProfileForm } from "./ProfileForm";
-import { GroupSelector } from "./GroupSelector";
 import { ExperienceSection } from "./ExperienceSection";
 import { EducationSection } from "./EducationSection";
 import { Avatar } from "@/components/ui/Avatar";
@@ -25,23 +23,9 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOnboarding = params.onboarding === "true";
 
-  const isFounderRole = user.role === "founder" || user.role === "co_founder";
-  let userGroups: Array<{ id: string; name: string }> = [];
-  let availableGroups: Array<{ id: string; name: string; _count: { members: number } }> = [];
-
-  if (isFounderRole && user.batchId) {
-    const [userGroupsResult, allGroups] = await Promise.all([
-      getUserGroups(user.batchId, user.id),
-      getGroups(user.batchId),
-    ]);
-    userGroups = userGroupsResult.map(g => ({ id: g.id, name: g.name }));
-    availableGroups = allGroups.map(g => ({ id: g.id, name: g.name, _count: { members: g._count.members } }));
-  }
-
   // Fetch enhanced profile data
   const profileResult = await getEnhancedUserProfile(user.id);
   const profile = profileResult.success ? profileResult.data : null;
-  const hasGroup = userGroups.length > 0;
 
   return (
     <div>
@@ -50,7 +34,6 @@ export default async function SettingsPage({
           <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Complete Your Profile</h1>
           <p className="text-sm mt-2" style={{ color: "var(--color-foreground-muted)" }}>
             Please fill in your job title and company to get started.
-            {isFounderRole && !hasGroup && availableGroups.length > 0 && " Please also select your group."}
           </p>
         </div>
       )}
@@ -59,19 +42,6 @@ export default async function SettingsPage({
         <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", marginBottom: "24px" }}>
           Profile Settings
         </h1>
-      )}
-
-      {isFounderRole && availableGroups.length > 0 && (
-        <div style={{ marginBottom: "20px" }}>
-          <SettingsSectionCard>
-            <GroupSelector
-              currentGroupId={userGroups[0]?.id || null}
-              currentGroupName={userGroups[0]?.name || null}
-              availableGroups={availableGroups}
-              isOnboarding={isOnboarding && !hasGroup}
-            />
-          </SettingsSectionCard>
-        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
@@ -108,6 +78,7 @@ export default async function SettingsPage({
                 linkedinUrl: profile?.linkedinUrl || "",
                 twitterUrl: profile?.twitterUrl || "",
                 websiteUrl: profile?.websiteUrl || "",
+                timezone: profile?.timezone || user.timezone || "UTC",
               }}
             />
           </SettingsSectionCard>
@@ -132,6 +103,7 @@ export default async function SettingsPage({
               linkedinUrl: profile?.linkedinUrl,
               twitterUrl: profile?.twitterUrl,
               websiteUrl: profile?.websiteUrl,
+              timezone: profile?.timezone || user.timezone,
             }}
           />
         </div>

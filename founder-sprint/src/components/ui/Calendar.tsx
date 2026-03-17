@@ -17,6 +17,13 @@ import {
 import type { ScheduleItem, ScheduleItemKind } from "@/types/schedule";
 import { SCHEDULE_COLORS } from "@/types/schedule";
 
+function safeDateKey(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, "yyyy-MM-dd");
+}
+
 interface CalendarEvent {
   id: string;
   title: string;
@@ -58,7 +65,8 @@ export function Calendar({
     if (!events) return null;
     const map = new Map<string, CalendarEvent[]>();
     events.forEach((event) => {
-      const dateKey = format(new Date(event.startTime), "yyyy-MM-dd");
+      const dateKey = safeDateKey(event.startTime);
+      if (!dateKey) return;
       const existing = map.get(dateKey) || [];
       map.set(dateKey, [...existing, event]);
     });
@@ -73,8 +81,9 @@ export function Calendar({
     const map = new Map<string, { kinds: Set<ScheduleItemKind>; count: number }>();
     filtered.forEach((item) => {
       const dateKey = item.isAllDay
-        ? item.startTime.slice(0, 10)
-        : format(new Date(item.startTime), "yyyy-MM-dd");
+        ? (typeof item.startTime === "string" ? item.startTime.slice(0, 10) : safeDateKey(item.startTime))
+        : safeDateKey(item.startTime);
+      if (!dateKey) return;
       const existing = map.get(dateKey) || { kinds: new Set<ScheduleItemKind>(), count: 0 };
       existing.kinds.add(item.kind);
       existing.count += 1;
@@ -148,6 +157,8 @@ export function Calendar({
           const scheduleData = itemsByDate?.get(dateKey);
           const scheduleKinds = scheduleData?.kinds;
           const scheduleCount = scheduleData?.count ?? 0;
+          const filteredKindActive = Boolean(isScheduleMode && typeFilter && scheduleKinds?.has(typeFilter));
+          const filteredKindBorder = filteredKindActive && typeFilter ? `inset 0 0 0 2px ${SCHEDULE_COLORS[typeFilter]}` : "none";
 
           return (
             <button
@@ -163,7 +174,9 @@ export function Calendar({
                   : isSelected
                   ? "rgba(26, 26, 26, 0.06)"
                   : "transparent",
-                boxShadow: isSelected && !isCurrentDay ? "inset 0 0 0 2px var(--color-primary)" : "none",
+                boxShadow: isSelected && !isCurrentDay
+                  ? "inset 0 0 0 2px var(--color-primary)"
+                  : filteredKindBorder,
                 color: isCurrentDay
                   ? "white"
                   : isCurrentMonth
@@ -187,7 +200,7 @@ export function Calendar({
                 />
               )}
 
-              {isScheduleMode && scheduleKinds && scheduleKinds.size > 0 && (
+              {isScheduleMode && scheduleKinds && scheduleKinds.size > 0 && !filteredKindActive && (
                 <span
                   className="absolute bottom-1 left-1/2 transform -translate-x-1/2"
                   style={{ display: "flex", gap: 2, alignItems: "center" }}

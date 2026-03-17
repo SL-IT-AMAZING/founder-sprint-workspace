@@ -21,13 +21,13 @@ function getAuth() {
     return null;
   }
 
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: privateKey,
-    },
-    clientOptions: impersonateUser ? { subject: impersonateUser } : undefined,
+  // Use JWT directly for proper domain-wide delegation (impersonation).
+  // GoogleAuth with clientOptions.subject does NOT set the JWT 'sub' claim.
+  return new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: privateKey,
     scopes: SCOPES,
+    subject: impersonateUser || undefined,
   });
 }
 

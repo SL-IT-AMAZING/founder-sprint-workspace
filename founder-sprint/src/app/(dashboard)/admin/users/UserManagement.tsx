@@ -1,7 +1,20 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { getBatchUsers, inviteUser, bulkInviteUsers, updateUserRole, removeUserFromBatch, cancelInvite } from "@/actions/user-management";
+import {
+  getBatchUsers,
+  inviteUser,
+  bulkInviteUsers,
+  updateUserRole,
+  updateAdditionalRoles,
+  removeUserFromBatch,
+  cancelInvite,
+  resendInvite,
+  deactivateUser,
+  reactivateUser,
+  getRecentUserManagementAuditLogs,
+  getFounderActivitySummaries,
+} from "@/actions/user-management";
 import { getCompaniesForSelect } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -11,6 +24,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmailChipInput } from "@/components/ui/EmailChipInput";
+import { getRolesBelow } from "@/lib/role-hierarchy";
 import { getRoleDisplayName, formatDate, getDisplayName } from "@/lib/utils";
 import { getBatchStatusLabel } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
@@ -32,6 +46,7 @@ interface BatchUser {
   userId: string;
   batchId: string;
   role: UserRole;
+  additionalRoles: string[];
   status: "invited" | "active";
   invitedAt: Date;
   user: {
@@ -39,12 +54,33 @@ interface BatchUser {
     email: string;
     name: string | null;
     profileImage: string | null;
+    status: "active" | "inactive" | string;
   };
   batch: {
     id: string;
     name: string;
     status: string;
   };
+}
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  userName: string;
+  createdAt: Date;
+  details: string | null;
+}
+
+interface FounderActivityEntry {
+  userId: string;
+  name: string | null;
+  email: string;
+  profileImage: string | null;
+  role: UserRole;
+  submissionCount: number;
+  feedbackCount: number;
+  officeHourCount: number;
+  postCount: number;
 }
 
 const roleOptions = [
@@ -70,6 +106,10 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
   const [bulkEmails, setBulkEmails] = useState<string[]>([]);
   const [bulkResults, setBulkResults] = useState<Array<{ email: string; success: boolean; error?: string; inviteLink?: string }> | null>(null);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -82,8 +122,11 @@ export function UserManagement({ batches }: UserManagementProps) {
   const handleBatchChange = (batchId: string) => {
     setSelectedBatchId(batchId);
     setUsers([]); // Clear users when changing batch
+    setAuditEntries([]);
     if (batchId) {
       loadUsers(batchId);
+      loadAuditLogs(batchId);
+      loadFounderActivity(batchId);
     }
   };
 
@@ -94,6 +137,22 @@ export function UserManagement({ batches }: UserManagementProps) {
       .then((data) => setUsers(data as BatchUser[]))
       .catch(() => setUsers([]))
       .finally(() => setIsLoadingUsers(false));
+  };
+
+  const loadAuditLogs = (batchId: string) => {
+    setIsLoadingAudit(true);
+    getRecentUserManagementAuditLogs(batchId)
+      .then((data) => setAuditEntries(data as AuditEntry[]))
+      .catch(() => setAuditEntries([]))
+      .finally(() => setIsLoadingAudit(false));
+  };
+
+  const loadFounderActivity = (batchId: string) => {
+    setIsLoadingActivity(true);
+    getFounderActivitySummaries(batchId)
+      .then((data) => setActivityEntries(data as FounderActivityEntry[]))
+      .catch(() => setActivityEntries([]))
+      .finally(() => setIsLoadingActivity(false));
   };
 
   // Fetch companies (not batch-scoped)
@@ -114,12 +173,14 @@ export function UserManagement({ batches }: UserManagementProps) {
 
       if (result.success) {
         setIsInviteModalOpen(false);
-        setInviteLink(result.data.inviteLink);
+        setInviteLink(result.data.inviteLink ?? null);
         setLinkCopied(false);
         loadUsers(selectedBatchId);
         (e.target as HTMLFormElement).reset();
         if (result.warning) {
           toast.warning(result.warning);
+        } else if (result.data.membershipStatus === "active") {
+          toast.success("Existing user added directly to this batch");
         }
       } else {
         setFormError(result.error);
@@ -162,6 +223,87 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
+  const handleToggleAdditionalRole = async (userBatch: BatchUser, role: UserRole, checked: boolean) => {
+    const nextRoles = checked
+      ? Array.from(new Set([...(userBatch.additionalRoles || []), role]))
+      : (userBatch.additionalRoles || []).filter((additionalRole) => additionalRole !== role);
+
+    startTransition(async () => {
+      const result = await updateAdditionalRoles(userBatch.userId, selectedBatchId, nextRoles);
+      if (result.success) {
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const getVisibleRoles = (userBatch: BatchUser) => Array.from(
+    new Set<UserRole>([
+      userBatch.role,
+      ...(userBatch.additionalRoles || []).filter((role): role is UserRole =>
+        ["admin", "mentor", "founder", "co_founder"].includes(role)
+      ),
+    ])
+  );
+
+  const renderRoleBadges = (userBatch: BatchUser) => (
+    <div className="flex items-center gap-2 flex-wrap">
+      {getVisibleRoles(userBatch).map((role) => (
+        <Badge key={`${userBatch.id}-${role}`} variant="role">{getRoleDisplayName(role)}</Badge>
+      ))}
+    </div>
+  );
+
+  const renderAdditionalRoleControls = (userBatch: BatchUser) => {
+    if (userBatch.role === "super_admin") return null;
+
+    const options = getRolesBelow(userBatch.role);
+    if (options.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>Also</span>
+        {options.map((role) => (
+          <label key={`${userBatch.id}-${role}-toggle`} className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={(userBatch.additionalRoles || []).includes(role)}
+              onChange={(e) => handleToggleAdditionalRole(userBatch, role, e.target.checked)}
+              disabled={isPending}
+            />
+            {getRoleDisplayName(role)}
+          </label>
+        ))}
+      </div>
+    );
+  };
+
+  const renderRoleEditor = (userBatch: BatchUser, compact = false) => {
+    if (userBatch.role === "super_admin") {
+      return <span className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Super admins are managed separately.</span>;
+    }
+
+    return (
+      <div className={`flex ${compact ? "flex-col" : "flex-col items-end"} gap-2`}>
+        <select
+          value={userBatch.role}
+          onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
+          disabled={isPending}
+          className={compact ? "form-input flex-1" : "form-input"}
+          style={compact ? { fontSize: "14px", height: 36 } : { minWidth: 140, fontSize: "14px", height: 36 }}
+        >
+          <option value="admin">Admin</option>
+          <option value="mentor">Mentor</option>
+          <option value="founder">Founder</option>
+          <option value="co_founder">Co-founder</option>
+        </select>
+        {renderAdditionalRoleControls(userBatch)}
+      </div>
+    );
+  };
+
   const handleRemoveUser = async (userId: string) => {
     startTransition(async () => {
       const result = await removeUserFromBatch(userId, selectedBatchId);
@@ -187,12 +329,93 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
+  const handleResendInvite = async (userId: string) => {
+    startTransition(async () => {
+      const result = await resendInvite(userId, selectedBatchId);
+      if (result.success) {
+        if (result.warning) {
+          toast.warning(result.warning);
+          setInviteLink(result.data.inviteLink);
+        } else {
+          toast.success("Invitation resent");
+        }
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleDeactivateUser = async (userId: string, userName: string) => {
+    if (!confirm(`Deactivate ${userName}? They will no longer be able to sign in.`)) return;
+
+    startTransition(async () => {
+      const result = await deactivateUser(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("User deactivated");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleReactivateUser = async (userId: string) => {
+    startTransition(async () => {
+      const result = await reactivateUser(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("User reactivated");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const getAuditDescription = (entry: AuditEntry) => {
+    let details: Record<string, unknown> = {};
+    try {
+      details = entry.details ? JSON.parse(entry.details) : {};
+    } catch {
+      details = {};
+    }
+
+    const userEmail = typeof details.userEmail === "string" ? details.userEmail : "user";
+    const previousRole = typeof details.previousRole === "string" ? details.previousRole : undefined;
+    const newRole = typeof details.newRole === "string" ? details.newRole : undefined;
+
+    if (entry.action === "user_role_changed") {
+      return `${entry.userName} changed ${userEmail} role from ${previousRole || "unknown"} to ${newRole || "unknown"}`;
+    }
+
+    if (entry.action === "user_additional_roles_changed") {
+      return `${entry.userName} updated additional roles for ${userEmail}`;
+    }
+
+    if (entry.action === "user_deactivated") {
+      return `${entry.userName} deactivated ${userEmail}`;
+    }
+
+    if (entry.action === "user_reactivated") {
+      return `${entry.userName} reactivated ${userEmail}`;
+    }
+
+    if (entry.action === "invite_resent") {
+      return `${entry.userName} resent an invite to ${userEmail}`;
+    }
+
+    return `${entry.userName} performed ${entry.action}`;
+  };
+
   const batchOptions = batches.map((batch) => ({
     value: batch.id,
     label: `${batch.name} (${getBatchStatusLabel({ status: batch.status as BatchStatus, endDate: new Date(batch.endDate) })})`,
   }));
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+  const founderChoices = users.filter((userBatch) => getVisibleRoles(userBatch).includes("founder"));
 
   return (
     <div className="space-y-6">
@@ -269,37 +492,62 @@ export function UserManagement({ batches }: UserManagementProps) {
                   </div>
                   
                   <div className="flex items-center justify-between gap-2">
-                    <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
-                    <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
-                      {userBatch.status}
-                    </Badge>
+                    {renderRoleBadges(userBatch)}
+                    <div className="flex items-center gap-2">
+                      <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
+                        {userBatch.status}
+                      </Badge>
+                      {userBatch.user.status === "inactive" && (
+                        <Badge variant="error">Deactivated</Badge>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                     Joined {formatDate(userBatch.invitedAt)}
                   </div>
 
-                  <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
-                    <select
-                      value={userBatch.role}
-                      onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
-                      disabled={isPending}
-                      className="form-input flex-1"
-                      style={{ fontSize: "14px", height: 36 }}
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="mentor">Mentor</option>
-                      <option value="founder">Founder</option>
-                      <option value="co_founder">Co-founder</option>
-                    </select>
+                  <div className="space-y-3 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
+                    {renderRoleEditor(userBatch, true)}
+                    {userBatch.role !== "super_admin" && (
+                      <div className="flex items-center gap-2 flex-wrap">
                     {userBatch.status === "invited" && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResendInvite(userBatch.userId)}
+                          disabled={isPending}
+                        >
+                          Resend Invite
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                          disabled={isPending}
+                        >
+                          Cancel Invite
+                        </Button>
+                      </>
+                    )}
+                    {userBatch.user.status === "inactive" ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                        onClick={() => handleReactivateUser(userBatch.userId)}
                         disabled={isPending}
                       >
-                        Cancel Invite
+                        Reactivate
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                        disabled={isPending}
+                      >
+                        Deactivate
                       </Button>
                     )}
                     <Button
@@ -310,6 +558,8 @@ export function UserManagement({ batches }: UserManagementProps) {
                     >
                       Remove
                     </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -362,12 +612,17 @@ export function UserManagement({ batches }: UserManagementProps) {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
+                      {renderRoleBadges(userBatch)}
                     </td>
                     <td className="py-3 px-4">
-                      <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
-                        {userBatch.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
+                          {userBatch.status}
+                        </Badge>
+                        {userBatch.user.status === "inactive" && (
+                          <Badge variant="error">Deactivated</Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <span style={{ color: "var(--color-foreground-secondary)", fontSize: "14px" }}>
@@ -375,27 +630,47 @@ export function UserManagement({ batches }: UserManagementProps) {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <select
-                          value={userBatch.role}
-                          onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
-                          disabled={isPending}
-                          className="form-input"
-                          style={{ minWidth: 140, fontSize: "14px", height: 36 }}
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="mentor">Mentor</option>
-                          <option value="founder">Founder</option>
-                          <option value="co_founder">Co-founder</option>
-                        </select>
+                      <div className="flex flex-col items-end gap-2">
+                        {renderRoleEditor(userBatch)}
+                        {userBatch.role !== "super_admin" && (
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
                         {userBatch.status === "invited" && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvite(userBatch.userId)}
+                              disabled={isPending}
+                            >
+                              Resend Invite
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                              disabled={isPending}
+                            >
+                              Cancel Invite
+                            </Button>
+                          </>
+                        )}
+                        {userBatch.user.status === "inactive" ? (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                            onClick={() => handleReactivateUser(userBatch.userId)}
                             disabled={isPending}
                           >
-                            Cancel Invite
+                            Reactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                            disabled={isPending}
+                          >
+                            Deactivate
                           </Button>
                         )}
                         <Button
@@ -406,6 +681,8 @@ export function UserManagement({ batches }: UserManagementProps) {
                         >
                           Remove
                         </Button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -415,6 +692,87 @@ export function UserManagement({ batches }: UserManagementProps) {
           </div>
         </div>
       </div>
+      )}
+
+      {selectedBatchId && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-medium">Recent Audit Entries</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => loadAuditLogs(selectedBatchId)}
+              disabled={isPending || isLoadingAudit}
+            >
+              Refresh
+            </Button>
+          </div>
+          {isLoadingAudit ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>Loading recent activity...</p>
+          ) : auditEntries.length === 0 ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>No recent role or lifecycle changes.</p>
+          ) : (
+            <div className="space-y-2">
+              {auditEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-3 rounded-lg"
+                  style={{ border: "1px solid var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}
+                >
+                  <p className="text-sm">{getAuditDescription(entry)}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-foreground-secondary)" }}>
+                    {formatDate(entry.createdAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedBatchId && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-medium">Founder Activity</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => loadFounderActivity(selectedBatchId)}
+              disabled={isPending || isLoadingActivity}
+            >
+              Refresh
+            </Button>
+          </div>
+          {isLoadingActivity ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>Loading founder activity...</p>
+          ) : activityEntries.length === 0 ? (
+            <p style={{ color: "var(--color-foreground-secondary)" }}>No founder activity yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {activityEntries.map((entry) => (
+                <div
+                  key={entry.userId}
+                  className="p-3 rounded-lg flex items-center justify-between gap-4"
+                  style={{ border: "1px solid var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar src={entry.profileImage} name={getDisplayName(entry)} size={36} />
+                    <div>
+                      <p className="text-sm font-medium">{getDisplayName(entry)}</p>
+                      <p className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>{entry.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                    <Badge variant="default">Submissions {entry.submissionCount}</Badge>
+                    <Badge variant="default">Feedback {entry.feedbackCount}</Badge>
+                    <Badge variant="default">OH {entry.officeHourCount}</Badge>
+                    <Badge variant="default">Posts {entry.postCount}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Invite Modal */}
@@ -428,7 +786,7 @@ export function UserManagement({ batches }: UserManagementProps) {
           setBulkEmails([]);
           setBulkResults(null);
         }}
-        title={bulkResults ? "Invitation Results" : "Invite Users"}
+        title={bulkResults ? "Invitation Results" : "Add Users"}
       >
         {/* Mode toggle — hidden when showing results */}
         {!bulkResults && (
@@ -463,7 +821,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setInviteMode("bulk"); setFormError(""); }}
+              onClick={() => { setInviteMode("bulk"); setFormError(""); if (selectedRole === "co_founder") setSelectedRole("founder"); }}
               style={{
                 flex: 1,
                 padding: "6px 12px",
@@ -501,7 +859,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                   }}
                 >
                   <div style={{ fontSize: "24px", fontWeight: 600, color: "#16a34a" }}>{successCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Sent</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Succeeded</div>
                 </div>
                 <div
                   style={{
@@ -609,6 +967,20 @@ export function UserManagement({ batches }: UserManagementProps) {
               required
             />
 
+            {selectedRole === "co_founder" && (
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium">Primary Founder</label>
+                <select name="founderId" className="form-input" required>
+                  <option value="">Select founder</option>
+                  {founderChoices.map((userBatch) => (
+                    <option key={userBatch.userId} value={userBatch.userId}>
+                      {getDisplayName(userBatch.user)} ({userBatch.user.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Company Assignment (optional, for founders/co-founders) */}
             {(selectedRole === "founder" || selectedRole === "co_founder") && companies.length > 0 && (
               <div className="space-y-1.5">
@@ -649,7 +1021,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                 Cancel
               </Button>
               <Button type="submit" loading={isPending}>
-                Send Invitation
+                Add User
               </Button>
             </div>
           </form>
@@ -667,7 +1039,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             <Select
               label="Role"
               name="role"
-              options={roleOptions}
+              options={roleOptions.filter((option) => option.value !== "co_founder")}
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
               required
@@ -695,7 +1067,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                 Cancel
               </Button>
               <Button type="submit" loading={isPending}>
-                Send Invitations
+                Add Users
               </Button>
             </div>
           </form>

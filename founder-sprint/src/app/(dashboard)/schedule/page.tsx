@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { getScheduleItems } from "@/actions/schedule";
-import { getCompaniesForBatch } from "@/actions/company";
+import { getOfficeHourBatchContext } from "@/actions/office-hour";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
@@ -35,7 +35,7 @@ export default async function SchedulePage({
   const rangeStart = startOfWeek(startOfMonth(monthDate));
   const rangeEnd = endOfWeek(endOfMonth(monthDate));
 
-  const [items, companiesRaw, batchMembers] = await Promise.all([
+  const [items, batchContextResult, totalBatchMembers, batchOptions] = await Promise.all([
     getScheduleItems({
       batchId: user.batchId,
       viewerId: user.id,
@@ -43,17 +43,20 @@ export default async function SchedulePage({
       rangeStart,
       rangeEnd,
     }),
-    getCompaniesForBatch(user.batchId),
-    prisma.userBatch.findMany({
+    getOfficeHourBatchContext(user.batchId),
+    prisma.userBatch.count({
       where: { batchId: user.batchId, status: "active" },
-      select: { user: { select: { id: true, name: true, email: true, profileImage: true, role: true, companyMemberships: { where: { isCurrent: true }, select: { company: { select: { name: true } } } } } } }
     }),
+    user.role === "admin" || user.role === "super_admin"
+      ? prisma.batch.findMany({
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
   ]);
-  const companies = companiesRaw.map(c => ({ id: c.id, name: c.name, memberCount: c._count?.members ?? 0 }));
-  const founders = batchMembers
-    .filter(ub => ub.user.role === "founder" || ub.user.role === "co_founder")
-    .map(ub => ({ id: ub.user.id, name: ub.user.name, email: ub.user.email, profileImage: ub.user.profileImage, companyName: ub.user.companyMemberships[0]?.company.name ?? null }));
-  const totalBatchMembers = batchMembers.length;
+  const batchContext = batchContextResult.success
+    ? batchContextResult.data
+    : { companies: [], founders: [], mentors: [] };
 
   return (
     <div className="space-y-6">
@@ -64,9 +67,12 @@ export default async function SchedulePage({
         selectedDay={selectedDay}
         typeFilter={typeFilter}
         isAdmin={user.role === "admin" || user.role === "super_admin"}
-        companies={companies}
-        founders={founders}
+        userTimezone={user.timezone}
+        companies={batchContext.companies}
+        founders={batchContext.founders}
         totalBatchMembers={totalBatchMembers}
+        batchOptions={batchOptions}
+        currentBatchId={user.batchId}
       />
     </div>
   );

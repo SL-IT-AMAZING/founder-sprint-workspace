@@ -113,7 +113,7 @@ model OfficeHourRequest {
 | File upload to Supabase Storage | ✅ | Size/count limits enforced, unique filenames with crypto.randomUUID() |
 | Question lifecycle | ✅ | `QuestionStatus` enum: OPEN → ANSWERED → SUMMARY → CLOSED |
 | Feed system (posts/comments/likes/pins) | ✅ | Max 3 pins enforced, archive/restore with `isHidden` field |
-| Office hour slot management | ✅ | 30-min duration validation in createOfficeHourSlot |
+| Office hour scheduling | ✅ | 30-min duration validation in `scheduleGroupOfficeHour` / `scheduleIndividualOfficeHour` |
 | Assignment/submission/feedback workflow | ✅ | Complete CRUD with status tracking |
 | Group management with membership | ✅ | Many-to-many relation via GroupMember |
 | Event creation with calendar sync | ✅ | Creates Event record + syncs to Google Calendar if configured |

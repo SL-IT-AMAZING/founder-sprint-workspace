@@ -233,8 +233,8 @@ export function OfficeHoursPage({
         description="Book 1:1 sessions with mentors to get personalized advice"
         actions={
           userRole === 'admin' && (
-            <ButtonLink href="/office-hours/new">
-              Create Session
+            <ButtonLink href="/office-hours">
+              Schedule Office Hour
             </ButtonLink>
           )
         }

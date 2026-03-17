@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUserConversations, getConversation, getMessages, sendMessage, deleteConversation, markConversationRead, searchConversations } from "@/actions/messaging";
+import { getUserConversations, getConversation, getMessages, sendMessage, deleteConversation, markConversationRead, searchConversations, getAllUsersForMessaging } from "@/actions/messaging";
 import type { ConversationListItem, ConversationDetail, MessageItem } from "@/actions/messaging";
 import ConversationList from "./ConversationList";
 import ConversationThread from "./ConversationThread";
@@ -38,6 +38,18 @@ export default function MessagesClient({
   const [searchResults, setSearchResults] = useState<ConversationListItem[] | null>(null);
   const [browseGroupsOpen, setBrowseGroupsOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [fetchedUsers, setFetchedUsers] = useState(allUsers);
+
+  // Fetch all users for group creation on mount
+  useEffect(() => {
+    async function fetchUsers() {
+      const result = await getAllUsersForMessaging();
+      if (result.success) {
+        setFetchedUsers(result.data);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   // Poll conversations list every 5 seconds
   useEffect(() => {
@@ -213,7 +225,7 @@ export default function MessagesClient({
         isOpen={createGroupOpen}
         onClose={() => setCreateGroupOpen(false)}
         onGroupCreated={handleGroupCreated}
-        users={allUsers}
+        users={fetchedUsers}
       />
     </div>
   );

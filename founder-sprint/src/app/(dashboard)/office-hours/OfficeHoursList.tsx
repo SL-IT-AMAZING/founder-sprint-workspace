@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
-import { formatDateTime, getDisplayName } from "@/lib/utils";
-import { isStaff, isFounder } from "@/lib/permissions-client";
-import { createOfficeHourSlot, requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour } from "@/actions/office-hour";
+import { getDisplayName } from "@/lib/utils";
+import { isAdmin, isFounder } from "@/lib/permissions-client";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
-import type { FounderOption } from "@/types/invite";
+import type { FounderOption, MentorOption } from "@/types/invite";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { displayRangeInUserTimezone } from "@/lib/timezone";
 
 interface CompanyMemberInfo {
   user: {
@@ -37,7 +38,9 @@ interface CompanyForList {
 
 interface OfficeHourRequest {
   id: string;
+  agenda?: string | null;
   message: string | null;
+  noShow?: boolean;
   status: OfficeHourRequestStatus;
   createdAt: Date;
   requester: {
@@ -79,6 +82,15 @@ interface OfficeHoursListProps {
   slots: OfficeHourSlot[];
   companies: CompanyForList[];
   founders: FounderOption[];
+  mentors: MentorOption[];
+  requesterStats: {
+    totalCredits: number;
+    remainingCredits: number;
+    weeklyLimit: number;
+    remainingWeeklyRequests: number;
+  };
+  batchOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 function getStatusBadgeVariant(status: OfficeHourSlotStatus): "default" | "success" | "warning" | "error" {
@@ -115,51 +127,68 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
   }
 }
 
-export function OfficeHoursList({ user, slots, companies, founders }: OfficeHoursListProps) {
-   const [createModalOpen, setCreateModalOpen] = useState(false);
+export function OfficeHoursList({ user, slots, companies, founders, mentors, requesterStats, batchOptions, currentBatchId }: OfficeHoursListProps) {
+   const router = useRouter();
+   const searchParams = useSearchParams();
+   const prefillDate = searchParams.get("date");
+   const defaultCompanyId = companies.length === 1 ? companies[0].id : "";
+
    const [requestModalOpen, setRequestModalOpen] = useState(false);
-   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+   const [scheduleModalOpen, setScheduleModalOpen] = useState(Boolean(prefillDate && isAdmin(user.role)));
    const [proposeModalOpen, setProposeModalOpen] = useState(false);
    const [selectedSlot, setSelectedSlot] = useState<OfficeHourSlot | null>(null);
-   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(defaultCompanyId);
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const toast = useToast();
-   const endTimeRef = useRef<HTMLInputElement>(null);
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
-   const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
-   const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+    const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
+    const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+     const [selectedMentorId, setSelectedMentorId] = useState<string>(mentors.length === 1 ? mentors[0].id : "");
+     const [grantCreditsModalOpen, setGrantCreditsModalOpen] = useState(false);
+     const [selectedCreditFounderId, setSelectedCreditFounderId] = useState<string>("");
+     const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
+     const [scheduleCompanies, setScheduleCompanies] = useState<CompanyForList[]>(companies);
+     const [scheduleFounders, setScheduleFounders] = useState<FounderOption[]>(founders);
+     const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
 
-   const searchParams = useSearchParams();
-   const prefillDate = searchParams.get("date");
+  const isAdminUser = isAdmin(user.role);
+  const isFounderUser = isFounder(user.role);
+  const canRequest = isFounderUser;
 
-   // Auto-select if only one company
-   useEffect(() => {
-     if (companies.length === 1) {
-       setSelectedCompanyId(companies[0].id);
-     }
-   }, [companies]);
+  const loadScheduleBatchContext = async (batchId: string) => {
+    if (!isAdminUser) return;
 
-   // Auto-open create modal if date is pre-filled
-   useEffect(() => {
-     if (prefillDate && isStaff(user.role)) {
-       setCreateModalOpen(true);
-     }
-   }, [prefillDate, user.role]);
+    setScheduleContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
 
-  const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const startVal = e.target.value;
-    if (startVal && endTimeRef.current) {
-      const startDate = new Date(startVal);
-      startDate.setMinutes(startDate.getMinutes() + 30);
-      const year = startDate.getFullYear();
-      const month = String(startDate.getMonth() + 1).padStart(2, "0");
-      const day = String(startDate.getDate()).padStart(2, "0");
-      const hours = String(startDate.getHours()).padStart(2, "0");
-      const minutes = String(startDate.getMinutes()).padStart(2, "0");
-      endTimeRef.current.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    if (result.success) {
+      setSelectedAdminBatchId(batchId);
+      setScheduleCompanies(
+        result.data.companies.map((company) => ({
+          id: company.id,
+          name: company.name,
+          _count: { members: company.memberCount, posts: 0 },
+        }))
+      );
+      setScheduleFounders(result.data.founders);
+      setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
+      setSelectedFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
     }
+
+    setScheduleContextLoading(false);
+  };
+
+  const resetScheduleContext = () => {
+    setSelectedAdminBatchId(currentBatchId);
+    setScheduleCompanies(companies);
+    setScheduleFounders(founders);
+    setSelectedCompanyId(defaultCompanyId);
+    setSelectedFounderId("");
   };
 
   const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,6 +225,9 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    if (isAdminUser) {
+      formData.set("batchId", selectedAdminBatchId);
+    }
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -219,10 +251,15 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     }
 
     if (result.success) {
+      if ('warning' in result && result.warning) {
+        setError(result.warning);
+      }
       setScheduleModalOpen(false);
       setScheduleMode("company");
       setSelectedFounderId("");
+      setSelectedCompanyId(defaultCompanyId);
       (e.target as HTMLFormElement).reset();
+      router.refresh();
     } else {
       setError(result.error || "Failed to schedule");
     }
@@ -235,7 +272,16 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     setLoading(true);
     setError(null);
 
+    if (mentors.length > 0 && !selectedMentorId) {
+      setError("Please select a mentor");
+      setLoading(false);
+      return;
+    }
+
     const formData = new FormData(e.currentTarget);
+    if (selectedMentorId) {
+      formData.set("mentorId", selectedMentorId);
+    }
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -247,39 +293,11 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
 
     if (result.success) {
       setProposeModalOpen(false);
+      setSelectedMentorId(mentors.length === 1 ? mentors[0].id : "");
       (e.target as HTMLFormElement).reset();
+      router.refresh();
     } else {
       setError(result.error || "Failed to request office hour");
-    }
-
-    setLoading(false);
-  };
-
-  const isStaffUser = isStaff(user.role);
-  const isFounderUser = isFounder(user.role);
-  const canCreateSlot = isStaffUser;
-  const canRequest = isFounderUser;
-
-  const handleCreateSlot = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const formData = new FormData(e.currentTarget);
-    const startTime = formData.get("startTime") as string;
-    const endTime = formData.get("endTime") as string;
-    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
-      setError("End time must be after start time");
-      setLoading(false);
-      return;
-    }
-    const result = await createOfficeHourSlot(formData);
-
-    if (result.success) {
-      setCreateModalOpen(false);
-      (e.target as HTMLFormElement).reset();
-    } else {
-      setError(result.error);
     }
 
     setLoading(false);
@@ -294,13 +312,15 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
 
     const formData = new FormData(e.currentTarget);
     const message = formData.get("message") as string;
-    const result = await requestOfficeHour(selectedSlot.id, selectedCompanyId, message);
+    const agenda = (formData.get("agenda") as string) || "";
+    const result = await requestOfficeHour(selectedSlot.id, selectedCompanyId, message, agenda);
 
     if (result.success) {
       setRequestModalOpen(false);
       setSelectedSlot(null);
       setSelectedCompanyId("");
       (e.target as HTMLFormElement).reset();
+      router.refresh();
     } else {
       setError(result.error);
     }
@@ -314,6 +334,9 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
       toast.error(result.error);
     } else if (result.warning) {
       toast.warning(result.warning);
+      router.refresh();
+    } else {
+      router.refresh();
     }
   };
 
@@ -323,6 +346,8 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     const result = await respondToRequest(requestId, "rejected");
     if (!result.success) {
       toast.error(result.error);
+    } else {
+      router.refresh();
     }
   };
 
@@ -333,8 +358,19 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     const result = await deleteSlot(slotId);
     if (!result.success) {
       toast.error(result.error);
+    } else {
+      router.refresh();
     }
     setLoading(false);
+  };
+
+  const handleNoShowToggle = async (requestId: string, nextValue: boolean) => {
+    const result = await markOfficeHourNoShow(requestId, nextValue);
+    if (!result.success) {
+      toast.error(result.error);
+    } else {
+      router.refresh();
+    }
   };
 
   const openRequestModal = (slot: OfficeHourSlot) => {
@@ -343,26 +379,54 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
     setError(null);
   };
 
+  const handleGrantCredits = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const founderId = (formData.get("founderId") as string) || selectedCreditFounderId;
+    const amount = Number(formData.get("amount") as string);
+    const reason = (formData.get("reason") as string) || undefined;
+
+    const result = await grantOfficeHourCredits(founderId, user.batchId, amount, reason);
+    if (result.success) {
+      setGrantCreditsModalOpen(false);
+      setSelectedCreditFounderId("");
+      (e.target as HTMLFormElement).reset();
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end gap-2">
+        {isFounderUser && (
+          <div className="mr-auto flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+            <Badge variant="default">Credits {requesterStats.remainingCredits}/{requesterStats.totalCredits}</Badge>
+            <Badge variant="warning">Weekly requests left {requesterStats.remainingWeeklyRequests}/{requesterStats.weeklyLimit}</Badge>
+          </div>
+        )}
         {isFounderUser && companies.length > 0 && (
           <Button onClick={() => setProposeModalOpen(true)} size="sm">
             Request Office Hour
           </Button>
         )}
-        {isStaffUser && (
+        {isAdminUser && (
           <>
-            <button
-              onClick={() => setScheduleModalOpen(true)}
+            <Button variant="secondary" size="sm" onClick={() => setGrantCreditsModalOpen(true)}>
+              Grant Credits
+            </Button>
+              <button
+               onClick={() => { resetScheduleContext(); setScheduleModalOpen(true); }}
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ backgroundColor: "var(--color-success)" }}
             >
-              Schedule Company Office Hour
+              Schedule Office Hour
             </button>
-            <Button onClick={() => setCreateModalOpen(true)} size="sm">
-              Create Slot
-            </Button>
           </>
         )}
       </div>
@@ -370,10 +434,10 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
       {slots.length === 0 ? (
         <EmptyState
           title="No office hours available"
-          description="Office hour slots will appear here when created"
+          description="Office hour sessions will appear here when scheduled"
           action={
-            canCreateSlot ? (
-              <Button onClick={() => setCreateModalOpen(true)}>Create Slot</Button>
+            isAdminUser ? (
+               <Button onClick={() => { resetScheduleContext(); setScheduleModalOpen(true); }}>Schedule Office Hour</Button>
             ) : undefined
           }
         />
@@ -398,7 +462,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                         </Badge>
                       </div>
                       <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                        {formatDateTime(slot.startTime)} - {formatDateTime(slot.endTime)}
+                  {displayRangeInUserTimezone(slot.startTime, slot.endTime, user.timezone, slot.timezone)}
                       </div>
                       <div className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
                         Timezone: {slot.timezone}
@@ -469,12 +533,31 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                       />
                       <div className="text-sm">
                         <div className="font-medium">{getDisplayName(approvedRequest.requester)}</div>
+                        {approvedRequest.agenda && (
+                          <div style={{ color: "var(--color-foreground-secondary)" }}>
+                            Agenda: {approvedRequest.agenda}
+                          </div>
+                        )}
                         {approvedRequest.message && (
                           <div style={{ color: "var(--color-foreground-secondary)" }}>
                             {approvedRequest.message}
                           </div>
                         )}
+                        {approvedRequest.noShow && (
+                          <div>
+                            <Badge variant="error">No-show</Badge>
+                          </div>
+                        )}
                       </div>
+                      {(isHost || isAdminUser) && slot.status === "completed" && (
+                        <Button
+                          size="sm"
+                          variant={approvedRequest.noShow ? "secondary" : "ghost"}
+                          onClick={() => handleNoShowToggle(approvedRequest.id, !approvedRequest.noShow)}
+                        >
+                          {approvedRequest.noShow ? "Mark Attended" : "Mark No-show"}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -511,6 +594,11 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                           />
                           <div className="space-y-1">
                             <div className="font-medium text-sm">{getDisplayName(request.requester)}</div>
+                            {request.agenda && (
+                              <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                                Agenda: {request.agenda}
+                              </div>
+                            )}
                             {request.message && (
                               <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                                 {request.message}
@@ -545,60 +633,6 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
         </div>
       )}
 
-      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create Office Hour Slot">
-        <form onSubmit={handleCreateSlot} className="space-y-4">
-          {error && (
-            <div
-              className="p-3 rounded text-sm"
-              style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
-            >
-              {error}
-            </div>
-          )}
-           <Input
-             label="Start Time"
-             name="startTime"
-             type="datetime-local"
-             required
-             onChange={handleStartTimeChange}
-             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
-           />
-          <Input
-            label="End Time"
-            name="endTime"
-            type="datetime-local"
-            required
-            ref={endTimeRef}
-          />
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Timezone</label>
-            <select
-              name="timezone"
-              defaultValue="UTC"
-              className="w-full px-3 py-2 rounded-md border text-sm"
-              style={{
-                backgroundColor: "var(--color-background)",
-                borderColor: "var(--color-border)",
-                color: "var(--color-foreground)",
-              }}
-            >
-              <option value="UTC">UTC</option>
-              <option value="KST">KST (Korea Standard Time)</option>
-              <option value="PST">PST (Pacific Standard Time)</option>
-              <option value="EST">EST (Eastern Standard Time)</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              Create Slot
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
       <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Request Office Hour">
         <form onSubmit={handleRequestSlot} className="space-y-4">
           {error && (
@@ -616,12 +650,18 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 <div>
                   <div className="font-medium">{getDisplayName(selectedSlot.host)}</div>
                   <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                    {formatDateTime(selectedSlot.startTime)} - {formatDateTime(selectedSlot.endTime)}
+                {displayRangeInUserTimezone(selectedSlot.startTime, selectedSlot.endTime, user.timezone, selectedSlot.timezone)}
                   </div>
                 </div>
               </div>
             </div>
           )}
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Batch</label>
+            <div className="w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)", color: "var(--color-foreground-secondary)" }}>
+              {user.batchName}
+            </div>
+          </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Company</label>
             <select
@@ -637,6 +677,13 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
               ))}
             </select>
           </div>
+          <Textarea
+            label="Agenda"
+            name="agenda"
+            placeholder="Main topics you want to cover"
+            rows={3}
+            required
+          />
           <Textarea
             label="Message (Optional)"
             name="message"
@@ -654,7 +701,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
         </form>
       </Modal>
 
-      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }} title={scheduleMode === "individual" ? "Schedule Individual Office Hour" : "Schedule Company Office Hour"}>
+      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); resetScheduleContext(); }} title="Schedule Office Hour">
         <form onSubmit={handleScheduleOH} className="space-y-4">
           {error && (
             <div
@@ -662,6 +709,25 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
               style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
             >
               {error}
+            </div>
+          )}
+          {isAdminUser && batchOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Batch</label>
+              <select
+                value={selectedAdminBatchId}
+                onChange={(e) => void loadScheduleBatchContext(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                {batchOptions.map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
             </div>
           )}
           <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
@@ -676,7 +742,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 transition: "background-color 0.15s, color 0.15s",
               }}
             >
-              Company
+              Company Team
             </button>
             <button
               type="button"
@@ -690,7 +756,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 transition: "background-color 0.15s, color 0.15s",
               }}
             >
-              Individual Founder
+              Primary Founder
             </button>
           </div>
           {scheduleMode === "company" ? (
@@ -707,7 +773,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
                 }}
               >
                 <option value="">Select company</option>
-                {companies.map((c) => (
+                {scheduleCompanies.map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
                 ))}
               </select>
@@ -715,16 +781,16 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
           ) : (
             <div className="space-y-1.5">
               <SearchableSelect
-                label="Founder"
-                options={founders.map((f) => ({
+                label="Primary founder contact"
+                options={scheduleFounders.map((f) => ({
                   id: f.id,
                   label: f.name || f.email,
-                  secondary: f.companyName ? `Company: ${f.companyName}` : f.email,
+                  secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
                   imageUrl: f.profileImage,
                 }))}
                 value={selectedFounderId}
                 onChange={setSelectedFounderId}
-                placeholder="Search for a founder..."
+                placeholder="Search by founder name or email..."
                 required
                 emptyMessage="No founders found"
               />
@@ -736,6 +802,7 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             type="datetime-local"
             required
             onChange={handleScheduleStartTimeChange}
+            defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
           />
           <Input
             label="End Time"
@@ -763,17 +830,17 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }}>
+            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); resetScheduleContext(); }}>
               Cancel
             </Button>
-            <Button type="submit" loading={loading}>
+            <Button type="submit" loading={loading || scheduleContextLoading}>
               {scheduleMode === "individual" ? "Schedule & Send Invite" : "Schedule & Send Invites"}
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={proposeModalOpen} onClose={() => { setProposeModalOpen(false); setError(null); }} title="Request Office Hour">
+      <Modal open={proposeModalOpen} onClose={() => { setProposeModalOpen(false); setError(null); setSelectedMentorId(mentors.length === 1 ? mentors[0].id : ""); }} title="Request Office Hour">
         <form onSubmit={handleProposeOH} className="space-y-4">
           {error && (
             <div
@@ -783,6 +850,39 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
               {error}
             </div>
           )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Batch</label>
+            <div className="w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)", color: "var(--color-foreground-secondary)" }}>
+              {user.batchName}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Mentor</label>
+            <select
+              name="mentorId"
+              value={selectedMentorId}
+              onChange={(e) => setSelectedMentorId(e.target.value)}
+              required={mentors.length > 0}
+              className="w-full px-3 py-2 rounded-md border text-sm"
+              style={{
+                backgroundColor: "var(--color-background)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+            >
+              <option value="">Select mentor</option>
+              {mentors.map((mentor) => (
+                <option key={mentor.id} value={mentor.id}>
+                  {(mentor.name || mentor.email)} ({mentor.email})
+                </option>
+              ))}
+            </select>
+            {mentors.length === 0 && (
+              <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                No mentors are currently listed in this batch. Request will use default office hour recipient.
+              </p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Company</label>
             <select
@@ -834,6 +934,13 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             </select>
           </div>
           <Textarea
+            label="Agenda"
+            name="agenda"
+            placeholder="Main topics you want to cover"
+            rows={3}
+            required
+          />
+          <Textarea
             label="Message (Optional)"
             name="message"
             placeholder="What would you like to discuss?"
@@ -846,6 +953,36 @@ export function OfficeHoursList({ user, slots, companies, founders }: OfficeHour
             <Button type="submit" loading={loading}>
               Send Request
             </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={grantCreditsModalOpen} onClose={() => { setGrantCreditsModalOpen(false); setError(null); setSelectedCreditFounderId(""); }} title="Grant Office Hour Credits">
+        <form onSubmit={handleGrantCredits} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded text-sm" style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}>
+              {error}
+            </div>
+          )}
+          <SearchableSelect
+            label="Founder"
+            options={founders.map((f) => ({
+              id: f.id,
+              label: f.name || f.email,
+              secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
+              imageUrl: f.profileImage,
+            }))}
+            value={selectedCreditFounderId}
+            onChange={setSelectedCreditFounderId}
+            placeholder="Search founder"
+            required
+            emptyMessage="No founders found"
+          />
+          <Input label="Credits to add" name="amount" type="number" min="1" defaultValue="1" required />
+          <Textarea label="Reason (Optional)" name="reason" rows={3} placeholder="Why are you granting extra credits?" />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setGrantCreditsModalOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={loading}>Grant Credits</Button>
           </div>
         </form>
       </Modal>

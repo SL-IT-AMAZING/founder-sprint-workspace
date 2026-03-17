@@ -5,6 +5,8 @@ import { updateExtendedProfile } from "@/actions/profile";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { TIMEZONE_OPTIONS } from "@/lib/timezone";
 
 interface ProfileFormProps {
   initialData: {
@@ -19,6 +21,7 @@ interface ProfileFormProps {
     linkedinUrl: string;
     twitterUrl: string;
     websiteUrl: string;
+    timezone: string;
   };
 }
 
@@ -40,6 +43,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
     linkedinUrl: initialData.linkedinUrl,
     twitterUrl: initialData.twitterUrl,
     websiteUrl: initialData.websiteUrl,
+    timezone: initialData.timezone,
     profileImage: initialData.profileImage,
   });
 
@@ -109,6 +113,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
     formData.append("linkedinUrl", fields.linkedinUrl);
     formData.append("twitterUrl", fields.twitterUrl);
     formData.append("websiteUrl", fields.websiteUrl);
+    formData.append("timezone", fields.timezone);
 
     startTransition(async () => {
       const result = await updateExtendedProfile(formData);
@@ -492,6 +497,12 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
               type="url"
               placeholder="https://..."
             />
+            <Select
+              label="Timezone"
+              options={TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              value={fields.timezone}
+              onChange={(e) => updateField("timezone", e.target.value)}
+            />
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -515,6 +526,12 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
               <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Website URL:</span>
               <span style={{ fontSize: 14, color: "#2F2C26", wordBreak: "break-all" }}>
                 {fields.websiteUrl || <span style={{ color: "#999999" }}>Not set</span>}
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 32 }}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Timezone:</span>
+              <span style={{ fontSize: 14, color: "#2F2C26" }}>
+                {TIMEZONE_OPTIONS.find((option) => option.value === fields.timezone)?.label || fields.timezone || <span style={{ color: "#999999" }}>Not set</span>}
               </span>
             </div>
           </div>

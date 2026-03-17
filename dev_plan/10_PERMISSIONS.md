@@ -154,8 +154,7 @@
 | `/questions/new` | ❌ | ❌ | ❌ | ✅ | ✅ | |
 | `/questions/[id]` | ✅ | ✅ | ✅ | ✅ | ✅ | |
 | `/questions/[id]/edit` | ❌ | ❌ | ❌ | ✅ | ✅ | 본인 + 답변 전 |
-| `/office-hours` | ✅ | ✅ | ✅ | ✅ | ✅ | |
-| `/office-hours/slots/new` | ✅ | ✅ | ✅ | ❌ | ❌ | |
+| `/office-hours` | ✅ | ✅ | ✅ | ✅ | ✅ | Admin scheduling UI 포함 |
 | `/office-hours/requests` | ✅ | ✅ | ✅ | ❌ | ❌ | 요청 관리 |
 | `/office-hours/my-requests` | ❌ | ❌ | ❌ | ✅ | ✅ | 본인 요청 |
 | `/sessions` | ✅ | ✅ | ✅ | ✅ | ✅ | |
@@ -246,9 +245,15 @@ export async function updateSummary(id: string, data: SummaryInput) {
 
 ```typescript
 // office-hours.ts
-export async function createSlot(data: SlotInput) {
-  // 권한: Super Admin, Admin, Mentor only
-  requireRole('super_admin', 'admin', 'mentor');
+export async function scheduleGroupOfficeHour(data: SlotInput) {
+  // 권한: Super Admin, Admin only
+  requireRole('super_admin', 'admin');
+  // ...
+}
+
+export async function scheduleIndividualOfficeHour(data: SlotInput) {
+  // 권한: Super Admin, Admin only
+  requireRole('super_admin', 'admin');
   // ...
 }
 

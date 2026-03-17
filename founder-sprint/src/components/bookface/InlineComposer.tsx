@@ -18,17 +18,32 @@ const CATEGORIES = [
   { id: 'recruiting', label: 'Recruiting' },
 ];
 
-const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+const URL_REGEX = /(https?:\/\/[^\s]+)/;
 
 const getInitials = (name: string | null): string => {
   if (!name) return "?";
-  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  return name.split(" ").map((part) => part[0]).join("").toUpperCase().slice(0, 2);
 };
 
-export const InlineComposer: React.FC<InlineComposerProps> = ({ 
-  currentUser, 
-  onSubmit, 
-  isPending = false 
+const avatarStyle: React.CSSProperties = {
+  width: '42px',
+  height: '42px',
+  borderRadius: '50%',
+  overflow: 'hidden',
+  flexShrink: 0,
+  backgroundColor: '#1A1A1A',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'white',
+  fontSize: '14px',
+  fontWeight: 600,
+};
+
+export const InlineComposer: React.FC<InlineComposerProps> = ({
+  currentUser,
+  onSubmit,
+  isPending = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState('');
@@ -64,135 +79,115 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
     setIsExpanded(false);
   }, []);
 
+  const renderAvatar = () => (
+    <div style={avatarStyle}>
+      {currentUser.profileImage ? (
+        <img
+          src={currentUser.profileImage}
+          alt={currentUser.name || 'User'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        getInitials(currentUser.name)
+      )}
+    </div>
+  );
+
   if (!isExpanded) {
     return (
-      <div
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '8px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          padding: '16px',
-          cursor: 'pointer',
-        }}
+      <button
+        type="button"
         onClick={handleExpand}
+        style={{
+          width: '100%',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E8E1D4',
+          padding: '12px 14px',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              flexShrink: 0,
-              backgroundColor: '#1A1A1A',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-            }}
-          >
-            {currentUser.profileImage ? (
-              <img
-                src={currentUser.profileImage}
-                alt={currentUser.name || 'User'}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              getInitials(currentUser.name)
-            )}
-          </div>
-
+          {renderAvatar()}
           <div
             style={{
               flex: 1,
-              padding: '12px 16px',
-              backgroundColor: '#f0f2f5',
-              borderRadius: '8px',
-              color: '#65676b',
-              fontSize: '14px',
+              padding: '11px 14px',
+              backgroundColor: '#F6F2EA',
+              borderRadius: '10px',
+              border: '1px solid #EFE6D7',
+              color: '#7A7468',
+              fontSize: '15px',
+              lineHeight: 1.4,
             }}
           >
-            What are you working on?
+            Write a post...
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        border: '1px solid #e0e0e0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-        padding: '16px',
+        backgroundColor: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid #E8E1D4',
+        padding: '14px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
-        <div
-          style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            overflow: 'hidden',
-            flexShrink: 0,
-            backgroundColor: '#1A1A1A',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '14px',
-            fontWeight: 600,
-          }}
-        >
-          {currentUser.profileImage ? (
-            <img
-              src={currentUser.profileImage}
-              alt={currentUser.name || 'User'}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            getInitials(currentUser.name)
-          )}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        {renderAvatar()}
 
-        <div style={{ flex: 1, backgroundColor: '#f8f8f8', borderRadius: '8px', padding: '12px', border: '1px solid #e8e8e8' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <textarea
             ref={textareaRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="What are you working on?"
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="Write a post..."
             style={{
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
               width: '100%',
-              fontSize: '14px',
-              lineHeight: 1.5,
-              minHeight: '80px',
+              border: '1px solid #ECE3D5',
+              outline: 'none',
+              resize: 'vertical',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              backgroundColor: '#F8F5EE',
+              fontSize: '15px',
+              lineHeight: 1.55,
+              minHeight: '110px',
+              color: '#2F2C26',
             }}
           />
 
           {hasUrl && (
             <div
               style={{
-                marginTop: '8px',
+                marginTop: '10px',
                 padding: '8px 12px',
-                backgroundColor: '#f0f2f5',
-                borderRadius: '4px',
+                backgroundColor: '#F6F2EA',
+                borderRadius: '8px',
+                border: '1px solid #ECE3D5',
                 fontSize: '12px',
-                color: '#65676b',
+                color: '#7A7468',
               }}
             >
-              🔗 Link detected
+              Link detected — preview support stays enabled after posting.
             </div>
           )}
 
-          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              marginTop: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {CATEGORIES.map((category) => {
                 const isActive = selectedCategory === category.id;
@@ -202,14 +197,14 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
                     type="button"
                     onClick={() => setSelectedCategory(category.id)}
                     style={{
-                      padding: '6px 12px',
-                      borderRadius: '16px',
-                      border: isActive ? '1px solid #1A1A1A' : '1px solid #d0d0d0',
+                      padding: '5px 11px',
+                      borderRadius: '999px',
+                      border: isActive ? '1px solid #2F2C26' : '1px solid #DDD4C4',
                       cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      backgroundColor: isActive ? '#1A1A1A' : 'white',
-                      color: isActive ? 'white' : '#555',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      backgroundColor: isActive ? '#2F2C26' : '#FFFFFF',
+                      color: isActive ? '#FFFFFF' : '#6E675B',
                       transition: 'all 0.2s ease',
                     }}
                   >
@@ -224,13 +219,13 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
                 onClick={handleCancel}
                 disabled={isPending}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: '1px solid #e0e0e0',
-                  backgroundColor: 'white',
-                  color: '#555',
-                  fontSize: '14px',
-                  fontWeight: 500,
+                  padding: '8px 14px',
+                  borderRadius: '999px',
+                  border: '1px solid #DDD4C4',
+                  backgroundColor: '#FFFFFF',
+                  color: '#6E675B',
+                  fontSize: '13px',
+                  fontWeight: 600,
                   cursor: isPending ? 'not-allowed' : 'pointer',
                   opacity: isPending ? 0.6 : 1,
                 }}
@@ -242,13 +237,13 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
                 onClick={handleSubmit}
                 disabled={!content.trim() || isPending}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '999px',
                   border: 'none',
-                  backgroundColor: !content.trim() || isPending ? '#cccccc' : '#1A1A1A',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 500,
+                  backgroundColor: !content.trim() || isPending ? '#D3CBBE' : '#2F2C26',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 600,
                   cursor: !content.trim() || isPending ? 'not-allowed' : 'pointer',
                 }}
               >

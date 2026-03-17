@@ -152,12 +152,18 @@ const CommentItem: React.FC<{
   onReplyPrivately?: (id: string, authorId: string) => void;
 }> = ({ comment, depth = 0, currentUserId, onUpvote, onReply, onReplyPrivately }) => {
   if (depth > 2) return null;
+  const [avatarError, setAvatarError] = useState(false);
 
   return (
     <>
       <div style={styles.commentItem}>
-        {comment.author.avatarUrl ? (
-          <img src={comment.author.avatarUrl} alt={comment.author.name} style={styles.avatar} />
+        {comment.author.avatarUrl && !avatarError ? (
+          <img
+            src={comment.author.avatarUrl}
+            alt={comment.author.name}
+            style={styles.avatar}
+            onError={() => setAvatarError(true)}
+          />
         ) : (
           <div style={styles.avatarPlaceholder}>
             {comment.author.name.charAt(0).toUpperCase()}

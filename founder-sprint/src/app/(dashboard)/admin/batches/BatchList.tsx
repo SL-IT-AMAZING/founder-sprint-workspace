@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createBatch, updateBatch, archiveBatch, deleteBatch } from "@/actions/batch";
+import { createBatch, updateBatch, archiveBatch, deleteBatch, cloneBatchStructure } from "@/actions/batch";
 import { formatDate } from "@/lib/utils";
 import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
@@ -33,6 +33,7 @@ interface BatchListProps {
 export function BatchList({ batches }: BatchListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editBatch, setEditBatch] = useState<Batch | null>(null);
+  const [cloneSourceBatch, setCloneSourceBatch] = useState<Batch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const toast = useToast();
@@ -98,6 +99,27 @@ export function BatchList({ batches }: BatchListProps) {
     });
   }
 
+  function handleClone(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!cloneSourceBatch) return;
+    setError(null);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    formData.set("sourceBatchId", cloneSourceBatch.id);
+
+    startTransition(async () => {
+      const result = await cloneBatchStructure(formData);
+      if (result.success) {
+        if (result.warning) {
+          toast.success(result.warning);
+        }
+        setCloneSourceBatch(null);
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <>
       <div className="mt-2 mb-6 flex items-center justify-end gap-3">
@@ -142,6 +164,14 @@ export function BatchList({ batches }: BatchListProps) {
                         disabled={isPending}
                       >
                         Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCloneSourceBatch(batch)}
+                        disabled={isPending}
+                      >
+                        Clone Structure
                       </Button>
                       <Button
                         variant="ghost"
@@ -314,6 +344,89 @@ export function BatchList({ batches }: BatchListProps) {
               </Button>
               <Button type="submit" loading={isPending}>
                 Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!cloneSourceBatch}
+        onClose={() => {
+          setCloneSourceBatch(null);
+          setError(null);
+        }}
+        title="Clone Batch Structure"
+      >
+        {cloneSourceBatch && (
+          <form onSubmit={handleClone} className="space-y-4">
+            <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+              Creates a new batch from <strong>{cloneSourceBatch.name}</strong> and clones assignments and sessions only.
+            </p>
+
+            <Input
+              label="New Batch Name"
+              name="name"
+              required
+              defaultValue={`${cloneSourceBatch.name} Copy`}
+              disabled={isPending}
+            />
+
+            <Textarea
+              label="Description"
+              name="description"
+              placeholder="Optional description"
+              defaultValue={cloneSourceBatch.description || ""}
+              disabled={isPending}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Start Date"
+                name="startDate"
+                type="date"
+                required
+                defaultValue={new Date(cloneSourceBatch.startDate).toISOString().split("T")[0]}
+                disabled={isPending}
+              />
+              <Input
+                label="End Date"
+                name="endDate"
+                type="date"
+                required
+                defaultValue={new Date(cloneSourceBatch.endDate).toISOString().split("T")[0]}
+                disabled={isPending}
+              />
+            </div>
+
+            {error && (
+              <div
+                className="text-sm"
+                style={{
+                  color: "var(--color-error)",
+                  padding: "12px",
+                  backgroundColor: "rgba(198, 40, 40, 0.1)",
+                  borderRadius: "6px",
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setCloneSourceBatch(null);
+                  setError(null);
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={isPending}>
+                Clone Batch
               </Button>
             </div>
           </form>

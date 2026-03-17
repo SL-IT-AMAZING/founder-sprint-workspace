@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
@@ -67,10 +67,17 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   const postRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { createObserver } = useViewTracking();
 
-  // Optimistic state for likes and bookmarks
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set(likedPostIds));
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set(bookmarkedPostIds));
-  const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
+  const serverLikedIds = useMemo(() => new Set(likedPostIds), [likedPostIds]);
+
+  useEffect(() => {
+    setLikedIds(new Set(likedPostIds));
+  }, [likedPostIds]);
+
+  useEffect(() => {
+    setBookmarkedIds(new Set(bookmarkedPostIds));
+  }, [bookmarkedPostIds]);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -87,7 +94,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       case 'launch':
       case 'classifieds':
       case 'recruiting':
-        return posts.filter((p) => p.category === activeTab);
+        return posts.filter((post) => post.category === activeTab);
       default:
         return posts;
     }
@@ -117,12 +124,20 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       }
       return next;
     });
-    setLikeDelta((prev) => ({
-      ...prev,
-      [postId]: (prev[postId] || 0) + (wasLiked ? -1 : 1),
-    }));
     startTransition(async () => {
-      await toggleLike("post", postId);
+      const result = await toggleLike("post", postId);
+      if (!result.success) {
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          if (wasLiked) {
+            next.add(postId);
+          } else {
+            next.delete(postId);
+          }
+          return next;
+        });
+        toast.error(result.error);
+      }
     });
   };
 
@@ -186,10 +201,10 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
 
   const handleEditPost = async () => {
     if (!editingPost || !editContent.trim()) return;
-    
+
     const formData = new FormData();
     formData.append("content", editContent);
-    
+
     startTransition(async () => {
       const result = await updatePost(editingPost.id, formData);
       if (result.success) {
@@ -203,7 +218,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
 
   const handleDeletePost = async (postId: string) => {
     if (!confirm("Are you sure you want to delete this post? This action cannot be undone.")) return;
-    
+
     startTransition(async () => {
       const result = await deletePost(postId);
       if (!result.success) {
@@ -233,7 +248,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   const getPostMenuItems = (post: Post) => {
     const items = [];
     const isOwner = post.author.id === currentUser.id;
-    
+
     if (isOwner || isAdmin) {
       items.push({
         label: "Edit",
@@ -248,7 +263,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         variant: "danger" as const,
       });
     }
-    
+
     if (isAdmin) {
       items.push({
         label: post.isPinned ? "Unpin" : "Pin",
@@ -259,60 +274,86 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         onClick: () => handleHidePost(post.id),
       });
     }
-    
+
     return items;
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Feed</h1>
-        {isAdmin && archivedPosts.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
-          >
-            {showArchived ? "Hide Archived" : `Show Archived (${archivedPosts.length})`}
-          </Button>
-        )}
+    <div className="space-y-5 md:space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#8A8377',
+              }}
+            >
+              Community
+            </p>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: '28px',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                fontFamily: '"BDO Grotesk", sans-serif',
+                color: '#2F2C26',
+              }}
+            >
+              Feed
+            </h1>
+          </div>
+          {isAdmin && archivedPosts.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowArchived(!showArchived)}
+            >
+              {showArchived ? "Hide Archived" : `Show Archived (${archivedPosts.length})`}
+            </Button>
+          )}
+        </div>
+
+        <InlineComposer
+          currentUser={currentUser}
+          onSubmit={async (data) => {
+            const formData = new FormData();
+            formData.append("content", data.content);
+            if (data.category) formData.append("category", data.category);
+            if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+            const result = await createPost(formData);
+            if (!result.success) {
+              toast.error(result.error);
+            }
+          }}
+          isPending={isPending}
+        />
+
+        <FeedTabs
+          tabs={defaultTabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
       </div>
 
-      <FeedTabs
-        tabs={defaultTabs}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-      />
-
-      <InlineComposer
-        currentUser={currentUser}
-        onSubmit={async (data) => {
-          const formData = new FormData();
-          formData.append("content", data.content);
-          if (data.category) formData.append("category", data.category);
-          if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
-          const result = await createPost(formData);
-          if (!result.success) {
-            toast.error(result.error);
-          }
-        }}
-        isPending={isPending}
-      />
-
-      {/* Posts Feed */}
       {filteredPosts.length === 0 ? (
         <EmptyState
           title="No posts yet"
           description="Be the first to share something with the community!"
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3 md:space-y-4">
           {filteredPosts.map((post) => (
             <div
               key={post.id}
-              ref={(el) => {
-                if (el) {
-                  postRefs.current.set(post.id, el);
+              ref={(element) => {
+                if (element) {
+                  postRefs.current.set(post.id, element);
                 } else {
                   postRefs.current.delete(post.id);
                 }
@@ -320,7 +361,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
               data-post-id={post.id}
             >
               {post.isPinned && (
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: '10px', display: 'inline-flex' }}>
                   <Badge variant="warning">Pinned</Badge>
                 </div>
               )}
@@ -334,7 +375,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 }}
                 content={post.content}
                 postedAt={formatRelativeTime(post.createdAt)}
-                likes={post._count.likes + (likeDelta[post.id] || 0)}
+                likes={post._count.likes + (likedIds.has(post.id) ? 1 : 0) - (serverLikedIds.has(post.id) ? 1 : 0)}
                 comments={post._count.comments}
                 views={post.viewCount}
                 isLiked={likedIds.has(post.id)}
@@ -345,6 +386,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 onShare={() => handleShare(post.id)}
                 onAuthorClick={() => router.push(`/profile/${post.author.id}`)}
                 menuItems={(post.author.id === currentUser.id || isAdmin) ? getPostMenuItems(post) : undefined}
+                variant="feed"
               />
             </div>
           ))}
@@ -352,7 +394,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       )}
 
       {isAdmin && showArchived && archivedPosts.length > 0 && (
-        <div className="space-y-4 mt-8">
+        <div className="mt-10 space-y-4">
           <h2 className="text-xl font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
             Archived Posts ({archivedPosts.length})
           </h2>
@@ -361,11 +403,10 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
               key={post.id}
               className="card"
               style={{
-                backgroundColor: "#f9f9f9",
-                borderRadius: "8px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                border: "1px solid #e0e0e0",
-                opacity: 0.8,
+                backgroundColor: "#FCFBF8",
+                borderRadius: "12px",
+                border: "1px solid #E8E1D4",
+                opacity: 0.85,
               }}
             >
               <div className="space-y-3">
@@ -415,7 +456,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         <div className="space-y-4">
           <Textarea
             value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
+            onChange={(event) => setEditContent(event.target.value)}
             rows={5}
             placeholder="What's on your mind?"
           />

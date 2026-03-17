@@ -4,16 +4,26 @@ export function cn(...inputs: string[]) {
 }
 
 // Format date helpers
-export function formatDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-US", {
+export function toValidDate(date: Date | string | null | undefined): Date | null {
+  if (!date) return null;
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function formatDate(date: Date | string | null | undefined): string {
+  const parsed = toValidDate(date);
+  if (!parsed) return "Date TBD";
+  return parsed.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-export function formatDateTime(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-US", {
+export function formatDateTime(date: Date | string | null | undefined): string {
+  const parsed = toValidDate(date);
+  if (!parsed) return "Time TBD";
+  return parsed.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -22,9 +32,10 @@ export function formatDateTime(date: Date | string): string {
   });
 }
 
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string | null | undefined): string {
   const now = new Date();
-  const d = new Date(date);
+  const d = toValidDate(date);
+  if (!d) return "just now";
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);

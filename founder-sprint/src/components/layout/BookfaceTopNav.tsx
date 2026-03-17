@@ -171,43 +171,42 @@ export default function BookfaceTopNav({
     setSearchQuery("");
   };
 
-  const dropdownMenus = [
-    {
-      key: "community",
-      label: "Community",
-      items: [
-        { href: "/feed", label: "Feed" },
-        { href: "/founders", label: "Founders" },
-        { href: "/companies", label: "Companies" },
-      ],
-    },
-    {
-      key: "advice",
-      label: "Advice",
-      items: [
-        { href: "/office-hours", label: "Office Hours" },
-        { href: "/schedule", label: "Schedule" },
-      ],
-    },
-    {
-      key: "tools",
-      label: "Tools",
-      items: [
-        { href: "/questions", label: "Questions" },
-        { href: "/assignments", label: "Assignments" },
-      ],
-    },
-    {
-      key: "contact",
-      label: "Contact",
-      items: [
-        { href: "/messages", label: "Messages" },
-        ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
-      ],
-    },
+  const currentBatchName = batches.find((batch) => batch.batchId === currentBatchId)?.batchName || "Batch";
+  const isPathActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  const primaryLinks = [
+    { key: "feed", label: "Feed", href: "/feed" },
+    { key: "dashboard", label: "Dashboard", href: "/dashboard" },
   ];
 
-  const allMobileLinks = dropdownMenus.flatMap(menu => menu.items);
+  const batchMenu = {
+    key: "batch",
+    label: currentBatchName,
+    items: [
+      { href: "/schedule", label: "Schedule" },
+      { href: "/assignments", label: "Assignments" },
+      { href: "/office-hours", label: "Office Hours" },
+    ],
+  };
+
+  const moreMenu = {
+    key: "more",
+    label: "More",
+    items: [
+      { href: "/founders", label: "Founders" },
+      { href: "/companies", label: "Companies" },
+      { href: "/questions", label: "Questions" },
+    ],
+  };
+
+  const desktopMenus = [batchMenu, moreMenu];
+
+  const allMobileLinks = [
+    ...primaryLinks,
+    ...batchMenu.items,
+    ...(isAdmin ? [{ key: "admin", label: "Admin", href: "/admin" }] : []),
+    ...moreMenu.items,
+  ];
 
   return (
     <nav 
@@ -226,7 +225,7 @@ export default function BookfaceTopNav({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
         <Link
-          href="/dashboard"
+          href="/feed"
           style={{
             textDecoration: 'none',
             flexShrink: 0,
@@ -253,7 +252,35 @@ export default function BookfaceTopNav({
             position: 'relative'
           }}
         >
-          {dropdownMenus.map((menu) => (
+          {primaryLinks.map((link) => {
+            const isActive = isPathActive(link.href);
+
+            return (
+              <Link
+                key={link.key}
+                href={link.href}
+                style={{
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: isActive ? 600 : 400,
+                  textDecoration: 'none',
+                  padding: '4px 8px',
+                  opacity: isActive ? 1.0 : 0.9,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '1.0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = isActive ? '1.0' : '0.9';
+                }}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+
+          {desktopMenus.map((menu) => (
             <div key={menu.key} style={{ position: 'relative' }}>
               <button
                 onClick={() => setOpenDropdown(openDropdown === menu.key ? null : menu.key)}
@@ -316,6 +343,29 @@ export default function BookfaceTopNav({
               )}
             </div>
           ))}
+
+          {isAdmin && (
+            <Link
+              href="/admin"
+              style={{
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: isPathActive('/admin') ? 600 : 400,
+                textDecoration: 'none',
+                padding: '4px 8px',
+                opacity: isPathActive('/admin') ? 1.0 : 0.9,
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '1.0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = isPathActive('/admin') ? '1.0' : '0.9';
+              }}
+            >
+              Admin
+            </Link>
+          )}
         </div>
       </div>
 
@@ -833,7 +883,7 @@ export default function BookfaceTopNav({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {allMobileLinks.map((link) => {
-                const isActive = pathname === link.href;
+                const isActive = isPathActive(link.href);
                 return (
                   <Link
                     key={link.href}

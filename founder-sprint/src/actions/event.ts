@@ -16,7 +16,7 @@ const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   description: z.string().max(2000).optional(),
-  eventType: z.enum(["one_off", "office_hour", "in_person"]),
+  eventType: z.enum(["office_hour", "in_person", "virtual", "general_session"]),
   startTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid start time"),
   endTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid end time"),
   timezone: z.string().default("UTC"),
