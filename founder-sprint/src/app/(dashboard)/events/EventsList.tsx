@@ -17,6 +17,12 @@ import { createEvent, deleteEvent } from "@/actions/event";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import type { UserWithBatch, EventType } from "@/types";
+import type { ScheduleItem, VisibleScheduleFilter } from "@/types/schedule";
+import {
+  VISIBLE_SCHEDULE_COLORS,
+  VISIBLE_SCHEDULE_FILTERS,
+  VISIBLE_SCHEDULE_LABELS,
+} from "@/types/schedule";
 import { displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
 
 type ViewMode = "list" | "calendar";
@@ -46,10 +52,10 @@ interface EventsListProps {
 }
 
 const eventTypeOptions = [
+  { value: "in_person", label: "Event: In-person" },
+  { value: "virtual", label: "Event: Virtual" },
   { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
-  { value: "virtual", label: "Virtual Event" },
-  { value: "in_person", label: "In-person Event" },
 ];
 
 function getEventTypeBadgeVariant(type: EventType): "default" | "success" | "warning" {
@@ -86,7 +92,8 @@ function getEventTypeLabel(type: EventType): string {
 
 export function EventsList({ user, events, batchOptions }: EventsListProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<EventType | "all">("all");
+  const [selectedCreateEventType, setSelectedCreateEventType] = useState<EventType | null>(null);
+  const [selectedType, setSelectedType] = useState<VisibleScheduleFilter | "all">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,12 +108,26 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
   useEffect(() => {
     if (prefillDate && canCreate) {
       setCreateModalOpen(true);
+      setSelectedCreateEventType(null);
     }
   }, [prefillDate, canCreate]);
 
   const filteredEvents = selectedType === "all"
     ? events
-    : events.filter((e) => e.eventType === selectedType);
+    : events.filter((event) => event.eventType === selectedType);
+
+  const calendarItems: ScheduleItem[] = filteredEvents.map((event) => ({
+    id: event.id,
+    kind: event.eventType === "office_hour" ? "officeHour" : event.eventType === "general_session" ? "session" : "event",
+    title: event.title,
+    startTime: new Date(event.startTime).toISOString(),
+    endTime: new Date(event.endTime).toISOString(),
+    timezone: event.timezone,
+    isAllDay: false,
+    eventType: event.eventType,
+    location: event.location || undefined,
+    deepLink: "/events",
+  }));
 
   const handleDayClick = (date: Date) => {
     setSelectedDate((prev) => (prev && isSameDay(prev, date) ? null : date));
@@ -140,6 +161,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
 
     if (result.success) {
       setCreateModalOpen(false);
+      setSelectedCreateEventType(null);
       (e.target as HTMLFormElement).reset();
       if (result.warning) toast.warning(result.warning);
     } else {
@@ -169,34 +191,32 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           >
             All
           </button>
-          <button
-            onClick={() => setSelectedType("general_session")}
-            className={selectedType === "general_session" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            General Session
-          </button>
-          <button
-            onClick={() => setSelectedType("office_hour")}
-            className={selectedType === "office_hour" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            Office Hour
-          </button>
-          <button
-            onClick={() => setSelectedType("virtual")}
-            className={selectedType === "virtual" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            Virtual
-          </button>
-          <button
-            onClick={() => setSelectedType("in_person")}
-            className={selectedType === "in_person" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            In-person
-          </button>
+          {VISIBLE_SCHEDULE_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setSelectedType(filter)}
+              className={selectedType === filter ? "btn btn-primary" : "btn btn-secondary"}
+              style={{
+                fontSize: 14,
+                height: 36,
+                padding: "0 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: VISIBLE_SCHEDULE_COLORS[filter],
+                  flexShrink: 0,
+                }}
+              />
+              {VISIBLE_SCHEDULE_LABELS[filter]}
+            </button>
+          ))}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex border rounded overflow-hidden" style={{ borderColor: "#e0e0e0" }}>
@@ -226,7 +246,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
             </button>
           </div>
           {canCreate && (
-            <Button onClick={() => setCreateModalOpen(true)} size="sm">
+            <Button onClick={() => { setCreateModalOpen(true); setSelectedCreateEventType(null); }} size="sm">
               Create Event
             </Button>
           )}
@@ -236,7 +256,12 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
       {viewMode === "calendar" ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <Calendar events={filteredEvents} onDayClick={handleDayClick} selectedDay={selectedDate} />
+            <Calendar
+              items={calendarItems}
+              onDayClick={handleDayClick}
+              selectedDay={selectedDate}
+              typeFilter={selectedType === "all" ? null : selectedType}
+            />
           </div>
           <div className="space-y-3">
             <h3 className="font-medium">
@@ -268,7 +293,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           description={selectedType === "all" ? "No events scheduled yet" : `No ${getEventTypeLabel(selectedType as EventType).toLowerCase()} events scheduled`}
           action={
             canCreate ? (
-              <Button onClick={() => setCreateModalOpen(true)}>Create Event</Button>
+              <Button onClick={() => { setCreateModalOpen(true); setSelectedCreateEventType(null); }}>Create Event</Button>
             ) : undefined
           }
         />
@@ -344,7 +369,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
         </div>
       )}
 
-      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create Event">
+      <Modal open={createModalOpen} onClose={() => { setCreateModalOpen(false); setSelectedCreateEventType(null); setError(null); }} title="Create Event">
         <form onSubmit={handleCreateEvent} className="space-y-4">
           {error && (
             <div
@@ -356,58 +381,76 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           )}
 
           <BatchSelect batches={batchOptions} />
-          <Input
-            label="Title"
-            name="title"
-            required
-            placeholder="Event title"
-          />
-          <Textarea
-            label="Description"
-            name="description"
-            placeholder="Event description (optional)"
-            rows={3}
-          />
-          <Select
-            label="Event Type"
-            name="eventType"
-            options={eventTypeOptions}
-            required
-          />
-           <Input
-             label="Start Time"
-             name="startTime"
-             type="datetime-local"
-             required
-             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
-           />
-           <Input
-             label="End Time"
-             name="endTime"
-             type="datetime-local"
-             required
-             defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
-           />
-          <Select
-            label="Timezone"
-            name="timezone"
-            options={[
-              { value: "America/Los_Angeles", label: "PST (Pacific)" },
-              { value: "Asia/Seoul", label: "KST (Korea)" },
-              { value: "UTC", label: "UTC" },
-            ]}
-            required
-          />
-          <Input
-            label="Location"
-            name="location"
-            placeholder="Location or meeting link (optional)"
-          />
+          {!selectedCreateEventType ? (
+            <div className="space-y-2">
+              {eventTypeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSelectedCreateEventType(option.value as EventType)}
+                  className="w-full rounded-md border px-3 py-3 text-left text-sm"
+                  style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <input type="hidden" name="eventType" value={selectedCreateEventType} />
+              <Input
+                label="Title"
+                name="title"
+                required
+                placeholder="Event title"
+              />
+              <Textarea
+                label="Description"
+                name="description"
+                placeholder="Event description (optional)"
+                rows={3}
+              />
+              <Input
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+              />
+              <Input
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+              />
+              <Select
+                label="Timezone"
+                name="timezone"
+                options={[
+                  { value: "America/Los_Angeles", label: "PST (Pacific)" },
+                  { value: "Asia/Seoul", label: "KST (Korea)" },
+                  { value: "UTC", label: "UTC" },
+                ]}
+                required
+              />
+              <Input
+                label="Location"
+                name="location"
+                placeholder="Location or meeting link (optional)"
+              />
+            </>
+          )}
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
+            {selectedCreateEventType ? (
+              <Button type="button" variant="secondary" onClick={() => setSelectedCreateEventType(null)}>
+                Back
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => { setCreateModalOpen(false); setSelectedCreateEventType(null); }}>
               Cancel
             </Button>
-            <Button type="submit" loading={loading}>
+            <Button type="submit" loading={loading} disabled={!selectedCreateEventType}>
               Create Event
             </Button>
           </div>
