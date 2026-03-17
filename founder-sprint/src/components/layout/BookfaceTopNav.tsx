@@ -171,7 +171,6 @@ export default function BookfaceTopNav({
     setSearchQuery("");
   };
 
-  const currentBatchName = batches.find((batch) => batch.batchId === currentBatchId)?.batchName || "Batch";
   const isPathActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   const primaryLinks = [
@@ -181,31 +180,25 @@ export default function BookfaceTopNav({
 
   const batchMenu = {
     key: "batch",
-    label: currentBatchName,
+    label: "Batch",
+    href: "/schedule",
     items: [
       { href: "/schedule", label: "Schedule" },
       { href: "/assignments", label: "Assignments" },
       { href: "/office-hours", label: "Office Hours" },
-    ],
-  };
-
-  const moreMenu = {
-    key: "more",
-    label: "More",
-    items: [
+      { href: "---", label: "---" },
       { href: "/founders", label: "Founders" },
       { href: "/companies", label: "Companies" },
       { href: "/questions", label: "Questions" },
     ],
   };
 
-  const desktopMenus = [batchMenu, moreMenu];
+  const desktopMenus = [batchMenu];
 
   const allMobileLinks = [
     ...primaryLinks,
-    ...batchMenu.items,
+    ...batchMenu.items.filter((item) => item.href !== "---"),
     ...(isAdmin ? [{ key: "admin", label: "Admin", href: "/admin" }] : []),
-    ...moreMenu.items,
   ];
 
   return (
@@ -280,69 +273,118 @@ export default function BookfaceTopNav({
             );
           })}
 
-          {desktopMenus.map((menu) => (
-            <div key={menu.key} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setOpenDropdown(openDropdown === menu.key ? null : menu.key)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: openDropdown === menu.key ? 500 : 400,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  opacity: openDropdown === menu.key ? 1.0 : 0.9,
-                  transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = openDropdown === menu.key ? '1.0' : '0.9'}
-              >
-                {menu.label}
-                <span style={{ fontSize: '10px' }}>▼</span>
-              </button>
-
-              {openDropdown === menu.key && (
-                <div
+          {desktopMenus.map((menu) => {
+            const menuHref = 'href' in menu ? (menu as { href: string }).href : undefined;
+            const isBatchActive = menu.items.some((item) => item.href !== '---' && isPathActive(item.href));
+            return (
+              <div key={menu.key} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                {menuHref ? (
+                  <Link
+                    href={menuHref}
+                    style={{
+                      background: 'none',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: isBatchActive ? 600 : 400,
+                      textDecoration: 'none',
+                      padding: '4px 4px 4px 8px',
+                      opacity: isBatchActive ? 1.0 : 0.9,
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = isBatchActive ? '1.0' : '0.9'}
+                  >
+                    {menu.label}
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === menu.key ? null : menu.key)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: openDropdown === menu.key ? 500 : 400,
+                      cursor: 'pointer',
+                      padding: '4px 4px 4px 8px',
+                      opacity: openDropdown === menu.key ? 1.0 : 0.9,
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = openDropdown === menu.key ? '1.0' : '0.9'}
+                  >
+                    {menu.label}
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpenDropdown(openDropdown === menu.key ? null : menu.key)}
                   style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e0e0e0',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    padding: '4px 0',
-                    minWidth: '200px',
-                    zIndex: 200,
-                    marginTop: '8px',
+                    background: 'none',
+                    border: 'none',
+                    color: 'white',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                    padding: '4px 8px 4px 2px',
+                    opacity: 0.9,
+                    transition: 'opacity 0.2s',
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.9'}
+                  aria-label={`${menu.label} menu`}
                 >
-                  {menu.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      style={{
-                        display: 'block',
-                        padding: '10px 14px',
-                        fontSize: '14px',
-                        color: '#2F2C26',
-                        textDecoration: 'none',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                  ▼
+                </button>
+
+                {openDropdown === menu.key && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      padding: '4px 0',
+                      minWidth: '200px',
+                      zIndex: 200,
+                      marginTop: '8px',
+                    }}
+                  >
+                    {menu.items.map((item) =>
+                      item.href === '---' ? (
+                        <div
+                          key="separator"
+                          style={{
+                            height: '1px',
+                            backgroundColor: '#e0e0e0',
+                            margin: '4px 0',
+                          }}
+                        />
+                      ) : (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          style={{
+                            display: 'block',
+                            padding: '10px 14px',
+                            fontSize: '14px',
+                            color: '#2F2C26',
+                            textDecoration: 'none',
+                            transition: 'background-color 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          {item.label}
+                        </Link>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {isAdmin && (
             <Link
@@ -365,6 +407,12 @@ export default function BookfaceTopNav({
             >
               Admin
             </Link>
+          )}
+
+          {batches.length > 1 && (
+            <div className="hidden lg:block" style={{ marginLeft: isAdmin ? 0 : -4 }}>
+              <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
+            </div>
           )}
         </div>
       </div>
@@ -735,12 +783,6 @@ export default function BookfaceTopNav({
           </svg>
           <UnreadBadge />
         </Link>
-        {batches.length > 1 && (
-          <div className="hidden lg:block">
-            <BatchSwitcher batches={batches} currentBatchId={currentBatchId} />
-          </div>
-        )}
-
         <Link
           href="/settings"
           style={{
