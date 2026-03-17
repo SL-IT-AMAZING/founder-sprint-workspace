@@ -5,10 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, parse, isValid } from "date-fns";
+import type { VisibleScheduleFilter } from "@/types/schedule";
 
 export const revalidate = 60;
 
-const VALID_TYPES = new Set(["event", "officeHour", "session"]);
+const VALID_TYPES = new Set(["in_person", "virtual", "general_session", "office_hour"]);
 
 export default async function SchedulePage({
   searchParams,
@@ -29,7 +30,7 @@ export default async function SchedulePage({
     params.day && /^\d{4}-\d{2}-\d{2}$/.test(params.day) ? params.day : null;
   const typeFilter =
     params.type && VALID_TYPES.has(params.type)
-      ? (params.type as "event" | "officeHour" | "session")
+      ? (params.type as VisibleScheduleFilter)
       : null;
 
   const rangeStart = startOfWeek(startOfMonth(monthDate));

@@ -6,6 +6,7 @@
  */
 
 export type ScheduleItemKind = "event" | "officeHour" | "session";
+export type VisibleScheduleFilter = "in_person" | "virtual" | "general_session" | "office_hour";
 
 export interface ScheduleItem {
   /** Unique ID from the source model */
@@ -72,3 +73,59 @@ export const SCHEDULE_LABELS: Record<ScheduleItemKind, string> = {
   officeHour: "Office Hours",
   session: "Sessions",
 };
+
+export const VISIBLE_SCHEDULE_FILTERS: VisibleScheduleFilter[] = [
+  "in_person",
+  "virtual",
+  "general_session",
+  "office_hour",
+];
+
+export const VISIBLE_SCHEDULE_LABELS: Record<VisibleScheduleFilter, string> = {
+  in_person: "In-person",
+  virtual: "Virtual",
+  general_session: "General Session",
+  office_hour: "Office Hour",
+};
+
+export const VISIBLE_SCHEDULE_COLORS: Record<VisibleScheduleFilter, string> = {
+  in_person: "#F59E0B",
+  virtual: "#10B981",
+  general_session: "#8B5CF6",
+  office_hour: "#EF4444",
+};
+
+export function matchesVisibleScheduleFilter(
+  item: ScheduleItem,
+  filter: VisibleScheduleFilter | null
+): boolean {
+  if (!filter) return true;
+
+  if (filter === "office_hour") {
+    return item.kind === "officeHour" || item.eventType === "office_hour";
+  }
+
+  if (filter === "general_session") {
+    return item.kind === "session" || item.eventType === "general_session";
+  }
+
+  return item.eventType === filter;
+}
+
+export function getVisibleScheduleFilterForItem(
+  item: ScheduleItem
+): VisibleScheduleFilter | null {
+  if (item.kind === "officeHour" || item.eventType === "office_hour") {
+    return "office_hour";
+  }
+
+  if (item.kind === "session" || item.eventType === "general_session") {
+    return "general_session";
+  }
+
+  if (item.eventType === "in_person" || item.eventType === "virtual") {
+    return item.eventType;
+  }
+
+  return null;
+}

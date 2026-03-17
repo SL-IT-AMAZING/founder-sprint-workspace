@@ -5,15 +5,20 @@ import { useTransition, useMemo } from "react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { Calendar } from "@/components/ui/Calendar";
 import { DayPanel } from "./DayPanel";
-import type { ScheduleItem, ScheduleItemKind } from "@/types/schedule";
+import type { ScheduleItem, VisibleScheduleFilter } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
-import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
+import {
+  VISIBLE_SCHEDULE_COLORS,
+  VISIBLE_SCHEDULE_FILTERS,
+  VISIBLE_SCHEDULE_LABELS,
+  matchesVisibleScheduleFilter,
+} from "@/types/schedule";
 
 interface ScheduleViewProps {
   items: ScheduleItem[];
   month: string;
   selectedDay: string | null;
-  typeFilter: ScheduleItemKind | null;
+  typeFilter: VisibleScheduleFilter | null;
   isAdmin: boolean;
   userTimezone: string | null;
   companies: CompanyOption[];
@@ -22,8 +27,6 @@ interface ScheduleViewProps {
   batchOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
-
-const ALL_KINDS: ScheduleItemKind[] = ["event", "officeHour", "session"];
 
 export function ScheduleView({
   items,
@@ -49,7 +52,7 @@ export function ScheduleView({
   );
 
   const filteredItems = useMemo(
-    () => (typeFilter ? items.filter((i) => i.kind === typeFilter) : items),
+    () => items.filter((item) => matchesVisibleScheduleFilter(item, typeFilter)),
     [items, typeFilter]
   );
 
@@ -87,7 +90,7 @@ export function ScheduleView({
     });
   };
 
-  const handleTypeFilter = (kind: ScheduleItemKind | null) => {
+  const handleTypeFilter = (kind: VisibleScheduleFilter | null) => {
     updateParams({ type: kind });
   };
 
@@ -101,7 +104,7 @@ export function ScheduleView({
         >
           All
         </button>
-        {ALL_KINDS.map((kind) => (
+        {VISIBLE_SCHEDULE_FILTERS.map((kind) => (
           <button
             key={kind}
             onClick={() => handleTypeFilter(kind)}
@@ -120,11 +123,11 @@ export function ScheduleView({
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                backgroundColor: SCHEDULE_COLORS[kind],
+                backgroundColor: VISIBLE_SCHEDULE_COLORS[kind],
                 flexShrink: 0,
               }}
             />
-            {SCHEDULE_LABELS[kind]}
+            {VISIBLE_SCHEDULE_LABELS[kind]}
           </button>
         ))}
       </div>
