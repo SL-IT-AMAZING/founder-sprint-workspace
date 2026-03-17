@@ -1,4 +1,5 @@
 import type { BatchStatus } from "@/types";
+import { toValidDate } from "@/lib/utils";
 
 interface BatchForStatus {
   status: BatchStatus;
@@ -15,7 +16,8 @@ export function getEffectiveBatchStatus(batch: BatchForStatus): "active" | "expi
   if (batch.status === "archived") return "archived";
 
   const now = new Date();
-  const end = new Date(batch.endDate);
+  const end = toValidDate(batch.endDate);
+  if (!end) return "active";
   end.setHours(23, 59, 59, 999);
 
   if (now > end) return "expired";

@@ -8,11 +8,16 @@ import type { ActionResult } from "@/types";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
+const BatchDateStringSchema = z.string().refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  "Invalid batch date"
+);
+
 const CreateBatchSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
-  startDate: z.string().transform((s) => new Date(s)),
-  endDate: z.string().transform((s) => new Date(s)),
+  startDate: BatchDateStringSchema.transform((s) => new Date(s)),
+  endDate: BatchDateStringSchema.transform((s) => new Date(s)),
 });
 
 const UpdateBatchSchema = z.object({
@@ -26,8 +31,8 @@ const CloneBatchSchema = z.object({
   sourceBatchId: z.string().uuid(),
   name: z.string().min(1).max(100),
   description: z.string().optional(),
-  startDate: z.string().transform((s) => new Date(s)),
-  endDate: z.string().transform((s) => new Date(s)),
+  startDate: BatchDateStringSchema.transform((s) => new Date(s)),
+  endDate: BatchDateStringSchema.transform((s) => new Date(s)),
 });
 
 export async function createBatch(formData: FormData): Promise<ActionResult<{ id: string }>> {

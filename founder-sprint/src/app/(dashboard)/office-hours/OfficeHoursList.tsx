@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getDisplayName } from "@/lib/utils";
 import { isAdmin, isFounder } from "@/lib/permissions-client";
-import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow } from "@/actions/office-hour";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 import type { FounderOption, MentorOption } from "@/types/invite";
@@ -89,6 +89,8 @@ interface OfficeHoursListProps {
     weeklyLimit: number;
     remainingWeeklyRequests: number;
   };
+  batchOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 function getStatusBadgeVariant(status: OfficeHourSlotStatus): "default" | "success" | "warning" | "error" {
@@ -125,7 +127,7 @@ function getStatusLabel(status: OfficeHourSlotStatus): string {
   }
 }
 
-export function OfficeHoursList({ user, slots, companies, founders, mentors, requesterStats }: OfficeHoursListProps) {
+export function OfficeHoursList({ user, slots, companies, founders, mentors, requesterStats, batchOptions, currentBatchId }: OfficeHoursListProps) {
    const router = useRouter();
    const searchParams = useSearchParams();
    const prefillDate = searchParams.get("date");
@@ -143,9 +145,51 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
     const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
     const [selectedFounderId, setSelectedFounderId] = useState<string>("");
-    const [selectedMentorId, setSelectedMentorId] = useState<string>(mentors.length === 1 ? mentors[0].id : "");
-    const [grantCreditsModalOpen, setGrantCreditsModalOpen] = useState(false);
-    const [selectedCreditFounderId, setSelectedCreditFounderId] = useState<string>("");
+     const [selectedMentorId, setSelectedMentorId] = useState<string>(mentors.length === 1 ? mentors[0].id : "");
+     const [grantCreditsModalOpen, setGrantCreditsModalOpen] = useState(false);
+     const [selectedCreditFounderId, setSelectedCreditFounderId] = useState<string>("");
+     const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
+     const [scheduleCompanies, setScheduleCompanies] = useState<CompanyForList[]>(companies);
+     const [scheduleFounders, setScheduleFounders] = useState<FounderOption[]>(founders);
+     const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
+
+  const isAdminUser = isAdmin(user.role);
+  const isFounderUser = isFounder(user.role);
+  const canRequest = isFounderUser;
+
+  const loadScheduleBatchContext = async (batchId: string) => {
+    if (!isAdminUser) return;
+
+    setScheduleContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
+
+    if (result.success) {
+      setSelectedAdminBatchId(batchId);
+      setScheduleCompanies(
+        result.data.companies.map((company) => ({
+          id: company.id,
+          name: company.name,
+          _count: { members: company.memberCount, posts: 0 },
+        }))
+      );
+      setScheduleFounders(result.data.founders);
+      setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
+      setSelectedFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+
+    setScheduleContextLoading(false);
+  };
+
+  const resetScheduleContext = () => {
+    setSelectedAdminBatchId(currentBatchId);
+    setScheduleCompanies(companies);
+    setScheduleFounders(founders);
+    setSelectedCompanyId(defaultCompanyId);
+    setSelectedFounderId("");
+  };
 
   const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const startVal = e.target.value;
@@ -181,6 +225,9 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    if (isAdminUser) {
+      formData.set("batchId", selectedAdminBatchId);
+    }
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -210,6 +257,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       setScheduleModalOpen(false);
       setScheduleMode("company");
       setSelectedFounderId("");
+      setSelectedCompanyId(defaultCompanyId);
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } else {
@@ -254,10 +302,6 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
 
     setLoading(false);
   };
-
-  const isAdminUser = isAdmin(user.role);
-  const isFounderUser = isFounder(user.role);
-  const canRequest = isFounderUser;
 
   const handleRequestSlot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -376,8 +420,8 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             <Button variant="secondary" size="sm" onClick={() => setGrantCreditsModalOpen(true)}>
               Grant Credits
             </Button>
-            <button
-              onClick={() => setScheduleModalOpen(true)}
+              <button
+               onClick={() => { resetScheduleContext(); setScheduleModalOpen(true); }}
               className="rounded-lg px-4 py-2 text-sm font-medium text-white"
               style={{ backgroundColor: "var(--color-success)" }}
             >
@@ -393,7 +437,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
           description="Office hour sessions will appear here when scheduled"
           action={
             isAdminUser ? (
-              <Button onClick={() => setScheduleModalOpen(true)}>Schedule Office Hour</Button>
+               <Button onClick={() => { resetScheduleContext(); setScheduleModalOpen(true); }}>Schedule Office Hour</Button>
             ) : undefined
           }
         />
@@ -613,6 +657,12 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             </div>
           )}
           <div className="space-y-1">
+            <label className="text-sm font-medium">Batch</label>
+            <div className="w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)", color: "var(--color-foreground-secondary)" }}>
+              {user.batchName}
+            </div>
+          </div>
+          <div className="space-y-1">
             <label className="text-sm font-medium">Company</label>
             <select
               value={selectedCompanyId}
@@ -651,7 +701,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
         </form>
       </Modal>
 
-      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }} title="Schedule Office Hour">
+      <Modal open={scheduleModalOpen} onClose={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); resetScheduleContext(); }} title="Schedule Office Hour">
         <form onSubmit={handleScheduleOH} className="space-y-4">
           {error && (
             <div
@@ -659,6 +709,25 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
               style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}
             >
               {error}
+            </div>
+          )}
+          {isAdminUser && batchOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Batch</label>
+              <select
+                value={selectedAdminBatchId}
+                onChange={(e) => void loadScheduleBatchContext(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                {batchOptions.map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
             </div>
           )}
           <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
@@ -704,7 +773,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                 }}
               >
                 <option value="">Select company</option>
-                {companies.map((c) => (
+                {scheduleCompanies.map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
                 ))}
               </select>
@@ -713,7 +782,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             <div className="space-y-1.5">
               <SearchableSelect
                 label="Primary founder contact"
-                options={founders.map((f) => ({
+                options={scheduleFounders.map((f) => ({
                   id: f.id,
                   label: f.name || f.email,
                   secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
@@ -761,10 +830,10 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); setSelectedFounderId(""); }}>
+            <Button type="button" variant="secondary" onClick={() => { setScheduleModalOpen(false); setError(null); setScheduleMode("company"); resetScheduleContext(); }}>
               Cancel
             </Button>
-            <Button type="submit" loading={loading}>
+            <Button type="submit" loading={loading || scheduleContextLoading}>
               {scheduleMode === "individual" ? "Schedule & Send Invite" : "Schedule & Send Invites"}
             </Button>
           </div>
@@ -781,6 +850,12 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
               {error}
             </div>
           )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Batch</label>
+            <div className="w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)", color: "var(--color-foreground-secondary)" }}>
+              {user.batchName}
+            </div>
+          </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Mentor</label>
             <select

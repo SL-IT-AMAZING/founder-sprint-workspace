@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { CompanySelect } from "@/components/ui/CompanySelect";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { createEvent } from "@/actions/event";
-import { scheduleGroupOfficeHour, scheduleIndividualOfficeHour } from "@/actions/office-hour";
+import { scheduleGroupOfficeHour, scheduleIndividualOfficeHour, getOfficeHourBatchContext } from "@/actions/office-hour";
 import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
@@ -28,6 +28,8 @@ interface DayPanelProps {
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
+  batchOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 function formatItemTime(item: ScheduleItem, userTimezone: string | null): string {
@@ -57,7 +59,6 @@ function getStatusVariant(
 type CreateType = "event" | "officeHour" | "session";
 
 const eventTypeOptions = [
-  { value: "one_off", label: "One-off Event" },
   { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
   { value: "virtual", label: "Virtual Event" },
@@ -70,7 +71,7 @@ const timezoneOptions = [
   { value: "UTC", label: "UTC" },
 ];
 
-export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers }: DayPanelProps) {
+export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, currentBatchId }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<CreateType | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,11 +80,41 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
   const [ohMode, setOhMode] = useState<"company" | "individual">("company");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+  const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
+  const [officeHourCompanies, setOfficeHourCompanies] = useState<CompanyOption[]>(companies);
+  const [officeHourFounders, setOfficeHourFounders] = useState<FounderOption[]>(founders);
+  const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
 
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
   const defaultStartDateTime = dateStr ? `${dateStr}T09:00` : undefined;
   const defaultEndDateTime = dateStr ? `${dateStr}T10:00` : undefined;
   const defaultSessionDate = dateStr || undefined;
+
+  const loadOfficeHourBatchContext = async (batchId: string) => {
+    setScheduleContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
+
+    if (result.success) {
+      setSelectedAdminBatchId(batchId);
+      setOfficeHourCompanies(result.data.companies);
+      setOfficeHourFounders(result.data.founders);
+      setSelectedCompanyId("");
+      setSelectedFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+
+    setScheduleContextLoading(false);
+  };
+
+  const resetOfficeHourContext = () => {
+    setSelectedAdminBatchId(currentBatchId);
+    setOfficeHourCompanies(companies);
+    setOfficeHourFounders(founders);
+    setSelectedCompanyId("");
+    setSelectedFounderId("");
+  };
 
   const createTitle =
     createType === "event"
@@ -107,6 +138,9 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
 
     setCreateType(nextType);
     setError(null);
+    if (nextType === "officeHour") {
+      resetOfficeHourContext();
+    }
     setCreateOpen(false);
   };
 
@@ -114,8 +148,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
     setCreateType(null);
     setError(null);
     setOhMode("company");
-    setSelectedCompanyId("");
-    setSelectedFounderId("");
+    resetOfficeHourContext();
   };
 
   const handleCreateSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -173,6 +206,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
         if (createType === "event") {
           result = await createEvent(formData);
         } else if (createType === "officeHour") {
+          formData.set("batchId", selectedAdminBatchId);
           if (ohMode === "individual") {
             formData.set("founderId", selectedFounderId);
             result = await scheduleIndividualOfficeHour(formData);
@@ -496,6 +530,16 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
           {createType === "officeHour" && (
             <>
               {/* Mode toggle */}
+              {batchOptions.length > 0 && (
+                <Select
+                  label="Batch"
+                  value={selectedAdminBatchId}
+                  onChange={(e) => void loadOfficeHourBatchContext(e.target.value)}
+                  options={batchOptions.map((batch) => ({ value: batch.id, label: batch.name }))}
+                  required
+                />
+              )}
+
               <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
                 <button
                   type="button"
@@ -530,7 +574,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               {ohMode === "company" ? (
                 <SearchableSelect
                   label="Company"
-                  options={companies.map((c) => ({
+                  options={officeHourCompanies.map((c) => ({
                     id: c.id,
                     label: c.name,
                     secondary: `${c.memberCount} members`,
@@ -544,7 +588,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               ) : (
                 <SearchableSelect
                   label="Primary founder contact"
-                  options={founders.map((f) => ({
+                  options={officeHourFounders.map((f) => ({
                     id: f.id,
                     label: f.name || f.email,
                     secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
@@ -600,7 +644,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
             <Button type="button" variant="secondary" onClick={handleCloseModal}>
               Cancel
             </Button>
-            <Button type="submit" loading={isPending}>
+            <Button type="submit" loading={isPending || scheduleContextLoading}>
               {createButtonLabel}
             </Button>
           </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { createAssignment } from "@/actions/assignment";
+import { createAssignment, saveAssignmentAsTemplate } from "@/actions/assignment";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 
 interface AssignmentItem {
   id: string;
@@ -40,6 +41,15 @@ interface TargetUserOption {
   role: string;
 }
 
+interface AssignmentTemplateOption {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  templateUrl: string | null;
+  reviewCriteria: string[];
+}
+
 interface AssignmentsListProps {
   assignments: AssignmentItem[];
   canCreate: boolean;
@@ -48,6 +58,7 @@ interface AssignmentsListProps {
   currentBatchId: string;
   availableGroups: TargetGroupOption[];
   availableUsers: TargetUserOption[];
+  templates: AssignmentTemplateOption[];
 }
 
 export function AssignmentsList({
@@ -58,6 +69,7 @@ export function AssignmentsList({
   currentBatchId,
   availableGroups,
   availableUsers,
+  templates,
 }: AssignmentsListProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +77,8 @@ export function AssignmentsList({
   const [targetMode, setTargetMode] = useState<"all" | "group" | "users">("all");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showThisWeekOnly, setShowThisWeekOnly] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const toast = useToast();
 
   const weekStart = new Date();
   const day = weekStart.getDay();
@@ -79,6 +93,11 @@ export function AssignmentsList({
     const dueAt = new Date(assignment.dueDate);
     return dueAt >= weekStart && dueAt < weekEnd;
   });
+
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId) || null,
+    [templates, selectedTemplateId]
+  );
 
   const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,6 +121,7 @@ export function AssignmentsList({
         setCreateOpen(false);
         setSelectedUsers([]);
         setTargetMode("all");
+        setSelectedTemplateId("");
         form.reset();
       } else {
         setError(result.error);
@@ -113,6 +133,17 @@ export function AssignmentsList({
     setSelectedUsers((current) =>
       current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
     );
+  };
+
+  const handleSaveTemplate = (assignmentId: string, title: string) => {
+    startTransition(async () => {
+      const result = await saveAssignmentAsTemplate(assignmentId, title);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Assignment template saved.");
+    });
   };
 
   return (
@@ -182,6 +213,15 @@ export function AssignmentsList({
                   <Link href={`/assignments/${assignment.id}`} style={{ color: "var(--color-primary)", fontSize: 14 }}>
                     View assignment →
                   </Link>
+                  {canCreate && (
+                    <button
+                      type="button"
+                      onClick={() => handleSaveTemplate(assignment.id, assignment.title)}
+                      style={{ color: "var(--color-primary)", fontSize: 14, marginLeft: 12, background: "none", border: "none", cursor: "pointer" }}
+                    >
+                      Save as template
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -190,11 +230,38 @@ export function AssignmentsList({
       )}
 
       <Modal open={createOpen} onClose={() => { setCreateOpen(false); setError(null); }} title="Create Assignment">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <Input name="title" label="Title" required disabled={isPending} />
-          <Textarea name="description" label="Description" required rows={5} disabled={isPending} />
-          <Input name="templateUrl" label="Template URL" type="url" disabled={isPending} />
+        <form key={selectedTemplateId || "new"} onSubmit={handleCreate} className="space-y-4">
+          {templates.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Start from template (optional)</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+                className="w-full px-3 py-2 rounded-lg border"
+                disabled={isPending}
+              >
+                <option value="">Blank assignment</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <Input name="title" label="Title" required disabled={isPending} defaultValue={selectedTemplate?.title || ""} />
+          <Textarea name="description" label="Description" required rows={5} disabled={isPending} defaultValue={selectedTemplate?.description || ""} />
+          <Input name="templateUrl" label="Template URL" type="url" disabled={isPending} defaultValue={selectedTemplate?.templateUrl || ""} />
           <Input name="dueDate" label="Due Date" type="date" required disabled={isPending} />
+          {selectedTemplate && selectedTemplate.reviewCriteria.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Review Criteria</label>
+              <div className="flex flex-wrap gap-2">
+                {selectedTemplate.reviewCriteria.map((criterion) => (
+                  <Badge key={criterion} variant="default">{criterion}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isAdmin && batches.length > 0 && (
             <div className="space-y-1">
@@ -240,10 +307,10 @@ export function AssignmentsList({
           {error && <div className="form-error p-3 rounded-lg text-sm">{error}</div>}
 
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={() => { setCreateOpen(false); setError(null); }} disabled={isPending}>Cancel</Button>
-            <Button type="submit" loading={isPending}>Create Assignment</Button>
-          </div>
-        </form>
+             <Button type="button" variant="ghost" onClick={() => { setCreateOpen(false); setError(null); setSelectedTemplateId(""); }} disabled={isPending}>Cancel</Button>
+             <Button type="submit" loading={isPending}>Create Assignment</Button>
+           </div>
+         </form>
       </Modal>
     </div>
   );

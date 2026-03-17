@@ -1,7 +1,10 @@
 {
   "active_plan": "/Users/jsup/Development Files/Founder Sprint Batch/founder-sprint-workspace/.sisyphus/plans/messages-performance.md",
   "started_at": "2026-03-10T09:00:00.000Z",
-  "session_ids": ["current"],
+  "session_ids": [
+    "current",
+    "ses_3298e940affesl6yjxc3YX5RMp"
+  ],
   "plan_name": "messages-performance",
   "worktree_path": "/Users/jsup/Development Files/Founder Sprint Batch/founder-sprint-workspace-messages-perf"
 }

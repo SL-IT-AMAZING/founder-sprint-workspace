@@ -112,8 +112,11 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   const userStatus = (user as { status?: string }).status ?? "active";
   if (userStatus !== "active") return null;
 
+  const globalRole = user.role as UserRole | null;
+  const isGlobalAdmin = globalRole === "super_admin" || globalRole === "admin";
+
   // Fallback: if cookie pointed to an invalid batch, clear it and retry
-  if (batchId && user.userBatches.length === 0) {
+  if (batchId && user.userBatches.length === 0 && !isGlobalAdmin) {
     try {
       const cookieStore = await cookies();
       cookieStore.delete("selected_batch_id");
@@ -134,8 +137,19 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   const userTimezone = (user as { timezone?: string | null }).timezone ?? null;
 
   if (user.userBatches.length === 0) {
-    const globalRole = user.role as UserRole | null;
-    if (globalRole === "super_admin" || globalRole === "admin") {
+    if (isGlobalAdmin) {
+      const selectedBatch =
+        (batchId
+          ? await prisma.batch.findUnique({
+              where: { id: batchId },
+              select: { id: true, name: true, endDate: true, status: true },
+            })
+          : null) ||
+        (await prisma.batch.findFirst({
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          select: { id: true, name: true, endDate: true, status: true },
+        }));
+
       return {
         id: user.id,
         email: user.email,
@@ -148,8 +162,10 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
         bio: user.bio,
         role: globalRole,
         additionalRoles: [],
-        batchId: "",
-        batchName: "",
+        batchId: selectedBatch?.id || "",
+        batchName: selectedBatch?.name || "",
+        batchEndDate: selectedBatch?.endDate,
+        batchStatus: selectedBatch?.status as import("@/types").BatchStatus | undefined,
         userBatchIds,
       };
     }
@@ -169,8 +185,8 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     jobTitle: user.jobTitle,
     company: user.company,
     bio: user.bio,
-    role: ub.role as UserRole,
-    additionalRoles,
+    role: isGlobalAdmin ? globalRole! : (ub.role as UserRole),
+    additionalRoles: isGlobalAdmin ? [] : additionalRoles,
     batchId: ub.batchId,
     batchName: ub.batch.name,
     batchEndDate: ub.batch.endDate,

@@ -46,7 +46,6 @@ interface EventsListProps {
 }
 
 const eventTypeOptions = [
-  { value: "one_off", label: "One-off Event" },
   { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
   { value: "virtual", label: "Virtual Event" },
@@ -169,13 +168,6 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
             style={{ fontSize: 14, height: 36, padding: "0 16px" }}
           >
             All
-          </button>
-          <button
-            onClick={() => setSelectedType("one_off")}
-            className={selectedType === "one_off" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            One-off
           </button>
           <button
             onClick={() => setSelectedType("general_session")}

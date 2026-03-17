@@ -9,6 +9,7 @@ import type { ActionResult } from "@/types";
 import { revalidateSchedule } from "@/lib/cache-helpers";
 import { toIanaTimezone } from "@/lib/timezone";
 import { fromZonedTime } from "date-fns-tz";
+import { format } from "date-fns";
 import { isCalendarConfigured, createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "@/lib/google-calendar";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
@@ -18,10 +19,15 @@ const TimeOrDateTime = z.string().refine(
   "Must be HH:mm or a valid datetime"
 );
 
+const SessionDateString = z.string().refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  "Invalid session date"
+);
+
 const CreateSessionSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().optional(),
-  sessionDate: z.string().transform((s) => new Date(s)),
+  sessionDate: SessionDateString.transform((s) => new Date(s)),
   slidesUrl: z.string().url().optional().or(z.literal("")),
   recordingUrl: z.string().url().optional().or(z.literal("")),
   startTime: TimeOrDateTime.optional(),
@@ -45,7 +51,7 @@ const CreateSessionSchema = z.object({
 const UpdateSessionSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().optional(),
-  sessionDate: z.string().transform((s) => new Date(s)).optional(),
+  sessionDate: SessionDateString.transform((s) => new Date(s)).optional(),
   slidesUrl: z.string().url().optional().or(z.literal("")),
   recordingUrl: z.string().url().optional().or(z.literal("")),
   startTime: TimeOrDateTime.optional(),
@@ -105,6 +111,94 @@ export async function getAllBatchesForSelect() {
     },
     orderBy: [{ status: "asc" }, { name: "asc" }],
   });
+}
+
+export async function getSessionTemplates() {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) return [];
+
+  try {
+    return await prisma.sessionTemplate.findMany({
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        title: true,
+        description: true,
+        timezone: true,
+        slidesUrl: true,
+        recordingUrl: true,
+        defaultStartTime: true,
+        defaultEndTime: true,
+        createdAt: true,
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load session templates:", error);
+    return [];
+  }
+}
+
+export async function saveSessionAsTemplate(
+  sessionId: string,
+  templateName?: string
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user.role)) {
+    return { success: false, error: "Unauthorized: admin only" };
+  }
+
+  const session = await prisma.session.findFirst({
+    where: {
+      id: sessionId,
+      batches: { some: { batchId: { in: user.userBatchIds } } },
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      timezone: true,
+      slidesUrl: true,
+      recordingUrl: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  if (!session) {
+    return { success: false, error: "Session not found" };
+  }
+
+  let template;
+  try {
+    template = await prisma.sessionTemplate.create({
+      data: {
+        name: templateName?.trim() || session.title,
+        title: session.title,
+        description: session.description,
+        timezone: session.timezone,
+        slidesUrl: session.slidesUrl,
+        recordingUrl: session.recordingUrl,
+        defaultStartTime: session.startTime ? format(session.startTime, "HH:mm") : null,
+        defaultEndTime: session.endTime ? format(session.endTime, "HH:mm") : null,
+        createdBy: user.id,
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("Failed to save session template:", error);
+    return { success: false, error: "Template storage is currently unavailable" };
+  }
+
+  revalidatePath("/sessions");
+  return { success: true, data: { id: template.id } };
 }
 
 export async function createSession(formData: FormData): Promise<ActionResult<{ id: string }>> {

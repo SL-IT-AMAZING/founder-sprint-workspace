@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { createSession, updateSession, deleteSession } from "@/actions/session";
-import { formatDate } from "@/lib/utils";
+import { createSession, updateSession, deleteSession, saveSessionAsTemplate } from "@/actions/session";
+import { formatDate, toValidDate } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezone";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
@@ -34,17 +34,42 @@ interface SessionsListProps {
   isAdmin: boolean;
   batchOptions: BatchOption[];
   groupOptions: Array<{ id: string; name: string }>;
+  templates: Array<{
+    id: string;
+    name: string;
+    title: string;
+    description: string | null;
+    timezone: string;
+    slidesUrl: string | null;
+    recordingUrl: string | null;
+    defaultStartTime: string | null;
+    defaultEndTime: string | null;
+  }>;
 }
 
-export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: SessionsListProps) {
+export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, templates }: SessionsListProps) {
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editSession, setEditSession] = useState<Session | null>(null);
    const [isPending, startTransition] = useTransition();
    const [error, setError] = useState("");
+   const [selectedTemplateId, setSelectedTemplateId] = useState("");
    const toast = useToast();
 
    const searchParams = useSearchParams();
    const prefillDate = searchParams.get("date");
+   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) || null;
+
+   const toDateInputValue = (value: Date | string | null | undefined) => {
+     const parsed = toValidDate(value);
+     return parsed ? parsed.toISOString().split("T")[0] : "";
+   };
+
+   const toTimeInputValue = (value: Date | string | null | undefined) => {
+     const parsed = toValidDate(value);
+     return parsed
+       ? parsed.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+       : "";
+   };
 
    // Auto-open create modal if date is pre-filled
    useEffect(() => {
@@ -66,6 +91,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
           setError(result.warning);
         }
         setIsModalOpen(false);
+        setSelectedTemplateId("");
         (e.target as HTMLFormElement).reset();
       } else {
         setError(result.error);
@@ -81,6 +107,17 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
       if (!result.success) {
         toast.error(result.error);
       }
+    });
+  };
+
+  const handleSaveTemplate = (sessionId: string, title: string) => {
+    startTransition(async () => {
+      const result = await saveSessionAsTemplate(sessionId, title);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Session template saved.");
     });
   };
 
@@ -166,6 +203,14 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => handleSaveTemplate(session.id, session.title)}
+                        disabled={isPending}
+                      >
+                        Save as Template
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setEditSession(session)}
                         disabled={isPending}
                       >
@@ -220,10 +265,31 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
       )}
 
       <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Session">
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form key={selectedTemplateId || "new"} onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="form-error p-3 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+
+          {templates.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Start from template (optional)</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                <option value="">Blank session</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -232,6 +298,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
             name="title"
             label="Title"
             placeholder="Session 1: Introduction"
+            defaultValue={selectedTemplate?.title || ""}
             required
           />
 
@@ -239,6 +306,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
             name="description"
             label="Description"
             placeholder="Brief overview of the session"
+            defaultValue={selectedTemplate?.description || ""}
             rows={3}
           />
 
@@ -252,24 +320,26 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
 
            <div className="grid grid-cols-2 gap-3">
              <Input
-               name="startTime"
-               label="Start Time (optional)"
-               type="time"
-               placeholder="e.g. 14:00"
-             />
-             <Input
-               name="endTime"
-               label="End Time (optional)"
-               type="time"
-               placeholder="e.g. 16:00"
-             />
+                name="startTime"
+                label="Start Time (optional)"
+                type="time"
+                placeholder="e.g. 14:00"
+                defaultValue={selectedTemplate?.defaultStartTime || ""}
+              />
+              <Input
+                name="endTime"
+                label="End Time (optional)"
+                type="time"
+                placeholder="e.g. 16:00"
+                defaultValue={selectedTemplate?.defaultEndTime || ""}
+              />
            </div>
 
            <div className="space-y-1.5">
              <label className="text-sm font-medium">Timezone</label>
              <select
-               name="timezone"
-               defaultValue="Asia/Seoul"
+                name="timezone"
+                defaultValue={selectedTemplate?.timezone || "Asia/Seoul"}
                className="w-full px-3 py-2 rounded-md border text-sm"
                style={{
                  backgroundColor: "var(--color-background)",
@@ -284,11 +354,12 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
            </div>
 
            <Input
-              name="slidesUrl"
-              label="Slides URL"
-              type="url"
-              placeholder="https://docs.google.com/presentation/..."
-            />
+               name="slidesUrl"
+               label="Slides URL"
+               type="url"
+               placeholder="https://docs.google.com/presentation/..."
+               defaultValue={selectedTemplate?.slidesUrl || ""}
+             />
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Target Group (optional)</label>
@@ -311,16 +382,17 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
 
            <Input
              name="recordingUrl"
-            label="Recording URL"
-            type="url"
-            placeholder="https://www.youtube.com/watch?v=..."
-          />
+             label="Recording URL"
+             type="url"
+             placeholder="https://www.youtube.com/watch?v=..."
+             defaultValue={selectedTemplate?.recordingUrl || ""}
+           />
 
           <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => { setIsModalOpen(false); setSelectedTemplateId(""); }}
               disabled={isPending}
             >
               Cancel
@@ -372,7 +444,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
                name="sessionDate"
                label="Session Date"
                type="date"
-               defaultValue={new Date(editSession.sessionDate).toISOString().split("T")[0]}
+                defaultValue={toDateInputValue(editSession.sessionDate)}
                required
              />
 
@@ -381,13 +453,13 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions }: 
                  name="startTime"
                  label="Start Time (optional)"
                  type="time"
-                 defaultValue={editSession.startTime ? new Date(editSession.startTime).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : ""}
+                  defaultValue={toTimeInputValue(editSession.startTime)}
                />
                <Input
                  name="endTime"
                  label="End Time (optional)"
                  type="time"
-                 defaultValue={editSession.endTime ? new Date(editSession.endTime).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : ""}
+                  defaultValue={toTimeInputValue(editSession.endTime)}
                />
              </div>
 

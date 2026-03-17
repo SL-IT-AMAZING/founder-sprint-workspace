@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isStaff, isAdmin } from "@/lib/permissions";
-import { getAssignments, getAssignmentTargetOptions } from "@/actions/assignment";
+import { getAssignments, getAssignmentTargetOptions, getAssignmentTemplates } from "@/actions/assignment";
 import { getActiveBatches } from "@/actions/batch";
 import { AssignmentsList } from "./AssignmentsList";
 
@@ -11,10 +11,11 @@ export default async function AssignmentsPage() {
   if (!user) redirect("/login");
 
   const userIsAdmin = isAdmin(user.role);
-  const [assignments, batches, targetOptions] = await Promise.all([
+  const [assignments, batches, targetOptions, templates] = await Promise.all([
     userIsAdmin ? getAssignments() : getAssignments(user.batchId),
     userIsAdmin ? getActiveBatches() : Promise.resolve([]),
     getAssignmentTargetOptions(user.batchId),
+    getAssignmentTemplates(),
   ]);
 
   return (
@@ -26,6 +27,7 @@ export default async function AssignmentsPage() {
       currentBatchId={user.batchId}
       availableGroups={targetOptions.groups}
       availableUsers={targetOptions.users}
+      templates={templates}
     />
   );
 }

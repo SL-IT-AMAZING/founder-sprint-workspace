@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { getSessions, getAllBatchesForSelect } from "@/actions/session";
+import { getSessions, getAllBatchesForSelect, getSessionTemplates } from "@/actions/session";
 import { getGroups } from "@/actions/group";
 import { SessionsList } from "./SessionsList";
 
@@ -10,10 +10,11 @@ export default async function SessionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [sessions, allBatches, groups] = await Promise.all([
+  const [sessions, allBatches, groups, templates] = await Promise.all([
     getSessions(user.batchId),
     getAllBatchesForSelect(),
     getGroups(user.batchId),
+    getSessionTemplates(),
   ]);
   const batchOptions = allBatches.map(b => ({
     id: b.id,
@@ -33,6 +34,7 @@ export default async function SessionsPage() {
       isAdmin={isAdmin(user.role)}
       batchOptions={batchOptions}
       groupOptions={groupOptions}
+      templates={templates}
     />
   );
 }

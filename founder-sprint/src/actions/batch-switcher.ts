@@ -30,6 +30,24 @@ export async function getUserBatches(): Promise<
 
     if (!user) return { success: false, error: "User not found" };
 
+    if (user.role === "admin" || user.role === "super_admin") {
+      const batches = await prisma.batch.findMany({
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        select: { id: true, name: true, status: true, endDate: true },
+      });
+
+      return {
+        success: true,
+        data: batches.map((batch) => ({
+          batchId: batch.id,
+          batchName: batch.name,
+          role: user.role!,
+          batchStatus: batch.status,
+          endDate: batch.endDate,
+        })),
+      };
+    }
+
     const batches = user.userBatches.map((ub) => ({
       batchId: ub.batchId,
       batchName: ub.batch.name,
@@ -65,7 +83,16 @@ export async function switchBatch(batchId: string): Promise<ActionResult<undefin
       },
     });
 
-    if (!user || user.userBatches.length === 0) {
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    if (user.role === "admin" || user.role === "super_admin") {
+      const batch = await prisma.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+      if (!batch) {
+        return { success: false, error: "Batch not found" };
+      }
+    } else if (user.userBatches.length === 0) {
       return { success: false, error: "You do not belong to this batch" };
     }
 

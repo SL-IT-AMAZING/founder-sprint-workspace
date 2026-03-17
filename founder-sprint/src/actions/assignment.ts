@@ -10,11 +10,16 @@ import { sendAssignmentPublishedEmail, sendAssignmentFeedbackEmail, sendAssignme
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
+const DateStringSchema = z.string().refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  "Invalid due date"
+);
+
 const CreateAssignmentSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
   templateUrl: z.string().url().optional().or(z.literal("")),
-  dueDate: z.string().transform((s) => new Date(s)),
+  dueDate: DateStringSchema.transform((s) => new Date(s)),
   targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
 
@@ -129,6 +134,85 @@ async function getAssignmentRecipientUsers(assignment: {
   });
 }
 
+export async function getAssignmentTemplates() {
+  const user = await getCurrentUser();
+  if (!user || !isStaff(user.role)) return [];
+
+  try {
+    return await prisma.assignmentTemplate.findMany({
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        title: true,
+        description: true,
+        templateUrl: true,
+        reviewCriteria: true,
+        createdAt: true,
+        creator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load assignment templates:", error);
+    return [];
+  }
+}
+
+export async function saveAssignmentAsTemplate(
+  assignmentId: string,
+  templateName?: string
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user || !isStaff(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  const assignment = await prisma.assignment.findFirst({
+    where: {
+      id: assignmentId,
+      ...(isAdmin(user.role) ? {} : { batchId: { in: user.userBatchIds } }),
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      templateUrl: true,
+      reviewCriteria: true,
+    },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Assignment not found" };
+  }
+
+  let template;
+  try {
+    template = await prisma.assignmentTemplate.create({
+      data: {
+        name: templateName?.trim() || assignment.title,
+        title: assignment.title,
+        description: assignment.description,
+        templateUrl: assignment.templateUrl,
+        reviewCriteria: assignment.reviewCriteria,
+        createdBy: user.id,
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("Failed to save assignment template:", error);
+    return { success: false, error: "Template storage is currently unavailable" };
+  }
+
+  revalidatePath("/assignments");
+  return { success: true, data: { id: template.id } };
+}
+
 export async function createAssignment(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -241,7 +325,7 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
 const UpdateAssignmentSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().min(1).max(5000).optional(),
-  dueDate: z.string().transform((s) => new Date(s)).optional(),
+  dueDate: DateStringSchema.transform((s) => new Date(s)).optional(),
   targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
 

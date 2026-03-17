@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
@@ -31,6 +32,16 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
+  let parsedLinkPreview: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined;
+  if (parsed.data.linkPreview) {
+    try {
+      const parsedValue = JSON.parse(parsed.data.linkPreview) as unknown;
+      parsedLinkPreview = parsedValue === null ? Prisma.JsonNull : (parsedValue as Prisma.InputJsonValue);
+    } catch {
+      return { success: false, error: "Invalid link preview payload" };
+    }
+  }
+
   const post = await prisma.post.create({
     data: {
       batchId: user.batchId,
@@ -38,7 +49,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
       content: parsed.data.content,
       groupId: parsed.data.groupId || null,
       category: parsed.data.category || null,
-      linkPreview: parsed.data.linkPreview ? JSON.parse(parsed.data.linkPreview) : undefined,
+      linkPreview: parsedLinkPreview,
     },
   });
 

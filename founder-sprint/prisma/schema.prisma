@@ -118,6 +118,8 @@ model User {
   createdConversations     Conversation[] @relation("ConversationCreator")
   officeHourCredits        OfficeHourCredit[]
   notifications            Notification[]
+  assignmentTemplates      AssignmentTemplate[]
+  sessionTemplates         SessionTemplate[]
   @@map("users")
 }
 
@@ -336,6 +338,26 @@ model Session {
   @@map("sessions")
 }
 
+model SessionTemplate {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String   @db.VarChar(200)
+  title            String   @db.VarChar(200)
+  description      String?  @db.Text
+  timezone         String   @default("UTC") @db.VarChar(100)
+  slidesUrl        String?  @map("slides_url")
+  recordingUrl     String?  @map("recording_url")
+  defaultStartTime String?  @map("default_start_time") @db.VarChar(5)
+  defaultEndTime   String?  @map("default_end_time") @db.VarChar(5)
+  createdBy        String   @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([createdBy])
+  @@map("session_templates")
+}
+
 // 11. Assignment - Founder assignments
 model Assignment {
   id          String   @id @default(uuid()) @db.Uuid
@@ -357,6 +379,23 @@ model Assignment {
 
   @@index([batchId, dueDate])
   @@map("assignments")
+}
+
+model AssignmentTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(200)
+  title          String   @db.VarChar(200)
+  description    String   @db.Text
+  templateUrl    String?  @map("template_url")
+  reviewCriteria String[] @default([]) @map("review_criteria")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([createdBy])
+  @@map("assignment_templates")
 }
 
 // 12. Submission - Assignment submissions

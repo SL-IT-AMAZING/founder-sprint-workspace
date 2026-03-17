@@ -5,7 +5,7 @@ import { FollowButton } from "@/components/feed/FollowButton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
-import { getDisplayName } from "@/lib/utils";
+import { formatDate, getDisplayName, toValidDate } from "@/lib/utils";
 import type { BatchStatus } from "@/types";
 
 interface BatchMember {
@@ -45,6 +45,7 @@ const rolePriority: Record<string, number> = {
 };
 
 export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate, currentUserId, followingIds = [] }: BatchMembersSidebarProps) {
+  const parsedBatchEndDate = toValidDate(batchEndDate);
   const activeMembers = members
     .filter((m) => m.status === "active")
     .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
@@ -93,21 +94,21 @@ export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndD
             }}>
               {batchName}
             </h3>
-            {batchStatus && batchEndDate && (
-              <Badge variant={getBatchStatusVariant({ status: batchStatus, endDate: new Date(batchEndDate) })}>
-                {getBatchStatusLabel({ status: batchStatus, endDate: new Date(batchEndDate) })}
+            {batchStatus && parsedBatchEndDate && (
+              <Badge variant={getBatchStatusVariant({ status: batchStatus, endDate: parsedBatchEndDate })}>
+                {getBatchStatusLabel({ status: batchStatus, endDate: parsedBatchEndDate })}
               </Badge>
             )}
           </div>
-          {batchEndDate && (
+          {parsedBatchEndDate && (
             <p style={{
               fontSize: "12px",
               color: "var(--color-foreground-muted, #999)",
               margin: "6px 0 0 0",
             }}>
-              {new Date(batchEndDate) > new Date()
-                ? `Ends ${new Date(batchEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                : `Ended ${new Date(batchEndDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+              {parsedBatchEndDate > new Date()
+                ? `Ends ${formatDate(parsedBatchEndDate)}`
+                : `Ended ${formatDate(parsedBatchEndDate)}`
               }
             </p>
           )}

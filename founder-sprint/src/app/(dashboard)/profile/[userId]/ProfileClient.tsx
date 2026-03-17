@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { FollowButton } from "@/components/feed/FollowButton";
-import { getDisplayName } from "@/lib/utils";
+import { formatDate, getDisplayName, toValidDate } from "@/lib/utils";
 import Link from "next/link";
 import { getOrCreateDMConversation } from "@/actions/messaging";
 
@@ -109,7 +109,8 @@ export function ProfileClient({
   const [activeTab, setActiveTab] = useState<Tab>("profile");
 
   const formatDateRange = (startDate: string, endDate: string | null, isCurrent: boolean) => {
-    const start = new Date(startDate);
+    const start = toValidDate(startDate);
+    if (!start) return "Unknown dates";
     const startMonth = start.toLocaleDateString("en-US", { month: "short" });
     const startYear = start.getFullYear();
 
@@ -121,7 +122,8 @@ export function ProfileClient({
       return `${startMonth} ${startYear}`;
     }
 
-    const end = new Date(endDate);
+    const end = toValidDate(endDate);
+    if (!end) return `${startMonth} ${startYear}`;
     const endMonth = end.toLocaleDateString("en-US", { month: "short" });
     const endYear = end.getFullYear();
 
@@ -898,7 +900,7 @@ export function ProfileClient({
                       {post.category && <span style={{ color: "#666666" }}>{post.category}</span>}
                       <span>{post._count.likes} likes</span>
                       <span>{post._count.comments} comments</span>
-                      <span>{new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                      <span>{formatDate(post.createdAt)}</span>
                     </div>
                   </div>
                 </Link>

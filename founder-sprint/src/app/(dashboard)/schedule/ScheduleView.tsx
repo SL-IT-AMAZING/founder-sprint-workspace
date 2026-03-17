@@ -19,6 +19,8 @@ interface ScheduleViewProps {
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
+  batchOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 const ALL_KINDS: ScheduleItemKind[] = ["event", "officeHour", "session"];
@@ -33,6 +35,8 @@ export function ScheduleView({
   companies,
   founders,
   totalBatchMembers,
+  batchOptions,
+  currentBatchId,
 }: ScheduleViewProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -152,6 +156,8 @@ export function ScheduleView({
             companies={companies}
             founders={founders}
             totalBatchMembers={totalBatchMembers}
+            batchOptions={batchOptions}
+            currentBatchId={currentBatchId}
           />
         </div>
       </div>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireRole, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
+import { ASSIGNABLE_ROLES, isRoleBelow } from "@/lib/role-hierarchy";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -71,15 +72,17 @@ async function createAuditLogEntry(params: {
 
 async function inviteUserCore(
   params: InviteUserParams
-): Promise<ActionResult<{ id: string; inviteLink: string }>> {
-  const { email, name, role, batchId, linkedInUrl, founderId, companyId } = params;
+): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
+  const { email, name, role, batchId, founderId, companyId } = params;
 
   if (role === "co_founder" && !founderId) {
     return { success: false, error: "founderId is required when inviting a co-founder" };
   }
 
   const batchCheck = await requireActiveBatch(batchId, params.callerRole);
-  if (batchCheck) return batchCheck as ActionResult<{ id: string; inviteLink: string }>;
+  if (batchCheck && !batchCheck.success) {
+    return { success: false, error: "error" in batchCheck ? batchCheck.error : "Invalid batch" };
+  }
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
   if (!batch) {
@@ -95,40 +98,61 @@ async function inviteUserCore(
     }
   }
 
-  if (role === "founder") {
-    const existingFounder = await prisma.userBatch.findFirst({
-      where: {
-        user: { email },
-        role: "founder",
-      },
-    });
-    if (existingFounder) {
-      return { success: false, error: "This email is already registered as a Founder in another batch" };
-    }
-  }
-
-  if (role === "founder" && linkedInUrl) {
-    const existingFounder = await prisma.user.findFirst({
-      where: {
-        linkedinId: linkedInUrl,
-        userBatches: {
-          some: {
-            role: "founder",
-          },
-        },
-      },
-    });
-    if (existingFounder) {
-      return { success: false, error: "This LinkedIn profile has already participated as a founder" };
-    }
-  }
-
   if (role === "co_founder") {
+    const founderMembership = await prisma.userBatch.findFirst({
+      where: {
+        batchId,
+        userId: founderId,
+        OR: [{ role: "founder" }, { additionalRoles: { has: "founder" } }],
+      },
+      select: { id: true },
+    });
+
+    if (!founderMembership) {
+      return { success: false, error: "Primary founder must belong to this batch" };
+    }
+
     const coFounderCount = await prisma.userBatch.count({
       where: { batchId, founderId, role: "co_founder" },
     });
     if (coFounderCount >= 2) {
       return { success: false, error: "Maximum 2 co-founders per founder reached" };
+    }
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      status: true,
+      linkedinId: true,
+      role: true,
+      name: true,
+      userBatches: {
+        where: { status: "active" },
+        select: { id: true },
+      },
+      companyMemberships: {
+        where: { isCurrent: true },
+        select: {
+          companyId: true,
+          company: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (existingUser && companyId) {
+    const currentCompanyIds = new Set(existingUser.companyMemberships.map((membership) => membership.companyId));
+
+    if (existingUser.companyMemberships.length > 0 && !currentCompanyIds.has(companyId)) {
+      const currentCompanies = existingUser.companyMemberships.map((membership) => membership.company.name).join(", ");
+      return {
+        success: false,
+        error: `Existing user already belongs to ${currentCompanies}. Leave company empty or update company membership separately.`,
+      };
     }
   }
 
@@ -138,13 +162,64 @@ async function inviteUserCore(
     update: { ...(name ? { name } : {}), status: "active" },
   });
 
+  const canDirectActivate = Boolean(
+    existingUser &&
+      existingUser.status === "active" &&
+      (existingUser.userBatches.length > 0 ||
+        existingUser.role === "admin" ||
+        existingUser.role === "super_admin" ||
+        existingUser.linkedinId)
+  );
+
   const existing = await prisma.userBatch.findUnique({
     where: { userId_batchId: { userId: invitedUser.id, batchId } },
   });
 
   if (existing) {
+    if (existing.status === "invited" && canDirectActivate) {
+      const activatedMembership = await prisma.userBatch.update({
+        where: { userId_batchId: { userId: invitedUser.id, batchId } },
+        data: {
+          role: role as import("@prisma/client").$Enums.UserRole,
+          founderId: role === "co_founder" ? founderId : null,
+          status: "active",
+          joinedAt: new Date(),
+        },
+      });
+
+      await prisma.invitationToken.updateMany({
+        where: { userId: invitedUser.id, batchId, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      if (companyId) {
+        const companyMember = await prisma.companyMember.findFirst({
+          where: { companyId, userId: invitedUser.id, isCurrent: true },
+          select: { id: true },
+        });
+
+        if (!companyMember) {
+          await prisma.companyMember.create({
+            data: {
+              companyId,
+              userId: invitedUser.id,
+              isCurrent: true,
+            },
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: { id: activatedMembership.id, membershipStatus: "active" },
+        warning: "Existing user was added directly to this batch.",
+      };
+    }
+
     return { success: false, error: "User already in this batch" };
   }
+
+  const membershipStatus = canDirectActivate ? "active" : "invited";
 
   const userBatch = await prisma.userBatch.create({
     data: {
@@ -152,9 +227,39 @@ async function inviteUserCore(
       batchId,
       role: role as import("@prisma/client").$Enums.UserRole,
       founderId: role === "co_founder" ? founderId : undefined,
-      status: "invited",
+      status: membershipStatus,
+      joinedAt: membershipStatus === "active" ? new Date() : undefined,
     },
   });
+
+  if (companyId) {
+    const companyExists = await prisma.company.findUnique({
+      where: { id: companyId },
+    });
+    if (companyExists) {
+      const companyMember = await prisma.companyMember.findFirst({
+        where: { companyId, userId: invitedUser.id, isCurrent: true },
+        select: { id: true },
+      });
+      if (!companyMember) {
+        await prisma.companyMember.create({
+          data: {
+            companyId,
+            userId: invitedUser.id,
+            isCurrent: true,
+          },
+        });
+      }
+    }
+  }
+
+  if (membershipStatus === "active") {
+    return {
+      success: true,
+      data: { id: userBatch.id, membershipStatus },
+      warning: "Existing user was added directly to this batch.",
+    };
+  }
 
   const token = randomUUID();
   const expiresAt = new Date();
@@ -169,21 +274,6 @@ async function inviteUserCore(
       expiresAt,
     },
   });
-
-  if (companyId) {
-    const companyExists = await prisma.company.findUnique({
-      where: { id: companyId },
-    });
-    if (companyExists) {
-      await prisma.companyMember.create({
-        data: {
-          companyId,
-          userId: invitedUser.id,
-          isCurrent: true,
-        },
-      });
-    }
-  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${appUrl}/invite/${token}`;
@@ -200,15 +290,15 @@ async function inviteUserCore(
     console.warn(`Failed to send invitation email to ${email}:`, emailResult.error);
     return {
       success: true,
-      data: { id: userBatch.id, inviteLink },
+      data: { id: userBatch.id, inviteLink, membershipStatus },
       warning: "User was invited but the email could not be sent. Please share the invite link directly.",
     };
   }
 
-  return { success: true, data: { id: userBatch.id, inviteLink } };
+  return { success: true, data: { id: userBatch.id, inviteLink, membershipStatus } };
 }
 
-export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink: string }>> {
+export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -245,7 +335,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<{
-  results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string }>;
+  results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }>;
 }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -307,7 +397,7 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
     }
   }
 
-  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string }> = [];
+  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }> = [];
 
   for (const email of uniqueEmails) {
     const result = await inviteUserCore({
@@ -318,7 +408,7 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
         });
 
     if (result.success) {
-      results.push({ email, success: true, inviteLink: result.data.inviteLink });
+      results.push({ email, success: true, inviteLink: result.data.inviteLink, membershipStatus: result.data.membershipStatus });
     } else {
       results.push({ email, success: false, error: result.error });
     }
@@ -381,9 +471,18 @@ export async function updateUserRole(
   const previousRole = existingMembership.role as UserRole;
 
   if (previousRole !== newRole) {
+    const previousAdditionalRoles = (existingMembership.additionalRoles ?? []).filter(
+      (role): role is UserRole => ASSIGNABLE_ROLES.includes(role as UserRole)
+    );
+    const nextAdditionalRoles = previousAdditionalRoles.filter((role) => isRoleBelow(role, newRole));
+    const removedAdditionalRoles = previousAdditionalRoles.filter((role) => !nextAdditionalRoles.includes(role));
+
     await prisma.userBatch.update({
       where: { userId_batchId: { userId, batchId } },
-      data: { role: newRole as import("@prisma/client").$Enums.UserRole },
+      data: {
+        role: newRole as import("@prisma/client").$Enums.UserRole,
+        additionalRoles: nextAdditionalRoles,
+      },
     });
 
     await createAuditLogEntry({
@@ -395,6 +494,7 @@ export async function updateUserRole(
         userEmail: existingMembership.user.email,
         previousRole,
         newRole,
+        removedAdditionalRoles,
       },
     });
   }
@@ -440,9 +540,22 @@ export async function updateAdditionalRoles(
     )
   );
 
+  const filteredRoles = normalizedRoles.filter((role): role is UserRole =>
+    ASSIGNABLE_ROLES.includes(role as UserRole)
+  );
+  const primaryRole = existingMembership.role as UserRole;
+  const invalidHierarchyRole = filteredRoles.find((role) => !isRoleBelow(role, primaryRole));
+
+  if (invalidHierarchyRole) {
+    return {
+      success: false,
+      error: `Additional roles must be below the primary role (${primaryRole})`,
+    };
+  }
+
   await prisma.userBatch.update({
     where: { userId_batchId: { userId, batchId } },
-    data: { additionalRoles: normalizedRoles },
+    data: { additionalRoles: filteredRoles },
   });
 
   await createAuditLogEntry({
@@ -450,12 +563,12 @@ export async function updateAdditionalRoles(
     action: "user_additional_roles_changed",
     targetId: userId,
     details: {
-      batchId,
-      userEmail: existingMembership.user.email,
-      previousAdditionalRoles: existingMembership.additionalRoles,
-      newAdditionalRoles: normalizedRoles,
-    },
-  });
+        batchId,
+        userEmail: existingMembership.user.email,
+        previousAdditionalRoles: existingMembership.additionalRoles,
+        newAdditionalRoles: filteredRoles,
+      },
+    });
 
   revalidatePath("/admin/users");
   revalidateTag(`batch-users-${batchId}`);
@@ -844,7 +957,7 @@ export async function getBatchUsers(batchId: string) {
   if (!user) return [];
   if (!isAdmin(user) && user.batchId !== batchId) return [];
 
-  return unstable_cache(
+  const batchUsers = await unstable_cache(
     () =>
       prisma.userBatch.findMany({
         where: { batchId },
@@ -854,6 +967,15 @@ export async function getBatchUsers(batchId: string) {
     [`batch-users-${batchId}`],
     { revalidate: 60, tags: [`batch-users-${batchId}`] }
   )();
+
+  return batchUsers.map((membership) => ({
+    ...membership,
+    additionalRoles: membership.additionalRoles ?? [],
+    user: {
+      ...membership.user,
+      status: membership.user.status ?? "active",
+    },
+  }));
 }
 
 export async function checkInviteExpiration(userId: string) {

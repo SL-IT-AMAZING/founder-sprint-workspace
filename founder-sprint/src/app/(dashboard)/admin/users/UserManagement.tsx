@@ -24,6 +24,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmailChipInput } from "@/components/ui/EmailChipInput";
+import { getRolesBelow } from "@/lib/role-hierarchy";
 import { getRoleDisplayName, formatDate, getDisplayName } from "@/lib/utils";
 import { getBatchStatusLabel } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
@@ -172,12 +173,14 @@ export function UserManagement({ batches }: UserManagementProps) {
 
       if (result.success) {
         setIsInviteModalOpen(false);
-        setInviteLink(result.data.inviteLink);
+        setInviteLink(result.data.inviteLink ?? null);
         setLinkCopied(false);
         loadUsers(selectedBatchId);
         (e.target as HTMLFormElement).reset();
         if (result.warning) {
           toast.warning(result.warning);
+        } else if (result.data.membershipStatus === "active") {
+          toast.success("Existing user added directly to this batch");
         }
       } else {
         setFormError(result.error);
@@ -220,24 +223,85 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
-  const handleEditAdditionalRoles = async (userBatch: BatchUser) => {
-    const currentValue = userBatch.additionalRoles.join(", ");
-    const nextValue = window.prompt("Additional roles (comma-separated)", currentValue);
-    if (nextValue === null) return;
-
-    const roles = nextValue
-      .split(",")
-      .map((role) => role.trim())
-      .filter((role) => role.length > 0);
+  const handleToggleAdditionalRole = async (userBatch: BatchUser, role: UserRole, checked: boolean) => {
+    const nextRoles = checked
+      ? Array.from(new Set([...(userBatch.additionalRoles || []), role]))
+      : (userBatch.additionalRoles || []).filter((additionalRole) => additionalRole !== role);
 
     startTransition(async () => {
-      const result = await updateAdditionalRoles(userBatch.userId, selectedBatchId, roles);
+      const result = await updateAdditionalRoles(userBatch.userId, selectedBatchId, nextRoles);
       if (result.success) {
         loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
       } else {
         toast.error(result.error);
       }
     });
+  };
+
+  const getVisibleRoles = (userBatch: BatchUser) => Array.from(
+    new Set<UserRole>([
+      userBatch.role,
+      ...(userBatch.additionalRoles || []).filter((role): role is UserRole =>
+        ["admin", "mentor", "founder", "co_founder"].includes(role)
+      ),
+    ])
+  );
+
+  const renderRoleBadges = (userBatch: BatchUser) => (
+    <div className="flex items-center gap-2 flex-wrap">
+      {getVisibleRoles(userBatch).map((role) => (
+        <Badge key={`${userBatch.id}-${role}`} variant="role">{getRoleDisplayName(role)}</Badge>
+      ))}
+    </div>
+  );
+
+  const renderAdditionalRoleControls = (userBatch: BatchUser) => {
+    if (userBatch.role === "super_admin") return null;
+
+    const options = getRolesBelow(userBatch.role);
+    if (options.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>Also</span>
+        {options.map((role) => (
+          <label key={`${userBatch.id}-${role}-toggle`} className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={(userBatch.additionalRoles || []).includes(role)}
+              onChange={(e) => handleToggleAdditionalRole(userBatch, role, e.target.checked)}
+              disabled={isPending}
+            />
+            {getRoleDisplayName(role)}
+          </label>
+        ))}
+      </div>
+    );
+  };
+
+  const renderRoleEditor = (userBatch: BatchUser, compact = false) => {
+    if (userBatch.role === "super_admin") {
+      return <span className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Super admins are managed separately.</span>;
+    }
+
+    return (
+      <div className={`flex ${compact ? "flex-col" : "flex-col items-end"} gap-2`}>
+        <select
+          value={userBatch.role}
+          onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
+          disabled={isPending}
+          className={compact ? "form-input flex-1" : "form-input"}
+          style={compact ? { fontSize: "14px", height: 36 } : { minWidth: 140, fontSize: "14px", height: 36 }}
+        >
+          <option value="admin">Admin</option>
+          <option value="mentor">Mentor</option>
+          <option value="founder">Founder</option>
+          <option value="co_founder">Co-founder</option>
+        </select>
+        {renderAdditionalRoleControls(userBatch)}
+      </div>
+    );
   };
 
   const handleRemoveUser = async (userId: string) => {
@@ -351,6 +415,7 @@ export function UserManagement({ batches }: UserManagementProps) {
   }));
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+  const founderChoices = users.filter((userBatch) => getVisibleRoles(userBatch).includes("founder"));
 
   return (
     <div className="space-y-6">
@@ -427,14 +492,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                   </div>
                   
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
-                      {userBatch.additionalRoles.map((additionalRole) => (
-                        <Badge key={`${userBatch.id}-${additionalRole}`} variant="outline">
-                          +{getRoleDisplayName(additionalRole)}
-                        </Badge>
-                      ))}
-                    </div>
+                    {renderRoleBadges(userBatch)}
                     <div className="flex items-center gap-2">
                       <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
                         {userBatch.status}
@@ -449,27 +507,10 @@ export function UserManagement({ batches }: UserManagementProps) {
                     Joined {formatDate(userBatch.invitedAt)}
                   </div>
 
-                  <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
-                    <select
-                      value={userBatch.role}
-                      onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
-                      disabled={isPending}
-                      className="form-input flex-1"
-                      style={{ fontSize: "14px", height: 36 }}
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="mentor">Mentor</option>
-                      <option value="founder">Founder</option>
-                      <option value="co_founder">Co-founder</option>
-                    </select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditAdditionalRoles(userBatch)}
-                      disabled={isPending}
-                    >
-                      Additional Roles
-                    </Button>
+                  <div className="space-y-3 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
+                    {renderRoleEditor(userBatch, true)}
+                    {userBatch.role !== "super_admin" && (
+                      <div className="flex items-center gap-2 flex-wrap">
                     {userBatch.status === "invited" && (
                       <>
                         <Button
@@ -517,6 +558,8 @@ export function UserManagement({ batches }: UserManagementProps) {
                     >
                       Remove
                     </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -569,14 +612,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="role">{getRoleDisplayName(userBatch.role)}</Badge>
-                        {userBatch.additionalRoles.map((additionalRole) => (
-                          <Badge key={`${userBatch.id}-desktop-${additionalRole}`} variant="outline">
-                            +{getRoleDisplayName(additionalRole)}
-                          </Badge>
-                        ))}
-                      </div>
+                      {renderRoleBadges(userBatch)}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -594,27 +630,10 @@ export function UserManagement({ batches }: UserManagementProps) {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <select
-                          value={userBatch.role}
-                          onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
-                          disabled={isPending}
-                          className="form-input"
-                          style={{ minWidth: 140, fontSize: "14px", height: 36 }}
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="mentor">Mentor</option>
-                          <option value="founder">Founder</option>
-                          <option value="co_founder">Co-founder</option>
-                        </select>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditAdditionalRoles(userBatch)}
-                          disabled={isPending}
-                        >
-                          Additional Roles
-                        </Button>
+                      <div className="flex flex-col items-end gap-2">
+                        {renderRoleEditor(userBatch)}
+                        {userBatch.role !== "super_admin" && (
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
                         {userBatch.status === "invited" && (
                           <>
                             <Button
@@ -662,6 +681,8 @@ export function UserManagement({ batches }: UserManagementProps) {
                         >
                           Remove
                         </Button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -765,7 +786,7 @@ export function UserManagement({ batches }: UserManagementProps) {
           setBulkEmails([]);
           setBulkResults(null);
         }}
-        title={bulkResults ? "Invitation Results" : "Invite Users"}
+        title={bulkResults ? "Invitation Results" : "Add Users"}
       >
         {/* Mode toggle — hidden when showing results */}
         {!bulkResults && (
@@ -800,7 +821,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             </button>
             <button
               type="button"
-              onClick={() => { setInviteMode("bulk"); setFormError(""); }}
+              onClick={() => { setInviteMode("bulk"); setFormError(""); if (selectedRole === "co_founder") setSelectedRole("founder"); }}
               style={{
                 flex: 1,
                 padding: "6px 12px",
@@ -838,7 +859,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                   }}
                 >
                   <div style={{ fontSize: "24px", fontWeight: 600, color: "#16a34a" }}>{successCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Sent</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Succeeded</div>
                 </div>
                 <div
                   style={{
@@ -946,6 +967,20 @@ export function UserManagement({ batches }: UserManagementProps) {
               required
             />
 
+            {selectedRole === "co_founder" && (
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium">Primary Founder</label>
+                <select name="founderId" className="form-input" required>
+                  <option value="">Select founder</option>
+                  {founderChoices.map((userBatch) => (
+                    <option key={userBatch.userId} value={userBatch.userId}>
+                      {getDisplayName(userBatch.user)} ({userBatch.user.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Company Assignment (optional, for founders/co-founders) */}
             {(selectedRole === "founder" || selectedRole === "co_founder") && companies.length > 0 && (
               <div className="space-y-1.5">
@@ -986,7 +1021,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                 Cancel
               </Button>
               <Button type="submit" loading={isPending}>
-                Send Invitation
+                Add User
               </Button>
             </div>
           </form>
@@ -1004,7 +1039,7 @@ export function UserManagement({ batches }: UserManagementProps) {
             <Select
               label="Role"
               name="role"
-              options={roleOptions}
+              options={roleOptions.filter((option) => option.value !== "co_founder")}
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
               required
@@ -1032,7 +1067,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                 Cancel
               </Button>
               <Button type="submit" loading={isPending}>
-                Send Invitations
+                Add Users
               </Button>
             </div>
           </form>

@@ -17,6 +17,13 @@ import {
 import type { ScheduleItem, ScheduleItemKind } from "@/types/schedule";
 import { SCHEDULE_COLORS } from "@/types/schedule";
 
+function safeDateKey(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, "yyyy-MM-dd");
+}
+
 interface CalendarEvent {
   id: string;
   title: string;
@@ -58,7 +65,8 @@ export function Calendar({
     if (!events) return null;
     const map = new Map<string, CalendarEvent[]>();
     events.forEach((event) => {
-      const dateKey = format(new Date(event.startTime), "yyyy-MM-dd");
+      const dateKey = safeDateKey(event.startTime);
+      if (!dateKey) return;
       const existing = map.get(dateKey) || [];
       map.set(dateKey, [...existing, event]);
     });
@@ -73,8 +81,9 @@ export function Calendar({
     const map = new Map<string, { kinds: Set<ScheduleItemKind>; count: number }>();
     filtered.forEach((item) => {
       const dateKey = item.isAllDay
-        ? item.startTime.slice(0, 10)
-        : format(new Date(item.startTime), "yyyy-MM-dd");
+        ? (typeof item.startTime === "string" ? item.startTime.slice(0, 10) : safeDateKey(item.startTime))
+        : safeDateKey(item.startTime);
+      if (!dateKey) return;
       const existing = map.get(dateKey) || { kinds: new Set<ScheduleItemKind>(), count: 0 };
       existing.kinds.add(item.kind);
       existing.count += 1;
