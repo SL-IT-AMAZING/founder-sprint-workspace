@@ -118,8 +118,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
           attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
         }
 
-        // Use createCalendarEventWithMeet for office_hour events to generate Google Meet link
-        const calResult = validated.eventType === "office_hour"
+        const calResult = validated.eventType === "office_hour" || validated.eventType === "virtual"
           ? await createCalendarEventWithMeet({
               summary: validated.title,
               description: validated.description || undefined,

@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getDisplayName } from "@/lib/utils";
 import { isAdmin, isFounder } from "@/lib/permissions-client";
-import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext } from "@/actions/office-hour";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext, cancelRequest } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 import type { FounderOption, MentorOption } from "@/types/invite";
@@ -153,6 +153,9 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
      const [scheduleCompanies, setScheduleCompanies] = useState<CompanyForList[]>(companies);
      const [scheduleFounders, setScheduleFounders] = useState<FounderOption[]>(founders);
      const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
+     const [grantBatchId, setGrantBatchId] = useState<string>(currentBatchId);
+     const [grantFounders, setGrantFounders] = useState<FounderOption[]>(founders);
+     const [grantContextLoading, setGrantContextLoading] = useState(false);
 
   const isAdminUser = isAdmin(user.role);
   const isFounderUser = isFounder(user.role);
@@ -190,6 +193,30 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     setScheduleFounders(founders);
     setSelectedCompanyId(defaultCompanyId);
     setSelectedFounderId("");
+  };
+
+  const loadGrantBatchContext = async (batchId: string) => {
+    if (!isAdminUser) return;
+
+    setGrantContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
+
+    if (result.success) {
+      setGrantBatchId(batchId);
+      setGrantFounders(result.data.founders);
+      setSelectedCreditFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+
+    setGrantContextLoading(false);
+  };
+
+  const resetGrantContext = () => {
+    setGrantBatchId(currentBatchId);
+    setGrantFounders(founders);
+    setSelectedCreditFounderId("");
   };
 
   const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -374,6 +401,17 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     }
   };
 
+  const handleCancelRequest = async (requestId: string) => {
+    if (!confirm("Are you sure you want to cancel this request?")) return;
+
+    const result = await cancelRequest(requestId);
+    if (!result.success) {
+      toast.error(result.error);
+    } else {
+      router.refresh();
+    }
+  };
+
   const openRequestModal = (slot: OfficeHourSlot) => {
     setSelectedSlot(slot);
     setRequestModalOpen(true);
@@ -390,10 +428,10 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     const amount = Number(formData.get("amount") as string);
     const reason = (formData.get("reason") as string) || undefined;
 
-    const result = await grantOfficeHourCredits(founderId, user.batchId, amount, reason);
+    const result = await grantOfficeHourCredits(founderId, grantBatchId, amount, reason);
     if (result.success) {
       setGrantCreditsModalOpen(false);
-      setSelectedCreditFounderId("");
+      resetGrantContext();
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } else {
@@ -422,7 +460,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
         )}
         {isAdminUser && (
           <>
-            <Button variant="secondary" size="sm" onClick={() => setGrantCreditsModalOpen(true)}>
+            <Button variant="secondary" size="sm" onClick={() => { resetGrantContext(); setGrantCreditsModalOpen(true); }}>
               Grant Credits
             </Button>
               <button
@@ -452,7 +490,8 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             const isHost = slot.host.id === user.id;
             const pendingRequests = slot.requests.filter((r) => r.status === "pending");
             const approvedRequest = slot.requests.find((r) => r.status === "approved");
-            const userHasRequested = slot.requests.some((r) => r.requester.id === user.id && r.status === "pending");
+            const userPendingRequest = slot.requests.find((r) => r.requester.id === user.id && r.status === "pending");
+            const userHasRequested = Boolean(userPendingRequest);
 
             return (
               <div key={slot.id} className="card space-y-3">
@@ -497,7 +536,20 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                       </p>
                     )}
                     {userHasRequested && (
-                      <Badge variant="warning">Request Pending</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="warning">Request Pending</Badge>
+                        {userPendingRequest && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(userPendingRequest.id)}
+                            disabled={loading}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     )}
                     {(isHost || user.role === "super_admin" || user.role === "admin") &&
                      (user.role === "super_admin" || user.role === "admin" || slot.status === "completed" || (pendingRequests.length === 0 && !approvedRequest)) && (
@@ -554,15 +606,27 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                           </div>
                         )}
                       </div>
-                      {(isHost || isAdminUser) && slot.status === "completed" && (
-                        <Button
-                          size="sm"
-                          variant={approvedRequest.noShow ? "secondary" : "ghost"}
-                          onClick={() => handleNoShowToggle(approvedRequest.id, !approvedRequest.noShow)}
-                        >
-                          {approvedRequest.noShow ? "Mark Attended" : "Mark No-show"}
-                        </Button>
-                      )}
+                      <div className="flex gap-2">
+                        {(isHost || isAdminUser) && slot.status === "completed" && (
+                          <Button
+                            size="sm"
+                            variant={approvedRequest.noShow ? "secondary" : "ghost"}
+                            onClick={() => handleNoShowToggle(approvedRequest.id, !approvedRequest.noShow)}
+                          >
+                            {approvedRequest.noShow ? "Mark Attended" : "Mark No-show"}
+                          </Button>
+                        )}
+                        {isAdminUser && slot.status === "confirmed" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(approvedRequest.id)}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -962,16 +1026,35 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
         </form>
       </Modal>
 
-      <Modal open={grantCreditsModalOpen} onClose={() => { setGrantCreditsModalOpen(false); setError(null); setSelectedCreditFounderId(""); }} title="Grant Office Hour Credits">
+      <Modal open={grantCreditsModalOpen} onClose={() => { setGrantCreditsModalOpen(false); setError(null); resetGrantContext(); }} title="Grant Office Hour Credits">
         <form onSubmit={handleGrantCredits} className="space-y-4">
           {error && (
             <div className="p-3 rounded text-sm" style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}>
               {error}
             </div>
           )}
+          {isAdminUser && batchOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Batch</label>
+              <select
+                value={grantBatchId}
+                onChange={(e) => void loadGrantBatchContext(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                {batchOptions.map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <SearchableSelect
             label="Founder"
-            options={founders.map((f) => ({
+            options={grantFounders.map((f) => ({
               id: f.id,
               label: f.name || f.email,
               secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
@@ -986,8 +1069,8 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
           <Input label="Credits to add" name="amount" type="number" min="1" defaultValue="1" required />
           <Textarea label="Reason (Optional)" name="reason" rows={3} placeholder="Why are you granting extra credits?" />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setGrantCreditsModalOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={loading}>Grant Credits</Button>
+            <Button type="button" variant="secondary" onClick={() => { setGrantCreditsModalOpen(false); resetGrantContext(); }}>Cancel</Button>
+            <Button type="submit" loading={loading || grantContextLoading}>Grant Credits</Button>
           </div>
         </form>
       </Modal>

@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { getEvents } from "@/actions/event";
+import { getOfficeHourBatchContext } from "@/actions/office-hour";
 import { getAllBatchesForSelect } from "@/actions/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -13,14 +14,20 @@ export default async function EventsPage() {
     redirect("/auth/login");
   }
 
-  const events = await getEvents(user.batchId);
-  const allBatches = await getAllBatchesForSelect();
+  const [events, allBatches, batchContextResult] = await Promise.all([
+    getEvents(user.batchId),
+    getAllBatchesForSelect(),
+    getOfficeHourBatchContext(user.batchId),
+  ]);
   const batchOptions = allBatches.map(b => ({
     id: b.id,
     name: b.name,
     status: b.status,
     memberCount: b._count.userBatches,
   }));
+  const batchContext = batchContextResult.success
+    ? batchContextResult.data
+    : { companies: [], founders: [], mentors: [] };
 
   return (
     <div className="space-y-6">
@@ -34,7 +41,14 @@ export default async function EventsPage() {
           Open Unified Schedule
         </Link>
       </div>
-      <EventsList user={user} events={events} batchOptions={batchOptions} />
+      <EventsList
+        user={user}
+        events={events}
+        batchOptions={batchOptions}
+        companies={batchContext.companies}
+        founders={batchContext.founders}
+        currentBatchId={user.batchId}
+      />
     </div>
   );
 }
