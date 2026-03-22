@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -9,10 +9,13 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { createSession, updateSession, deleteSession, saveSessionAsTemplate } from "@/actions/session";
+import { getCompaniesForBatch } from "@/actions/company";
 import { formatDate, toValidDate } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezone";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
+import { CompanySelect, type CompanyOption } from "@/components/ui/CompanySelect";
+import { addMinutesToTimeValue, getTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 interface Session {
   id: string;
@@ -26,14 +29,14 @@ interface Session {
   recordingUrl: string | null;
   createdAt: Date;
   batches?: { batch: { id: string; name: string } }[];
-  targetGroup?: { id: string; name: string } | null;
+  targetCompanyIds: string[];
 }
 
 interface SessionsListProps {
   sessions: Session[];
   isAdmin: boolean;
   batchOptions: BatchOption[];
-  groupOptions: Array<{ id: string; name: string }>;
+  companyOptions: CompanyOption[];
   templates: Array<{
     id: string;
     name: string;
@@ -47,17 +50,26 @@ interface SessionsListProps {
   }>;
 }
 
-export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, templates }: SessionsListProps) {
-   const [isModalOpen, setIsModalOpen] = useState(false);
+export function SessionsList({ sessions, isAdmin, batchOptions, companyOptions, templates }: SessionsListProps) {
+   const searchParams = useSearchParams();
+   const prefillDate = searchParams.get("date");
+   const [isModalOpen, setIsModalOpen] = useState(Boolean(prefillDate && isAdmin));
    const [editSession, setEditSession] = useState<Session | null>(null);
    const [isPending, startTransition] = useTransition();
    const [error, setError] = useState("");
    const [selectedTemplateId, setSelectedTemplateId] = useState("");
    const toast = useToast();
-
-   const searchParams = useSearchParams();
-   const prefillDate = searchParams.get("date");
    const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) || null;
+   const createStartTimeRef = useRef<HTMLInputElement>(null);
+   const createEndTimeRef = useRef<HTMLInputElement>(null);
+   const editStartTimeRef = useRef<HTMLInputElement>(null);
+   const editEndTimeRef = useRef<HTMLInputElement>(null);
+   const createDurationMinutesRef = useRef(60);
+   const editDurationMinutesRef = useRef(60);
+   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+   const [availableCompanies, setAvailableCompanies] = useState<CompanyOption[]>(companyOptions);
+   const [selectedEditBatchIds, setSelectedEditBatchIds] = useState<string[]>([]);
+   const [editCompanies, setEditCompanies] = useState<CompanyOption[]>(companyOptions);
 
    const toDateInputValue = (value: Date | string | null | undefined) => {
      const parsed = toValidDate(value);
@@ -71,12 +83,89 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
        : "";
    };
 
-   // Auto-open create modal if date is pre-filled
    useEffect(() => {
-     if (prefillDate && isAdmin) {
-       setIsModalOpen(true);
+     createDurationMinutesRef.current = getTimeRangeDurationMinutes(
+       selectedTemplate?.defaultStartTime || "",
+       selectedTemplate?.defaultEndTime || ""
+     ) ?? 60;
+   }, [selectedTemplate?.defaultStartTime, selectedTemplate?.defaultEndTime, isModalOpen]);
+
+   useEffect(() => {
+     editDurationMinutesRef.current = editSession
+        ? getTimeRangeDurationMinutes(
+            toTimeInputValue(editSession.startTime),
+            toTimeInputValue(editSession.endTime)
+          ) ?? 60
+        : 60;
+    }, [editSession]);
+
+   useEffect(() => {
+     if (!editSession) return;
+     const ids = editSession.batches?.map((b) => b.batch.id) || [];
+     setSelectedEditBatchIds(ids);
+     if (ids.length === 1) {
+       void handleEditBatchSelection({ mode: "specific", batchIds: ids });
+     } else {
+       setEditCompanies([]);
      }
-   }, [prefillDate, isAdmin]);
+   }, [editSession]);
+
+   useEffect(() => {
+     if (batchOptions.length > 0 && selectedBatchIds.length === 0) {
+       const initialBatchId = batchOptions[0].id;
+       setSelectedBatchIds([initialBatchId]);
+       void handleCreateBatchSelection({ mode: "specific", batchIds: [initialBatchId] });
+     }
+   }, [batchOptions, selectedBatchIds.length]);
+
+   const createDefaultStartTime = selectedTemplate?.defaultStartTime || "";
+   const createDefaultDurationMinutes = getTimeRangeDurationMinutes(
+     selectedTemplate?.defaultStartTime || "",
+     selectedTemplate?.defaultEndTime || ""
+   ) ?? 60;
+   const createDefaultEndTime = selectedTemplate?.defaultEndTime || (
+     createDefaultStartTime ? addMinutesToTimeValue(createDefaultStartTime, createDefaultDurationMinutes) : ""
+   );
+
+   const handleCreateStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (!createEndTimeRef.current || !e.target.value) {
+       return;
+     }
+
+     createEndTimeRef.current.value = addMinutesToTimeValue(
+       e.target.value,
+       createDurationMinutesRef.current
+     );
+   };
+
+   const handleCreateEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (createStartTimeRef.current && e.target.value) {
+       const nextDuration = getTimeRangeDurationMinutes(createStartTimeRef.current.value, e.target.value);
+       if (nextDuration) {
+         createDurationMinutesRef.current = nextDuration;
+       }
+     }
+   };
+
+   const handleEditStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (!editEndTimeRef.current || !e.target.value) {
+       return;
+     }
+
+     editEndTimeRef.current.value = addMinutesToTimeValue(
+       e.target.value,
+       editDurationMinutesRef.current
+     );
+   };
+
+   const handleEditEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (editStartTimeRef.current && e.target.value) {
+       const nextDuration = getTimeRangeDurationMinutes(editStartTimeRef.current.value, e.target.value);
+       if (nextDuration) {
+         editDurationMinutesRef.current = nextDuration;
+       }
+     }
+   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -121,7 +210,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
     });
   };
 
-  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+   const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editSession) return;
     setError("");
@@ -137,6 +226,26 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
       }
     });
   };
+
+   const handleCreateBatchSelection = async (selection: { mode: "all" | "specific"; batchIds: string[] }) => {
+     if (selection.mode === "specific" && selection.batchIds.length === 1) {
+       const companies = await getCompaniesForBatch(selection.batchIds[0]);
+       setAvailableCompanies(companies.map((company) => ({ id: company.id, name: company.name, memberCount: company._count.members })));
+     } else {
+       setAvailableCompanies([]);
+     }
+     setSelectedBatchIds(selection.batchIds);
+   };
+
+   const handleEditBatchSelection = async (selection: { mode: "all" | "specific"; batchIds: string[] }) => {
+     if (selection.mode === "specific" && selection.batchIds.length === 1) {
+       const companies = await getCompaniesForBatch(selection.batchIds[0]);
+       setEditCompanies(companies.map((company) => ({ id: company.id, name: company.name, memberCount: company._count.members })));
+     } else {
+       setEditCompanies([]);
+     }
+     setSelectedEditBatchIds(selection.batchIds);
+   };
 
   return (
     <div className="space-y-6">
@@ -192,9 +301,9 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
                         )}
                       </div>
                     )}
-                    {session.targetGroup && (
+                    {(session.targetCompanyIds?.length || 0) > 0 && (
                       <div className="mt-1">
-                        <Badge variant="default">Group: {session.targetGroup.name}</Badge>
+                        <Badge variant="default">Companies: {session.targetCompanyIds.length}</Badge>
                       </div>
                     )}
                   </div>
@@ -293,7 +402,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
             </div>
           )}
 
-          <BatchSelect batches={batchOptions} />
+          <BatchSelect batches={batchOptions} onSelectionChange={handleCreateBatchSelection} />
           <Input
             name="title"
             label="Title"
@@ -319,20 +428,24 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
            />
 
            <div className="grid grid-cols-2 gap-3">
-             <Input
-                name="startTime"
-                label="Start Time (optional)"
-                type="time"
-                placeholder="e.g. 14:00"
-                defaultValue={selectedTemplate?.defaultStartTime || ""}
-              />
               <Input
-                name="endTime"
-                label="End Time (optional)"
-                type="time"
-                placeholder="e.g. 16:00"
-                defaultValue={selectedTemplate?.defaultEndTime || ""}
-              />
+                 name="startTime"
+                 label="Start Time (optional)"
+                 type="time"
+                 placeholder="e.g. 14:00"
+                 ref={createStartTimeRef}
+                 onChange={handleCreateStartTimeChange}
+                 defaultValue={createDefaultStartTime}
+               />
+               <Input
+                 name="endTime"
+                 label="End Time (optional)"
+                 type="time"
+                 placeholder="e.g. 16:00"
+                 ref={createEndTimeRef}
+                 onChange={handleCreateEndTimeChange}
+                 defaultValue={createDefaultEndTime}
+               />
            </div>
 
            <div className="space-y-1.5">
@@ -353,32 +466,22 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
              </select>
            </div>
 
-           <Input
-               name="slidesUrl"
-               label="Slides URL"
-               type="url"
-               placeholder="https://docs.google.com/presentation/..."
-               defaultValue={selectedTemplate?.slidesUrl || ""}
-             />
+            <Input
+                name="slidesUrl"
+                label="Slides URL"
+                type="url"
+                placeholder="https://docs.google.com/presentation/..."
+                defaultValue={selectedTemplate?.slidesUrl || ""}
+              />
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Target Group (optional)</label>
-              <select
-                name="targetGroupId"
-                defaultValue=""
-                className="w-full px-3 py-2 rounded-md border text-sm"
-                style={{
-                  backgroundColor: "var(--color-background)",
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-foreground)",
-                }}
-              >
-                <option value="">Entire selected batch</option>
-                {groupOptions.map((group) => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-            </div>
+             <CompanySelect
+               companies={availableCompanies}
+               totalBatchMembers={availableCompanies.reduce((sum, company) => sum + company.memberCount, 0)}
+               label="Target Companies"
+               inputName="companyIds"
+               allowSpecific={selectedBatchIds.length === 1}
+               disabledMessage="Specific companies are available only when exactly one batch is selected."
+             />
 
            <Input
              name="recordingUrl"
@@ -389,12 +492,12 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
            />
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => { setIsModalOpen(false); setSelectedTemplateId(""); }}
-              disabled={isPending}
-            >
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { setIsModalOpen(false); setSelectedTemplateId(""); createDurationMinutesRef.current = 60; }}
+                disabled={isPending}
+              >
               Cancel
             </Button>
             <Button type="submit" loading={isPending}>
@@ -409,6 +512,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
         onClose={() => {
           setEditSession(null);
           setError("");
+          editDurationMinutesRef.current = 60;
         }}
         title="Edit Session"
       >
@@ -453,13 +557,17 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
                  name="startTime"
                  label="Start Time (optional)"
                  type="time"
+                  ref={editStartTimeRef}
+                  onChange={handleEditStartTimeChange}
                   defaultValue={toTimeInputValue(editSession.startTime)}
                />
                <Input
                  name="endTime"
                  label="End Time (optional)"
                  type="time"
-                  defaultValue={toTimeInputValue(editSession.endTime)}
+                   ref={editEndTimeRef}
+                   onChange={handleEditEndTimeChange}
+                   defaultValue={toTimeInputValue(editSession.endTime)}
                />
              </div>
 
@@ -481,32 +589,22 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
                </select>
              </div>
 
-             <Input
-                name="slidesUrl"
-                label="Slides URL"
-                type="url"
-                placeholder="https://docs.google.com/presentation/..."
-                defaultValue={editSession.slidesUrl || ""}
-              />
+              <Input
+                 name="slidesUrl"
+                 label="Slides URL"
+                 type="url"
+                 placeholder="https://docs.google.com/presentation/..."
+                 defaultValue={editSession.slidesUrl || ""}
+               />
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Target Group (optional)</label>
-                <select
-                  name="targetGroupId"
-                  defaultValue={editSession.targetGroup?.id || ""}
-                  className="w-full px-3 py-2 rounded-md border text-sm"
-                  style={{
-                    backgroundColor: "var(--color-background)",
-                    borderColor: "var(--color-border)",
-                    color: "var(--color-foreground)",
-                  }}
-                >
-                  <option value="">Entire selected batch</option>
-                  {groupOptions.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-              </div>
+               <CompanySelect
+                 companies={editCompanies}
+                 totalBatchMembers={editCompanies.reduce((sum, company) => sum + company.memberCount, 0)}
+                 label="Target Companies"
+                 inputName="companyIds"
+                 allowSpecific={selectedEditBatchIds.length === 1}
+                 disabledMessage="Specific companies are available only when exactly one batch is selected."
+               />
 
              <Input
                name="recordingUrl"
@@ -523,6 +621,7 @@ export function SessionsList({ sessions, isAdmin, batchOptions, groupOptions, te
                 onClick={() => {
                   setEditSession(null);
                   setError("");
+                  editDurationMinutesRef.current = 60;
                 }}
                 disabled={isPending}
               >

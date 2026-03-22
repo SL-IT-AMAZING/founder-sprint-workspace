@@ -528,15 +528,18 @@ export async function getCompaniesForSelect(): Promise<Array<{
   });
 }
 
-/**
- * Get all companies for office hour scheduling dropdowns.
- * Returns all companies globally with member counts.
- */
-export async function getCompaniesForBatch(_batchId?: string) {
+export async function getCompaniesForBatch(batchId?: string) {
   const user = await getCurrentUser();
   if (!user) return [];
 
   return prisma.company.findMany({
+    where: batchId
+      ? {
+          batches: {
+            some: { batchId },
+          },
+        }
+      : undefined,
     select: {
       id: true,
       name: true,

@@ -12,6 +12,7 @@ export async function getScheduleItems(params: {
   rangeEnd: Date;
 }): Promise<ScheduleItem[]> {
   const { batchId, viewerId, viewerRole, rangeStart, rangeEnd } = params;
+  const isAdminViewer = viewerRole === "admin" || viewerRole === "super_admin";
 
   const fetchSchedule = async () => {
     const [events, officeHourSlots, sessions] = await Promise.all([
@@ -19,7 +20,7 @@ export async function getScheduleItems(params: {
         where: {
           batches: { some: { batchId } },
           startTime: { gte: rangeStart, lte: rangeEnd },
-          ...((viewerRole === "admin" || viewerRole === "super_admin")
+          ...(isAdminViewer
             ? {}
             : {
                 OR: [
@@ -55,6 +56,8 @@ export async function getScheduleItems(params: {
           status: true,
           googleMeetLink: true,
           companyId: true,
+          targetFounderIds: true,
+          slotMode: true,
           groupId: true,
           requests: { select: { requesterId: true } },
           host: { select: { name: true } },
@@ -67,6 +70,14 @@ export async function getScheduleItems(params: {
       prisma.session.findMany({
         where: {
           batches: { some: { batchId } },
+          ...(isAdminViewer
+            ? {}
+            : {
+                OR: [
+                  { targetGroupId: null },
+                  { targetGroup: { members: { some: { userId: viewerId } } } },
+                ],
+              }),
           OR: [
             { startTime: { gte: rangeStart, lte: rangeEnd } },
             {
@@ -98,7 +109,21 @@ export async function getScheduleItems(params: {
       filteredOH = officeHourSlots.filter((s) => {
         const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
         const matchesDirectRequest = s.requests.some((request) => request.requesterId === viewerId);
-        return matchesCompany || matchesDirectRequest;
+        const matchesTargetedFounder = s.targetFounderIds.length === 0 || s.targetFounderIds.includes(viewerId);
+
+        if (s.slotMode === "open_batch") {
+          if (s.status === "available" && !s.companyId) {
+            return true;
+          }
+
+          return matchesCompany || matchesDirectRequest;
+        }
+
+        if (s.slotMode === "direct_founder") {
+          return s.targetFounderIds.includes(viewerId) || matchesDirectRequest;
+        }
+
+        return (matchesCompany && matchesTargetedFounder) || matchesDirectRequest;
       });
     }
 

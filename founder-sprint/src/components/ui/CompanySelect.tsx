@@ -11,9 +11,20 @@ export interface CompanyOption {
 interface CompanySelectProps {
   companies: CompanyOption[];
   totalBatchMembers: number;
+  label?: string;
+  inputName?: string;
+  allowSpecific?: boolean;
+  disabledMessage?: string;
 }
 
-export function CompanySelect({ companies, totalBatchMembers }: CompanySelectProps) {
+export function CompanySelect({
+  companies,
+  totalBatchMembers,
+  label = "Invite Target",
+  inputName = "companyIds",
+  allowSpecific = true,
+  disabledMessage,
+}: CompanySelectProps) {
   const [mode, setMode] = useState<"batch" | "specific">("batch");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -66,8 +77,8 @@ export function CompanySelect({ companies, totalBatchMembers }: CompanySelectPro
           fontFamily: '"BDO Grotesk", sans-serif',
         }}
       >
-        Invite Target
-      </label>
+          {label}
+        </label>
 
       {/* Radio pill tabs */}
       <div
@@ -99,7 +110,8 @@ export function CompanySelect({ companies, totalBatchMembers }: CompanySelectPro
         </button>
         <button
           type="button"
-          onClick={() => setMode("specific")}
+          onClick={() => allowSpecific && setMode("specific")}
+          disabled={!allowSpecific}
           style={{
             flex: 1,
             padding: "8px 12px",
@@ -108,18 +120,25 @@ export function CompanySelect({ companies, totalBatchMembers }: CompanySelectPro
             fontFamily: '"BDO Grotesk", sans-serif',
             border: "none",
             borderLeft: "1px solid #e0e0e0",
-            cursor: "pointer",
+            cursor: allowSpecific ? "pointer" : "not-allowed",
             backgroundColor: mode === "specific" ? "#1A1A1A" : "transparent",
-            color: mode === "specific" ? "#FFFFFF" : "#666666",
+            color: allowSpecific ? (mode === "specific" ? "#FFFFFF" : "#666666") : "#B0B0B0",
             transition: "background-color 0.15s, color 0.15s",
+            opacity: allowSpecific ? 1 : 0.6,
           }}
         >
           Specific Companies
         </button>
       </div>
 
+      {!allowSpecific && disabledMessage && (
+        <p style={{ fontSize: 12, color: "#666666", fontFamily: '"BDO Grotesk", sans-serif' }}>
+          {disabledMessage}
+        </p>
+      )}
+
       {/* Company checkbox list */}
-      {mode === "specific" && (
+      {mode === "specific" && allowSpecific && (
         <div
           style={{
             border: "1px solid #e0e0e0",
@@ -244,9 +263,9 @@ export function CompanySelect({ companies, totalBatchMembers }: CompanySelectPro
       )}
 
       {/* Hidden inputs for FormData */}
-      {mode === "specific" &&
+      {mode === "specific" && allowSpecific &&
         Array.from(selectedIds).map((id) => (
-          <input key={id} type="hidden" name="groupIds" value={id} />
+          <input key={id} type="hidden" name={inputName} value={id} />
         ))}
     </div>
   );

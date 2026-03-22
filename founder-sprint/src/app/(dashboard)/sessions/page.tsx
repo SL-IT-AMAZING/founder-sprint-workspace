@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { getSessions, getAllBatchesForSelect, getSessionTemplates } from "@/actions/session";
-import { getGroups } from "@/actions/group";
+import { getCompaniesForBatch } from "@/actions/company";
 import { SessionsList } from "./SessionsList";
 
 export const revalidate = 300;
@@ -10,10 +10,10 @@ export default async function SessionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [sessions, allBatches, groups, templates] = await Promise.all([
+  const [sessions, allBatches, companies, templates] = await Promise.all([
     getSessions(user.batchId),
     getAllBatchesForSelect(),
-    getGroups(user.batchId),
+    getCompaniesForBatch(user.batchId),
     getSessionTemplates(),
   ]);
   const batchOptions = allBatches.map(b => ({
@@ -23,9 +23,10 @@ export default async function SessionsPage() {
     memberCount: b._count.userBatches,
   }));
 
-  const groupOptions = groups.map((group) => ({
-    id: group.id,
-    name: group.name,
+  const companyOptions = companies.map((company) => ({
+    id: company.id,
+    name: company.name,
+    memberCount: company._count.members,
   }));
 
   return (
@@ -33,7 +34,7 @@ export default async function SessionsPage() {
       sessions={sessions}
       isAdmin={isAdmin(user.role)}
       batchOptions={batchOptions}
-      groupOptions={groupOptions}
+      companyOptions={companyOptions}
       templates={templates}
     />
   );

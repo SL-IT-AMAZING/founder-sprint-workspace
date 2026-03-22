@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { isSameDay } from "date-fns";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -11,15 +11,10 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Calendar } from "@/components/ui/Calendar";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { OfficeHourSchedulerModal } from "@/components/office-hours/OfficeHourSchedulerModal";
 import { formatDate, getDisplayName } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
-import {
-  getOfficeHourBatchContext,
-  scheduleGroupOfficeHour,
-  scheduleIndividualOfficeHour,
-} from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import type { UserWithBatch, EventType } from "@/types";
@@ -31,6 +26,7 @@ import {
   VISIBLE_SCHEDULE_LABELS,
 } from "@/types/schedule";
 import { displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
+import { addMinutesToDateTimeLocalValue, getDateTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 type ViewMode = "list" | "calendar";
 
@@ -111,51 +107,48 @@ export function EventsList({
   groupOptions,
   currentBatchId,
 }: EventsListProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const prefillDate = searchParams.get("date");
   const canCreate = isAdmin(user.role);
   const [createModalOpen, setCreateModalOpen] = useState(Boolean(prefillDate && canCreate));
+  const [officeHourModalOpen, setOfficeHourModalOpen] = useState(false);
   const [selectedCreateEventType, setSelectedCreateEventType] = useState<EventType | null>(null);
   const [selectedType, setSelectedType] = useState<VisibleScheduleFilter | "all">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companies.length === 1 ? companies[0].id : "");
-  const [selectedFounderId, setSelectedFounderId] = useState<string>("");
-  const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
-  const [officeHourCompanies, setOfficeHourCompanies] = useState<CompanyOption[]>(companies);
-  const [officeHourFounders, setOfficeHourFounders] = useState<FounderOption[]>(founders);
-  const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
   const toast = useToast();
+  const createStartTimeRef = useRef<HTMLInputElement>(null);
+  const createEndTimeRef = useRef<HTMLInputElement>(null);
+  const createDurationMinutesRef = useRef(60);
+  const defaultStartDateTime = prefillDate ? `${prefillDate}T09:00` : undefined;
+  const defaultEndDateTime = defaultStartDateTime
+    ? addMinutesToDateTimeLocalValue(defaultStartDateTime, 60)
+    : undefined;
 
-  const resetOfficeHourContext = () => {
-    setScheduleMode("company");
-    setSelectedAdminBatchId(currentBatchId);
-    setOfficeHourCompanies(companies);
-    setOfficeHourFounders(founders);
-    setSelectedCompanyId(companies.length === 1 ? companies[0].id : "");
-    setSelectedFounderId("");
-  };
-
-  const loadOfficeHourBatchContext = async (batchId: string) => {
-    setScheduleContextLoading(true);
-    const result = await getOfficeHourBatchContext(batchId);
-
-    if (result.success) {
-      setSelectedAdminBatchId(batchId);
-      setOfficeHourCompanies(result.data.companies);
-      setOfficeHourFounders(result.data.founders);
-      setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
-      setSelectedFounderId("");
-      setError(null);
-    } else {
-      setError(result.error);
+  const handleCreateStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!createEndTimeRef.current || !e.target.value) {
+      return;
     }
 
-    setScheduleContextLoading(false);
+    const nextEndValue = addMinutesToDateTimeLocalValue(
+      e.target.value,
+      createDurationMinutesRef.current
+    );
+
+    if (nextEndValue) {
+      createEndTimeRef.current.value = nextEndValue;
+    }
+  };
+
+  const handleCreateEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (createStartTimeRef.current && e.target.value) {
+      const nextDuration = getDateTimeRangeDurationMinutes(createStartTimeRef.current.value, e.target.value);
+      if (nextDuration) {
+        createDurationMinutesRef.current = nextDuration;
+      }
+    }
   };
 
   const filteredEvents = selectedType === "all"
@@ -211,55 +204,12 @@ export function EventsList({
       return;
     }
 
-    if (selectedCreateEventType === "office_hour") {
-      if (scheduleMode === "individual" && !selectedFounderId) {
-        setError("Please select a founder");
-        setLoading(false);
-        return;
-      }
-
-      if (scheduleMode === "company" && !selectedCompanyId) {
-        setError("Please select a company");
-        setLoading(false);
-        return;
-      }
-
-      formData.set("batchId", selectedAdminBatchId);
-
-      const result = scheduleMode === "individual"
-        ? await (() => {
-            formData.set("founderId", selectedFounderId);
-            return scheduleIndividualOfficeHour(formData);
-          })()
-        : await (() => {
-            formData.set("companyId", selectedCompanyId);
-            return scheduleGroupOfficeHour(formData);
-          })();
-
-      if (result.success) {
-        setCreateModalOpen(false);
-        setSelectedCreateEventType(null);
-        resetOfficeHourContext();
-        form.reset();
-        if ("warning" in result && result.warning) {
-          toast.warning(result.warning);
-        }
-        toast.success("Office hour scheduled. Redirected to Office Hours.");
-        router.push("/office-hours");
-      } else {
-        setError(result.error || "Failed to schedule office hour");
-      }
-
-      setLoading(false);
-      return;
-    }
-
     const result = await createEvent(formData);
 
     if (result.success) {
       setCreateModalOpen(false);
       setSelectedCreateEventType(null);
-      resetOfficeHourContext();
+      createDurationMinutesRef.current = 60;
       form.reset();
       if (result.warning) toast.warning(result.warning);
     } else {
@@ -489,9 +439,9 @@ export function EventsList({
           setCreateModalOpen(false);
           setSelectedCreateEventType(null);
           setError(null);
-          resetOfficeHourContext();
+          createDurationMinutesRef.current = 60;
         }}
-        title={selectedCreateEventType === "office_hour" ? "Create Office Hour" : "Create Event"}
+        title="Create Event"
       >
         <form onSubmit={handleCreateEvent} className="space-y-4">
           {error && (
@@ -511,11 +461,17 @@ export function EventsList({
                   key={option.value}
                   type="button"
                   onClick={() => {
+                    if (option.value === "office_hour") {
+                      setCreateModalOpen(false);
+                      setSelectedCreateEventType(null);
+                      setError(null);
+                      setOfficeHourModalOpen(true);
+                      return;
+                    }
+
                     setSelectedCreateEventType(option.value as EventType);
                     setError(null);
-                    if (option.value === "office_hour") {
-                      resetOfficeHourContext();
-                    }
+                    createDurationMinutesRef.current = 60;
                   }}
                   className="w-full rounded-md border px-3 py-3 text-left text-sm"
                   style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
@@ -524,141 +480,6 @@ export function EventsList({
                 </button>
               ))}
             </div>
-          ) : selectedCreateEventType === "office_hour" ? (
-            <>
-              {batchOptions.length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Batch</label>
-                  <select
-                    value={selectedAdminBatchId}
-                    onChange={(e) => void loadOfficeHourBatchContext(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border text-sm"
-                    style={{
-                      backgroundColor: "var(--color-background)",
-                      borderColor: "var(--color-border)",
-                      color: "var(--color-foreground)",
-                    }}
-                  >
-                    {batchOptions.map((batch) => (
-                      <option key={batch.id} value={batch.id}>{batch.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
-                <button
-                  type="button"
-                  onClick={() => { setScheduleMode("company"); setSelectedFounderId(""); }}
-                  style={{
-                    flex: 1,
-                    padding: "8px 12px",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    fontFamily: '"BDO Grotesk", sans-serif',
-                    border: "none",
-                    cursor: "pointer",
-                    backgroundColor: scheduleMode === "company" ? "#1A1A1A" : "transparent",
-                    color: scheduleMode === "company" ? "#FFFFFF" : "#666666",
-                    transition: "background-color 0.15s, color 0.15s",
-                  }}
-                >
-                  Company Team
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setScheduleMode("individual"); setSelectedCompanyId(""); }}
-                  style={{
-                    flex: 1,
-                    padding: "8px 12px",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    fontFamily: '"BDO Grotesk", sans-serif',
-                    border: "none",
-                    borderLeft: "1px solid #e0e0e0",
-                    cursor: "pointer",
-                    backgroundColor: scheduleMode === "individual" ? "#1A1A1A" : "transparent",
-                    color: scheduleMode === "individual" ? "#FFFFFF" : "#666666",
-                    transition: "background-color 0.15s, color 0.15s",
-                  }}
-                >
-                  Primary Founder
-                </button>
-              </div>
-
-              {scheduleMode === "company" ? (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Company</label>
-                  <select
-                    name="companyId"
-                    value={selectedCompanyId}
-                    onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-md border text-sm"
-                    style={{
-                      backgroundColor: "var(--color-background)",
-                      borderColor: "var(--color-border)",
-                      color: "var(--color-foreground)",
-                    }}
-                  >
-                    <option value="">Select company</option>
-                    {officeHourCompanies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name} ({company.memberCount} members)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <SearchableSelect
-                  label="Primary founder contact"
-                  options={officeHourFounders.map((founder) => ({
-                    id: founder.id,
-                    label: founder.name || founder.email,
-                    secondary: founder.companyName ? `${founder.email} - ${founder.companyName}` : founder.email,
-                    imageUrl: founder.profileImage,
-                  }))}
-                  value={selectedFounderId}
-                  onChange={setSelectedFounderId}
-                  placeholder="Search by founder name or email..."
-                  required
-                  emptyMessage="No founders found"
-                />
-              )}
-
-              <Input
-                label="Start Time"
-                name="startTime"
-                type="datetime-local"
-                required
-                defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
-              />
-              <Input
-                label="End Time"
-                name="endTime"
-                type="datetime-local"
-                required
-                defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
-              />
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Timezone</label>
-                <select
-                  name="timezone"
-                  defaultValue="KST"
-                  className="w-full px-3 py-2 rounded-md border text-sm"
-                  style={{
-                    backgroundColor: "var(--color-background)",
-                    borderColor: "var(--color-border)",
-                    color: "var(--color-foreground)",
-                  }}
-                >
-                  <option value="KST">KST (Korea Standard Time)</option>
-                  <option value="PST">PST (Pacific Standard Time)</option>
-                  <option value="EST">EST (Eastern Standard Time)</option>
-                  <option value="UTC">UTC</option>
-                </select>
-              </div>
-            </>
           ) : (
             <>
               <input type="hidden" name="eventType" value={selectedCreateEventType} />
@@ -679,14 +500,18 @@ export function EventsList({
                 name="startTime"
                 type="datetime-local"
                 required
-                defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+                ref={createStartTimeRef}
+                onChange={handleCreateStartTimeChange}
+                defaultValue={defaultStartDateTime}
               />
               <Input
                 label="End Time"
                 name="endTime"
                 type="datetime-local"
                 required
-                defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+                ref={createEndTimeRef}
+                onChange={handleCreateEndTimeChange}
+                defaultValue={defaultEndDateTime}
               />
               <Select
                 label="Timezone"
@@ -731,7 +556,6 @@ export function EventsList({
                 onClick={() => {
                   setSelectedCreateEventType(null);
                   setError(null);
-                  resetOfficeHourContext();
                 }}
               >
                 Back
@@ -744,21 +568,28 @@ export function EventsList({
                 setCreateModalOpen(false);
                 setSelectedCreateEventType(null);
                 setError(null);
-                resetOfficeHourContext();
               }}
             >
               Cancel
             </Button>
-            <Button type="submit" loading={loading || scheduleContextLoading} disabled={!selectedCreateEventType}>
-              {selectedCreateEventType === "office_hour"
-                ? scheduleMode === "individual"
-                  ? "Schedule & Send Invite"
-                  : "Schedule & Send Invites"
-                : "Create Event"}
+            <Button type="submit" loading={loading} disabled={!selectedCreateEventType}>
+              Create Event
             </Button>
           </div>
         </form>
       </Modal>
+
+      <OfficeHourSchedulerModal
+        open={officeHourModalOpen}
+        onClose={() => setOfficeHourModalOpen(false)}
+        batchOptions={batchOptions}
+        companies={companies}
+        founders={founders}
+        currentBatchId={currentBatchId}
+        defaultStartDateTime={defaultStartDateTime}
+        defaultEndDateTime={addMinutesToDateTimeLocalValue(defaultStartDateTime || "", 30) || undefined}
+        successBehavior="redirect-office-hours"
+      />
     </div>
   );
 }
