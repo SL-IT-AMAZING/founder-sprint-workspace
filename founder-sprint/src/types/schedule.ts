@@ -61,7 +61,7 @@ export interface ScheduleItem {
  */
 export const SCHEDULE_COLORS: Record<ScheduleItemKind, string> = {
   event: "#3B82F6",       // Blue
-  officeHour: "#22C55E",  // Green
+  officeHour: "#EF4444",  // Red
   session: "#A855F7",     // Purple
 };
 

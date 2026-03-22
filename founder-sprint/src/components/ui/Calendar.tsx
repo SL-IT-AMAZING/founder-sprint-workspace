@@ -186,16 +186,13 @@ export function Calendar({
                 background: isCurrentDay
                   ? "var(--color-primary)"
                   : isSelected
+                  && !filteredKindColor
                   ? "rgba(26, 26, 26, 0.06)"
-                  : filteredKindColor
-                  ? `${filteredKindColor}22`
                   : "transparent",
-                boxShadow: isSelected && !isCurrentDay
+                boxShadow: isSelected && !isCurrentDay && !filteredKindColor
                   ? "inset 0 0 0 2px var(--color-primary)"
-                  : filteredKindColor
-                  ? `inset 0 0 0 2px ${filteredKindColor}`
                   : "none",
-                borderRadius: filteredKindColor ? 8 : 6,
+                borderRadius: 6,
                 color: isCurrentDay
                   ? "white"
                   : isCurrentMonth
@@ -205,7 +202,24 @@ export function Calendar({
                 opacity: isCurrentMonth ? 1 : 0.5,
               }}
             >
-              <span style={{ fontSize: 14 }}>{format(day, "d")}</span>
+              <span
+                data-calendar-day-number="true"
+                style={{
+                  fontSize: 14,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: filteredKindColor ? 28 : undefined,
+                  height: filteredKindColor ? 28 : undefined,
+                  padding: filteredKindColor ? "0 6px" : 0,
+                  borderRadius: filteredKindColor ? 8 : 0,
+                  backgroundColor: filteredKindColor || "transparent",
+                  color: filteredKindColor ? "white" : undefined,
+                  lineHeight: 1,
+                }}
+              >
+                {format(day, "d")}
+              </span>
 
               {!isScheduleMode && legacyHasEvents && (
                 <span
