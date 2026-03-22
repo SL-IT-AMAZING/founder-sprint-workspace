@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { format, parseISO } from "date-fns";
+import { useRef, useState, useTransition, type FormEvent } from "react";
+import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
@@ -11,9 +11,8 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { CompanySelect } from "@/components/ui/CompanySelect";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { OfficeHourSchedulerModal } from "@/components/office-hours/OfficeHourSchedulerModal";
 import { createEvent } from "@/actions/event";
-import { scheduleGroupOfficeHour, scheduleIndividualOfficeHour, getOfficeHourBatchContext } from "@/actions/office-hour";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
 import {
@@ -24,6 +23,7 @@ import {
   getVisibleScheduleFilterForItem,
 } from "@/types/schedule";
 import { displayRangeInUserTimezone } from "@/lib/timezone";
+import { addMinutesToDateTimeLocalValue, getDateTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 interface DayPanelProps {
   items: ScheduleItem[];
@@ -77,7 +77,6 @@ function getStatusVariant(
   }
 }
 
-type CreateType = "event" | "officeHour";
 type EventCreateKind = "in_person" | "virtual" | "general_session";
 
 const timezoneOptions = [
@@ -88,144 +87,88 @@ const timezoneOptions = [
 
 export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, groupOptions, currentBatchId }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [createType, setCreateType] = useState<CreateType | null>(null);
   const [selectedEventType, setSelectedEventType] = useState<EventCreateKind | null>(null);
+  const [officeHourModalOpen, setOfficeHourModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const [ohMode, setOhMode] = useState<"company" | "individual">("company");
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
-  const [selectedFounderId, setSelectedFounderId] = useState<string>("");
-  const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
-  const [officeHourCompanies, setOfficeHourCompanies] = useState<CompanyOption[]>(companies);
-  const [officeHourFounders, setOfficeHourFounders] = useState<FounderOption[]>(founders);
-  const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
+  const createStartTimeRef = useRef<HTMLInputElement>(null);
+  const createEndTimeRef = useRef<HTMLInputElement>(null);
+  const createDurationMinutesRef = useRef(60);
 
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
   const defaultStartDateTime = dateStr ? `${dateStr}T09:00` : undefined;
-  const defaultEndDateTime = dateStr ? `${dateStr}T10:00` : undefined;
-  const loadOfficeHourBatchContext = async (batchId: string) => {
-    setScheduleContextLoading(true);
-    const result = await getOfficeHourBatchContext(batchId);
-
-    if (result.success) {
-      setSelectedAdminBatchId(batchId);
-      setOfficeHourCompanies(result.data.companies);
-      setOfficeHourFounders(result.data.founders);
-      setSelectedCompanyId("");
-      setSelectedFounderId("");
-      setError(null);
-    } else {
-      setError(result.error);
-    }
-
-    setScheduleContextLoading(false);
-  };
-
-  const resetOfficeHourContext = () => {
-    setSelectedAdminBatchId(currentBatchId);
-    setOfficeHourCompanies(companies);
-    setOfficeHourFounders(founders);
-    setSelectedCompanyId("");
-    setSelectedFounderId("");
-  };
+  const defaultEndDateTime = defaultStartDateTime
+    ? addMinutesToDateTimeLocalValue(defaultStartDateTime, 60)
+    : undefined;
 
   const createTitle =
-    createType === "event"
-      ? selectedEventType === "in_person"
-        ? "Create Event: In-person"
-        : selectedEventType === "virtual"
+    selectedEventType === "in_person"
+      ? "Create Event: In-person"
+      : selectedEventType === "virtual"
         ? "Create Event: Virtual"
-        : "Create General Session"
-      : createType === "officeHour"
-      ? "Create Office Hour"
-      : "Create";
+        : selectedEventType === "general_session"
+          ? "Create General Session"
+          : "Create";
 
   const createButtonLabel =
-    createType === "event"
-      ? selectedEventType === "general_session"
-        ? "Create General Session"
-        : "Create Event"
-      : createType === "officeHour"
-      ? "Create Office Hour"
-      : "Create";
+    selectedEventType === "general_session" ? "Create General Session" : "Create Event";
 
-  const handleCreate = (nextType: CreateType, eventType?: EventCreateKind) => {
-    setCreateType(nextType);
-    setSelectedEventType(eventType ?? null);
+  const handleCreate = (eventType: EventCreateKind) => {
+    setSelectedEventType(eventType);
     setError(null);
-    if (nextType === "officeHour") {
-      resetOfficeHourContext();
-    }
+    createDurationMinutesRef.current = 60;
     setCreateOpen(false);
   };
 
   const handleCloseModal = () => {
-    setCreateType(null);
     setSelectedEventType(null);
     setError(null);
-    setOhMode("company");
-    resetOfficeHourContext();
+    createDurationMinutesRef.current = 60;
+  };
+
+  const handleCreateStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!createEndTimeRef.current || !e.target.value) {
+      return;
+    }
+
+    const nextEndValue = addMinutesToDateTimeLocalValue(
+      e.target.value,
+      createDurationMinutesRef.current
+    );
+
+    if (nextEndValue) {
+      createEndTimeRef.current.value = nextEndValue;
+    }
+  };
+
+  const handleCreateEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (createStartTimeRef.current && e.target.value) {
+      const nextDuration = getDateTimeRangeDurationMinutes(createStartTimeRef.current.value, e.target.value);
+      if (nextDuration) {
+        createDurationMinutesRef.current = nextDuration;
+      }
+    }
   };
 
   const handleCreateSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!createType) return;
+    if (!selectedEventType) return;
 
     setError(null);
     const formData = new FormData(e.currentTarget);
 
-    if (createType === "event") {
-      if (!selectedEventType) {
-        setError("Please choose an event type");
-        return;
-      }
-      const startTime = formData.get("startTime") as string;
-      const endTime = formData.get("endTime") as string;
-      if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
-        setError("End time must be after start time");
-        return;
-      }
-    }
-
-    if (createType === "officeHour") {
-      if (ohMode === "individual" && !selectedFounderId) {
-        setError("Please select a founder");
-        return;
-      }
-      if (ohMode === "company" && !selectedCompanyId) {
-        setError("Please select a company");
-        return;
-      }
-      const startTime = formData.get("startTime") as string;
-      const endTime = formData.get("endTime") as string;
-      if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
-        setError("End time must be after start time");
-        return;
-      }
+    const startTime = formData.get("startTime") as string;
+    const endTime = formData.get("endTime") as string;
+    if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+      setError("End time must be after start time");
+      return;
     }
 
     startTransition(() => {
       void (async () => {
-        let result: Awaited<ReturnType<typeof createEvent>> | Awaited<ReturnType<typeof scheduleGroupOfficeHour>> | Awaited<ReturnType<typeof scheduleIndividualOfficeHour>> | null = null;
-        if (createType === "event") {
-          formData.set("eventType", selectedEventType!);
-          result = await createEvent(formData);
-        } else if (createType === "officeHour") {
-          formData.set("batchId", selectedAdminBatchId);
-          if (ohMode === "individual") {
-            formData.set("founderId", selectedFounderId);
-            result = await scheduleIndividualOfficeHour(formData);
-          } else {
-            formData.set("companyId", selectedCompanyId);
-            result = await scheduleGroupOfficeHour(formData);
-          }
-        }
-
-        if (!result) {
-          setError("Failed to create item");
-          return;
-        }
+        formData.set("eventType", selectedEventType);
+        const result = await createEvent(formData);
 
         if (result.success) {
           if ('warning' in result && result.warning) {
@@ -456,7 +399,15 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               ].map((opt) => (
                 <button
                   key={opt.label}
-                  onClick={() => handleCreate(opt.type, opt.eventType)}
+                  onClick={() => {
+                    if (opt.type === "officeHour") {
+                      setCreateOpen(false);
+                      setOfficeHourModalOpen(true);
+                      return;
+                    }
+
+                    handleCreate(opt.eventType!);
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -494,7 +445,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
         </div>
       )}
 
-      <Modal open={createType !== null} onClose={handleCloseModal} title={createTitle}>
+      <Modal open={selectedEventType !== null} onClose={handleCloseModal} title={createTitle}>
         <form onSubmit={handleCreateSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {error && (
             <div
@@ -512,7 +463,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
             </div>
           )}
 
-          {createType === "event" && (
+          {selectedEventType !== null && (
             <>
               <Input label="Title" name="title" required placeholder="Event title" />
               <Textarea
@@ -526,6 +477,8 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                 name="startTime"
                 type="datetime-local"
                 required
+                ref={createStartTimeRef}
+                onChange={handleCreateStartTimeChange}
                 defaultValue={defaultStartDateTime}
               />
               <Input
@@ -533,6 +486,8 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                 name="endTime"
                 type="datetime-local"
                 required
+                ref={createEndTimeRef}
+                onChange={handleCreateEndTimeChange}
                 defaultValue={defaultEndDateTime}
               />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
@@ -559,87 +514,6 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
             </>
           )}
 
-          {createType === "officeHour" && (
-            <>
-              {/* Mode toggle */}
-              {batchOptions.length > 0 && (
-                <Select
-                  label="Batch"
-                  value={selectedAdminBatchId}
-                  onChange={(e) => void loadOfficeHourBatchContext(e.target.value)}
-                  options={batchOptions.map((batch) => ({ value: batch.id, label: batch.name }))}
-                  required
-                />
-              )}
-
-              <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
-                <button
-                  type="button"
-                  onClick={() => { setOhMode("company"); setSelectedFounderId(""); }}
-                  style={{
-                    flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
-                    fontFamily: '"BDO Grotesk", sans-serif', border: "none", cursor: "pointer",
-                    backgroundColor: ohMode === "company" ? "#1A1A1A" : "transparent",
-                    color: ohMode === "company" ? "#FFFFFF" : "#666666",
-                    transition: "background-color 0.15s, color 0.15s",
-                  }}
-                >
-                  Company Team
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setOhMode("individual"); setSelectedCompanyId(""); }}
-                  style={{
-                    flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 500,
-                    fontFamily: '"BDO Grotesk", sans-serif', border: "none",
-                    borderLeft: "1px solid #e0e0e0", cursor: "pointer",
-                    backgroundColor: ohMode === "individual" ? "#1A1A1A" : "transparent",
-                    color: ohMode === "individual" ? "#FFFFFF" : "#666666",
-                    transition: "background-color 0.15s, color 0.15s",
-                  }}
-                >
-                  Primary Founder
-                </button>
-              </div>
-
-              {/* Company or Founder dropdown */}
-              {ohMode === "company" ? (
-                <SearchableSelect
-                  label="Company"
-                  options={officeHourCompanies.map((c) => ({
-                    id: c.id,
-                    label: c.name,
-                    secondary: `${c.memberCount} members`,
-                  }))}
-                  value={selectedCompanyId}
-                  onChange={setSelectedCompanyId}
-                  placeholder="Search for a company..."
-                  required
-                  emptyMessage="No companies found"
-                />
-              ) : (
-                <SearchableSelect
-                  label="Primary founder contact"
-                  options={officeHourFounders.map((f) => ({
-                    id: f.id,
-                    label: f.name || f.email,
-                    secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
-                    imageUrl: f.profileImage,
-                  }))}
-                  value={selectedFounderId}
-                  onChange={setSelectedFounderId}
-                  placeholder="Search by founder name or email..."
-                  required
-                  emptyMessage="No founders found"
-                />
-              )}
-
-              <Input label="Start Time" name="startTime" type="datetime-local" required defaultValue={defaultStartDateTime} />
-              <Input label="End Time" name="endTime" type="datetime-local" required defaultValue={defaultEndDateTime} />
-              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
-            </>
-          )}
-
           <div
             style={{
               marginTop: 4,
@@ -653,12 +527,23 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
             <Button type="button" variant="secondary" onClick={handleCloseModal}>
               Cancel
             </Button>
-            <Button type="submit" loading={isPending || scheduleContextLoading}>
+            <Button type="submit" loading={isPending}>
               {createButtonLabel}
             </Button>
           </div>
         </form>
       </Modal>
+
+      <OfficeHourSchedulerModal
+        open={officeHourModalOpen}
+        onClose={() => setOfficeHourModalOpen(false)}
+        batchOptions={batchOptions}
+        companies={companies}
+        founders={founders}
+        currentBatchId={currentBatchId}
+        defaultStartDateTime={defaultStartDateTime}
+        defaultEndDateTime={addMinutesToDateTimeLocalValue(defaultStartDateTime || "", 30) || defaultEndDateTime}
+      />
     </div>
   );
 }

@@ -13,9 +13,10 @@ interface BatchSelectProps {
   batches: BatchOption[];
   selectedBatchIds?: string[];
   required?: boolean;
+  onSelectionChange?: (selection: { mode: "all" | "specific"; batchIds: string[] }) => void;
 }
 
-export function BatchSelect({ batches, selectedBatchIds, required = true }: BatchSelectProps) {
+export function BatchSelect({ batches, selectedBatchIds, required = true, onSelectionChange }: BatchSelectProps) {
   const hasPreselection = selectedBatchIds && selectedBatchIds.length > 0;
   const [mode, setMode] = useState<"all" | "specific">(hasPreselection ? "specific" : "all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -62,6 +63,10 @@ export function BatchSelect({ batches, selectedBatchIds, required = true }: Batc
     .reduce((sum, b) => sum + b.memberCount, 0);
 
   const totalMembers = batches.reduce((sum, b) => sum + b.memberCount, 0);
+
+  useEffect(() => {
+    onSelectionChange?.({ mode, batchIds: Array.from(selectedIds) });
+  }, [mode, selectedIds, onSelectionChange]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

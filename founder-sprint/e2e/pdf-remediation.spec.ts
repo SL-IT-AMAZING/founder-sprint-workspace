@@ -49,10 +49,10 @@ test.describe("PDF remediation", () => {
     await adminPage.getByRole("button", { name: "In-person" }).click();
     await expect(adminPage).toHaveURL(/type=in_person/);
     await adminPage.waitForLoadState("networkidle");
-    const highlightedCount = await adminPage.locator('button[aria-label]').evaluateAll((nodes) =>
+    const highlightedCount = await adminPage.locator('button[aria-label] [data-calendar-day-number="true"]').evaluateAll((nodes) =>
       nodes.filter((node) => {
         const style = window.getComputedStyle(node as HTMLElement);
-        return style.boxShadow !== "none" && style.borderRadius === "8px";
+        return style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.borderRadius === "8px";
       }).length
     );
 

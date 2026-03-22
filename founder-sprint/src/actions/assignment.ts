@@ -7,6 +7,7 @@ import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } fr
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 import { sendAssignmentPublishedEmail, sendAssignmentFeedbackEmail, sendAssignmentDeadlineReminderEmail, sendSubmissionCompletedEmail } from "@/lib/email";
+import { getUserCompanyIds } from "@/actions/company";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -20,7 +21,6 @@ const CreateAssignmentSchema = z.object({
   description: z.string().min(1).max(5000),
   templateUrl: z.string().url().optional().or(z.literal("")),
   dueDate: DateStringSchema.transform((s) => new Date(s)),
-  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
 
 const SubmitAssignmentSchema = z.object({
@@ -38,50 +38,31 @@ const SubmitAssignmentSchema = z.object({
 type AssignmentTargetsResult =
   | { error: string }
   | {
-      targetGroupId: string | null;
-      targetUserIds: string[];
+      targetCompanyIds: string[];
     };
 
 async function resolveAssignmentTargets(batchId: string, formData: FormData): Promise<AssignmentTargetsResult> {
-  const targetGroupIdRaw = (formData.get("targetGroupId") as string | null)?.trim() || "";
-  const targetUserIdsRaw = formData
-    .getAll("targetUserIds")
+  const targetCompanyIdsRaw = formData
+    .getAll("companyIds")
     .map((value) => value.toString().trim())
     .filter(Boolean);
-  const targetUserIds = [...new Set(targetUserIdsRaw)];
+  const targetCompanyIds = [...new Set(targetCompanyIdsRaw)];
 
-  if (targetGroupIdRaw && targetUserIds.length > 0) {
-    return { error: "Choose either a target group or specific users, not both." };
-  }
-
-  if (targetGroupIdRaw) {
-    const group = await prisma.group.findFirst({
-      where: { id: targetGroupIdRaw, batchId },
-      select: { id: true },
-    });
-    if (!group) {
-      return { error: "Selected target group is invalid for this batch." };
-    }
-  }
-
-  if (targetUserIds.length > 0) {
-    const batchUsers = await prisma.userBatch.findMany({
+  if (targetCompanyIds.length > 0) {
+    const batchCompanies = await prisma.companyBatch.findMany({
       where: {
         batchId,
-        status: "active",
-        role: { in: ["founder", "co_founder"] },
-        userId: { in: targetUserIds },
+        companyId: { in: targetCompanyIds },
       },
-      select: { userId: true },
+      select: { companyId: true },
     });
-    if (batchUsers.length !== targetUserIds.length) {
-      return { error: "Some selected users are not active founders in this batch." };
+    if (batchCompanies.length !== targetCompanyIds.length) {
+      return { error: "Some selected companies are invalid for this batch." };
     }
   }
 
   return {
-    targetGroupId: targetGroupIdRaw || null,
-    targetUserIds,
+    targetCompanyIds,
   };
 }
 
@@ -90,17 +71,9 @@ async function getAssignmentRecipientUsers(assignment: {
   title: string;
   batchId: string;
   dueDate: Date;
-  targetGroupId: string | null;
-  targetUserIds: string[];
+  targetCompanyIds: string[];
 }) {
-  if (assignment.targetUserIds.length > 0) {
-    return prisma.user.findMany({
-      where: { id: { in: assignment.targetUserIds }, status: "active" },
-      select: { id: true, email: true, name: true },
-    });
-  }
-
-  if (assignment.targetGroupId) {
+  if (assignment.targetCompanyIds.length > 0) {
     return prisma.user.findMany({
       where: {
         status: "active",
@@ -111,8 +84,8 @@ async function getAssignmentRecipientUsers(assignment: {
             role: { in: ["founder", "co_founder"] },
           },
         },
-        groupMembers: {
-          some: { groupId: assignment.targetGroupId },
+        companyMemberships: {
+          some: { companyId: { in: assignment.targetCompanyIds }, isCurrent: true },
         },
       },
       select: { id: true, email: true, name: true },
@@ -226,7 +199,6 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     description: formData.get("description"),
     templateUrl: formData.get("templateUrl") || undefined,
     dueDate: formData.get("dueDate"),
-    targetGroupId: formData.get("targetGroupId") || undefined,
   });
 
   if (!parsed.success) {
@@ -267,7 +239,7 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
   if ("error" in targets) {
     return { success: false, error: (targets as { error: string }).error };
   }
-  const resolvedTargets: { targetGroupId: string | null; targetUserIds: string[] } = targets;
+  const resolvedTargets: { targetCompanyIds: string[] } = targets;
 
   const assignment = await prisma.assignment.create({
     data: {
@@ -275,8 +247,9 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
       title: parsed.data.title,
       description: parsed.data.description,
       templateUrl: parsed.data.templateUrl || null,
-      targetGroupId: resolvedTargets.targetGroupId,
-      targetUserIds: resolvedTargets.targetUserIds,
+      targetGroupId: null,
+      targetUserIds: [],
+      targetCompanyIds: resolvedTargets.targetCompanyIds,
       dueDate: normalizedDueDate,
     },
   });
@@ -286,8 +259,7 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     title: assignment.title,
     batchId: assignment.batchId,
     dueDate: assignment.dueDate,
-    targetGroupId: assignment.targetGroupId,
-    targetUserIds: assignment.targetUserIds,
+    targetCompanyIds: assignment.targetCompanyIds,
   });
 
   if (recipients.length > 0) {
@@ -326,7 +298,6 @@ const UpdateAssignmentSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().min(1).max(5000).optional(),
   dueDate: DateStringSchema.transform((s) => new Date(s)).optional(),
-  targetGroupId: z.string().uuid().optional().or(z.literal("")),
 });
 
 export async function updateAssignment(
@@ -353,7 +324,6 @@ export async function updateAssignment(
     title: formData.get("title") || undefined,
     description: formData.get("description") || undefined,
     dueDate: formData.get("dueDate") || undefined,
-    targetGroupId: formData.get("targetGroupId") || undefined,
   });
 
   if (!parsed.success) {
@@ -379,9 +349,10 @@ export async function updateAssignment(
   if ("error" in targets) {
     return { success: false, error: (targets as { error: string }).error };
   }
-  const resolvedTargets: { targetGroupId: string | null; targetUserIds: string[] } = targets;
-  updateData.targetGroupId = resolvedTargets.targetGroupId;
-  updateData.targetUserIds = resolvedTargets.targetUserIds;
+  const resolvedTargets: { targetCompanyIds: string[] } = targets;
+  updateData.targetGroupId = null;
+  updateData.targetUserIds = [];
+  updateData.targetCompanyIds = resolvedTargets.targetCompanyIds;
 
   await prisma.assignment.update({
     where: { id: assignmentId },
@@ -427,11 +398,12 @@ export async function getAssignments(batchId?: string) {
   const user = await getCurrentUser();
   if (!user) return [];
 
+  const userCompanyIds = isFounder(user.role) ? await getUserCompanyIds(user.id) : [];
+
   const founderVisibilityWhere = {
     OR: [
-      { targetGroupId: null, targetUserIds: { isEmpty: true } },
-      { targetUserIds: { has: user.id } },
-      { targetGroup: { members: { some: { userId: user.id } } } },
+      { targetCompanyIds: { isEmpty: true } },
+      ...(userCompanyIds.length > 0 ? [{ targetCompanyIds: { hasSome: userCompanyIds } }] : []),
     ],
   };
 
@@ -443,7 +415,6 @@ export async function getAssignments(batchId?: string) {
           orderBy: { dueDate: "desc" },
           include: {
             batch: { select: { id: true, name: true } },
-            targetGroup: { select: { id: true, name: true } },
             _count: { select: { submissions: true } },
           },
         }),
@@ -463,12 +434,11 @@ export async function getAssignments(batchId?: string) {
         ...founderVisibilityWhere,
       },
       orderBy: { dueDate: "desc" },
-      include: {
-        batch: { select: { id: true, name: true } },
-        targetGroup: { select: { id: true, name: true } },
-        _count: { select: { submissions: true } },
-      },
-    });
+        include: {
+          batch: { select: { id: true, name: true } },
+          _count: { select: { submissions: true } },
+        },
+      });
   }
 
   return unstable_cache(
@@ -478,7 +448,6 @@ export async function getAssignments(batchId?: string) {
         orderBy: { dueDate: "desc" },
         include: {
           batch: { select: { id: true, name: true } },
-          targetGroup: { select: { id: true, name: true } },
           _count: { select: { submissions: true } },
         },
       }),
@@ -489,48 +458,32 @@ export async function getAssignments(batchId?: string) {
 
 export async function getAssignmentTargetOptions(batchId?: string) {
   const user = await getCurrentUser();
-  if (!user) return { groups: [], users: [] };
+  if (!user) return { companies: [] };
 
   const targetBatchId = batchId || user.batchId;
   if (!isAdmin(user.role) && user.batchId !== targetBatchId) {
-    return { groups: [], users: [] };
+    return { companies: [] };
   }
 
-  const [groups, users] = await Promise.all([
-    prisma.group.findMany({
-      where: { batchId: targetBatchId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.userBatch.findMany({
-      where: {
-        batchId: targetBatchId,
-        status: "active",
-        role: { in: ["founder", "co_founder"] },
+  const companies = await prisma.company.findMany({
+    where: {
+      batches: {
+        some: { batchId: targetBatchId },
       },
-      select: {
-        userId: true,
-        role: true,
-        user: {
-          select: {
-            name: true,
-            email: true,
-            profileImage: true,
-          },
-        },
-      },
-      orderBy: [{ role: "asc" }, { user: { name: "asc" } }],
-    }),
-  ]);
+    },
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { members: { where: { isCurrent: true } } } },
+    },
+    orderBy: { name: "asc" },
+  });
 
   return {
-    groups,
-    users: users.map((ub) => ({
-      id: ub.userId,
-      name: ub.user.name,
-      email: ub.user.email,
-      profileImage: ub.user.profileImage,
-      role: ub.role,
+    companies: companies.map((company) => ({
+      id: company.id,
+      name: company.name,
+      memberCount: company._count.members,
     })),
   };
 }
@@ -545,8 +498,7 @@ export async function getAssignmentNonSubmitters(assignmentId: string) {
       ...(isAdmin(user.role) ? {} : { batchId: { in: user.userBatchIds } }),
     },
     select: {
-      targetGroupId: true,
-      targetUserIds: true,
+      targetCompanyIds: true,
       submissions: {
         select: { authorId: true },
       },
@@ -565,17 +517,12 @@ export async function getAssignmentNonSubmitters(assignmentId: string) {
                   name: true,
                   email: true,
                   profileImage: true,
+                  companyMemberships: {
+                    where: { isCurrent: true },
+                    select: { companyId: true },
+                  },
                 },
               },
-            },
-          },
-        },
-      },
-      targetGroup: {
-        select: {
-          members: {
-            select: {
-              userId: true,
             },
           },
         },
@@ -590,12 +537,10 @@ export async function getAssignmentNonSubmitters(assignmentId: string) {
   const submittedIdSet = new Set(assignment.submissions.map((submission) => submission.authorId));
 
   let expectedIds: string[];
-  if (assignment.targetUserIds.length > 0) {
-    expectedIds = assignment.targetUserIds.filter((id) => founderIdSet.has(id));
-  } else if (assignment.targetGroupId) {
-    expectedIds = (assignment.targetGroup?.members || [])
-      .map((member) => member.userId)
-      .filter((id) => founderIdSet.has(id));
+  if (assignment.targetCompanyIds.length > 0) {
+    expectedIds = foundersInBatch
+      .filter((ub) => ub.user.companyMemberships.some((membership) => assignment.targetCompanyIds.includes(membership.companyId)))
+      .map((ub) => ub.userId);
   } else {
     expectedIds = Array.from(founderIdSet);
   }
@@ -662,12 +607,6 @@ export async function getAssignment(id: string) {
       ...(isAdmin(user.role) ? {} : { batchId: { in: user.userBatchIds } }),
     },
     include: {
-      targetGroup: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
       submissions: {
         include: {
           author: true,
@@ -695,16 +634,11 @@ export async function getAssignment(id: string) {
   if (!assignment) return null;
 
   if (isFounder(user.role)) {
-    const isDirectTarget = assignment.targetUserIds.includes(user.id);
-    const isOpenToAll = !assignment.targetGroupId && assignment.targetUserIds.length === 0;
-    const inTargetGroup = assignment.targetGroupId
-      ? !!(await prisma.groupMember.findFirst({
-          where: { groupId: assignment.targetGroupId, userId: user.id },
-          select: { id: true },
-        }))
-      : false;
+    const userCompanyIds = await getUserCompanyIds(user.id);
+    const isOpenToAll = assignment.targetCompanyIds.length === 0;
+    const inTargetCompanies = assignment.targetCompanyIds.some((companyId) => userCompanyIds.includes(companyId));
 
-    if (!isOpenToAll && !isDirectTarget && !inTargetGroup) {
+    if (!isOpenToAll && !inTargetCompanies) {
       return null;
     }
   }
@@ -738,7 +672,7 @@ export async function submitAssignment(
   // Check if assignment exists and get due date
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
-    select: { id: true, title: true, dueDate: true, batchId: true, targetGroupId: true, targetUserIds: true },
+    select: { id: true, title: true, dueDate: true, batchId: true, targetCompanyIds: true },
   });
 
   if (!assignment) {
@@ -748,16 +682,11 @@ export async function submitAssignment(
   const now = new Date();
   const isLate = now > assignment.dueDate;
 
-  const isTargetedToUser = assignment.targetUserIds.includes(user.id);
-  const isOpenToAll = !assignment.targetGroupId && assignment.targetUserIds.length === 0;
-  const inTargetGroup = assignment.targetGroupId
-    ? !!(await prisma.groupMember.findFirst({
-        where: { groupId: assignment.targetGroupId, userId: user.id },
-        select: { id: true },
-      }))
-    : false;
+  const userCompanyIds = await getUserCompanyIds(user.id);
+  const isOpenToAll = assignment.targetCompanyIds.length === 0;
+  const inTargetCompanies = assignment.targetCompanyIds.some((companyId) => userCompanyIds.includes(companyId));
 
-  if (!isOpenToAll && !isTargetedToUser && !inTargetGroup) {
+  if (!isOpenToAll && !inTargetCompanies) {
     return { success: false, error: "You are not in the target scope for this assignment" };
   }
 

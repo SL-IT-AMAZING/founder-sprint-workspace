@@ -65,37 +65,6 @@ interface RequesterStats {
   isBatchActive: boolean;
 }
 
-async function resolveTargetFounderIds(batchId: string, formData: FormData) {
-  const rawIds = formData.getAll("targetFounderIds").filter((value): value is string => typeof value === "string");
-  const founderIds = [...new Set(rawIds.map((value) => value.trim()).filter(Boolean))];
-
-  if (founderIds.length === 0) {
-    return { success: true as const, founderIds: [] as string[] };
-  }
-
-  const memberships = await prisma.userBatch.findMany({
-    where: {
-      batchId,
-      status: "active",
-      userId: { in: founderIds },
-      OR: [
-        { role: "founder" },
-        { role: "co_founder" },
-        { additionalRoles: { has: "founder" } },
-        { additionalRoles: { has: "co_founder" } },
-      ],
-    },
-    select: { userId: true },
-  });
-
-  const validFounderIds = memberships.map((membership) => membership.userId);
-  if (validFounderIds.length !== founderIds.length) {
-    return { success: false as const, error: "Some selected founders are invalid for this batch." };
-  }
-
-  return { success: true as const, founderIds: validFounderIds };
-}
-
 async function recalculateSlotStatus(slotId: string) {
   const slot = await prisma.officeHourSlot.findUnique({
     where: { id: slotId },
@@ -324,7 +293,7 @@ export async function grantOfficeHourCredits(
   return { success: true, data: undefined };
 }
 
-export async function scheduleGroupOfficeHour(formData: FormData) {
+export async function scheduleGroupOfficeHour(formData: FormData): Promise<ActionResult<{ id: string }>> {
   // 1. Auth check — staff only (admin/super_admin/mentor)
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Authentication required" };
@@ -351,8 +320,6 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   const timezone = timezoneMap[timezoneInput] || "UTC";
   const targetBatch = await resolveTargetBatchId(user, requestedBatchId);
   if (!targetBatch.success) return targetBatch;
-  const targetFounders = await resolveTargetFounderIds(targetBatch.batchId, formData);
-  if (!targetFounders.success) return { success: false, error: targetFounders.error };
 
   // 4. Validate time (30-min slot, not in past)
   const start = new Date(startTime);
@@ -398,8 +365,9 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
         endTime: end,
         timezone,
         status: "confirmed",
+        slotMode: "direct_company",
         companyId,
-        targetFounderIds: targetFounders.founderIds,
+        targetFounderIds: [],
       },
     });
 
@@ -513,8 +481,9 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
         startTime: start,
         endTime: end,
         timezone,
-       status: "confirmed",
-       targetFounderIds: [founder.id],
+        status: "confirmed",
+        slotMode: "direct_founder",
+        targetFounderIds: [founder.id],
       },
     });
 
@@ -559,6 +528,62 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
   } catch (error) {
     console.error("[scheduleIndividualOfficeHour] Error:", error);
     return { success: false, error: "Failed to schedule individual office hour" };
+  }
+}
+
+export async function createOpenBatchOfficeHour(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Authentication required" };
+  if (!canCreateOfficeHourSlot(user.role)) return { success: false, error: "Insufficient permissions" };
+
+  const startTime = formData.get("startTime") as string;
+  const endTime = formData.get("endTime") as string;
+  const timezoneInput = formData.get("timezone") as string;
+  const requestedBatchId = formData.get("batchId") as string | null;
+
+  if (!startTime || !endTime) {
+    return { success: false, error: "Start time and end time are required" };
+  }
+
+  const timezone = TIMEZONE_MAP[timezoneInput?.toUpperCase()] || toIanaTimezone(timezoneInput || "UTC");
+  const targetBatch = await resolveTargetBatchId(user, requestedBatchId);
+  if (!targetBatch.success) return targetBatch;
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { success: false, error: "Invalid date format" };
+  }
+
+  const durationMs = end.getTime() - start.getTime();
+  if (durationMs <= 0 || durationMs > 60 * 60 * 1000) {
+    return { success: false, error: "Office hour slots must be 1 hour or less" };
+  }
+
+  if (start < new Date()) {
+    return { success: false, error: "Cannot schedule office hours in the past" };
+  }
+
+  try {
+    const slot = await prisma.officeHourSlot.create({
+      data: {
+        batchId: targetBatch.batchId,
+        hostId: user.id,
+        startTime: start,
+        endTime: end,
+        timezone,
+        status: "available",
+        slotMode: "open_batch",
+        targetFounderIds: [],
+      },
+    });
+
+    revalidateTag(`office-hours-${targetBatch.batchId}`);
+    revalidateSchedule(targetBatch.batchId);
+    return { success: true, data: { id: slot.id } };
+  } catch (error) {
+    console.error("[createOpenBatchOfficeHour] Error:", error);
+    return { success: false, error: "Failed to create open office hour" };
   }
 }
 
@@ -781,9 +806,22 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
       });
       const companyIds = new Set(userCompanies.map((c) => c.companyId));
       filteredSlots = filteredSlots.filter((s) => {
-        const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
         const matchesDirectRequest = s.requests.some((request) => request.requester.id === userId);
+        const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
         const matchesTargetedFounder = s.targetFounderIds.length === 0 || s.targetFounderIds.includes(userId);
+
+        if (s.slotMode === "open_batch") {
+          if (s.status === "available" && !s.companyId) {
+            return true;
+          }
+
+          return matchesCompany || matchesDirectRequest;
+        }
+
+        if (s.slotMode === "direct_founder") {
+          return s.targetFounderIds.includes(userId) || matchesDirectRequest;
+        }
+
         return (matchesCompany && matchesTargetedFounder) || matchesDirectRequest;
       });
     }
@@ -890,8 +928,115 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
       return { success: false, error: "Office hour slot not found" };
     }
 
+    if (slot.batchId !== user.batchId) {
+      return { success: false, error: "Unauthorized batch access" };
+    }
+
     if (slot.targetFounderIds.length > 0 && !slot.targetFounderIds.includes(user.id)) {
       return { success: false, error: "This office hour is not open to you" };
+    }
+
+    if (slot.slotMode !== "open_batch" && slot.companyId && slot.companyId !== companyId) {
+      return { success: false, error: "This office hour is tied to a different company" };
+    }
+
+    if (slot.slotMode === "open_batch") {
+      if (slot.status !== "available" || slot.companyId) {
+        return { success: false, error: "This slot is no longer available" };
+      }
+
+      const company = await prisma.company.findFirst({
+        where: {
+          id: companyId,
+          batches: { some: { batchId: slot.batchId } },
+        },
+        include: {
+          members: {
+            where: { isCurrent: true },
+            include: {
+              user: {
+                select: { id: true, email: true, name: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!company) {
+        return { success: false, error: "Selected company is not part of this batch" };
+      }
+
+      const bookingResult = await prisma.$transaction(async (tx) => {
+        const updatedSlot = await tx.officeHourSlot.updateMany({
+          where: {
+            id: validated.slotId,
+            slotMode: "open_batch",
+            status: "available",
+            companyId: null,
+          },
+          data: {
+            companyId,
+            status: "confirmed",
+          },
+        });
+
+        if (updatedSlot.count === 0) {
+          return null;
+        }
+
+        return tx.officeHourRequest.create({
+          data: {
+            slotId: validated.slotId,
+            requesterId: user.id,
+            message: validated.message || null,
+            agenda: validated.agenda,
+            status: "approved",
+            respondedAt: new Date(),
+          },
+        });
+      });
+
+      if (!bookingResult) {
+        return { success: false, error: "This slot was booked by someone else" };
+      }
+
+      let warning: string | undefined;
+      const host = await prisma.user.findUnique({
+        where: { id: slot.hostId },
+        select: { email: true, name: true },
+      });
+
+      if (host) {
+        const attendeeEmails = [...new Set([host.email, ...company.members.map((member) => member.user.email)])];
+        const calResult = await createCalendarEventWithMeet({
+          summary: `Office Hour: ${host.name || host.email} × ${company.name}`,
+          description: validated.message
+            ? `Office hour session.\n\nFounder message: ${validated.message}`
+            : "Office hour session.",
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          attendeeEmails,
+          timezone: slot.timezone,
+        });
+
+        if (calResult?.meetLink || calResult?.eventId) {
+          await prisma.officeHourSlot.update({
+            where: { id: validated.slotId },
+            data: {
+              googleMeetLink: calResult.meetLink || "https://meet.google.com/new",
+              googleEventId: calResult.eventId || null,
+            },
+          });
+        } else {
+          warning = "Office hour booked, but Google Calendar invite failed. Check calendar configuration.";
+        }
+      }
+
+      revalidatePath("/office-hours");
+      revalidateTag(`office-hours-${slot.batchId}`);
+      revalidateSchedule(slot.batchId);
+
+      return { success: true, data: { id: bookingResult.id }, ...(warning ? { warning } : {}) };
     }
 
     // Allow requests on slots with status "available", "requested", or "confirmed" (waitlist case)
@@ -1019,7 +1164,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
 
       let warning: string | undefined;
 
-      if (isCalendarConfigured()) {
+      if (isCalendarConfigured() && !request.slot.googleEventId) {
         try {
           const [host, requester] = await Promise.all([
             prisma.user.findUnique({

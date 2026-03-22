@@ -42,6 +42,12 @@ enum OfficeHourSlotStatus {
   cancelled
 }
 
+enum OfficeHourSlotMode {
+  direct_company
+  direct_founder
+  open_batch
+}
+
 enum OfficeHourRequestStatus {
   pending
   waitlisted
@@ -259,6 +265,7 @@ model OfficeHourSlot {
   endTime        DateTime             @map("end_time")
   timezone       String               @default("UTC") @db.VarChar(50)
   status         OfficeHourSlotStatus @default(available)
+  slotMode       OfficeHourSlotMode   @default(direct_company) @map("slot_mode")
   googleMeetLink String?              @map("google_meet_link")
   googleEventId  String?              @map("google_event_id")
   createdAt      DateTime             @default(now()) @map("created_at")
@@ -330,6 +337,7 @@ model Session {
   recordingUrl  String?   @map("recording_url")
   googleEventId String?   @map("google_event_id")
   targetGroupId String?   @map("target_group_id") @db.Uuid
+  targetCompanyIds String[] @default([]) @map("target_company_ids")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -371,6 +379,7 @@ model Assignment {
   reviewCriteria String[] @default([]) @map("review_criteria")
   targetGroupId String? @map("target_group_id") @db.Uuid
   targetUserIds String[] @default([]) @map("target_user_ids")
+  targetCompanyIds String[] @default([]) @map("target_company_ids")
   dueDate     DateTime @map("due_date")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -466,6 +475,7 @@ model Event {
   batchId       String    @map("batch_id") @db.Uuid
   creatorId     String    @map("creator_id") @db.Uuid
   targetGroupId String?   @map("target_group_id") @db.Uuid
+  targetCompanyIds String[] @default([]) @map("target_company_ids")
   title         String    @db.VarChar(200)
   description   String?   @db.Text
   eventType     EventType @map("event_type")

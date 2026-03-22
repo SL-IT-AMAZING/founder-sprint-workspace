@@ -10,6 +10,7 @@ import { isCalendarConfigured, createCalendarEvent, createCalendarEventWithMeet,
 import { revalidateSchedule } from "@/lib/cache-helpers";
 import { toIanaTimezone } from "@/lib/timezone";
 import { fromZonedTime } from "date-fns-tz";
+import { getUserCompanyIds } from "@/actions/company";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -17,40 +18,39 @@ const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   description: z.string().max(2000).optional(),
   eventType: z.enum(["office_hour", "in_person", "virtual", "general_session"]),
-  targetGroupId: z.string().uuid().optional().or(z.literal("")),
   startTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid start time"),
   endTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid end time"),
   timezone: z.string().default("UTC"),
   location: z.string().optional(),
 });
 
-async function resolveEventTargetGroup(targetGroupIdRaw: string | undefined, batchIds: string[]) {
-  const targetGroupId = targetGroupIdRaw?.trim() || "";
-  if (!targetGroupId) return { targetGroupId: null } as const;
+async function resolveEventTargetCompanies(batchIds: string[], formData: FormData) {
+  const companyIds = [...new Set(formData.getAll("companyIds").map((value) => value.toString().trim()).filter(Boolean))];
+  if (companyIds.length === 0) return { targetCompanyIds: [] } as const;
 
   if (batchIds.length !== 1) {
-    return { error: "Scoped events must belong to exactly one batch." } as const;
+    return { error: "Specific companies can only be used when exactly one batch is selected." } as const;
   }
 
-  const group = await prisma.group.findFirst({
-    where: { id: targetGroupId, batchId: batchIds[0] },
-    select: { id: true },
+  const batchCompanies = await prisma.companyBatch.findMany({
+    where: { batchId: batchIds[0], companyId: { in: companyIds } },
+    select: { companyId: true },
   });
 
-  if (!group) {
-    return { error: "Selected target group is invalid for the chosen batch." } as const;
+  if (batchCompanies.length !== companyIds.length) {
+    return { error: "Some selected companies are invalid for the chosen batch." } as const;
   }
 
-  return { targetGroupId } as const;
+  return { targetCompanyIds: companyIds } as const;
 }
 
-async function getEventAttendeeEmails(userEmail: string, batchIds: string[], targetGroupId: string | null) {
-  if (targetGroupId) {
-    const groupMembers = await prisma.groupMember.findMany({
-      where: { groupId: targetGroupId },
+async function getEventAttendeeEmails(userEmail: string, batchIds: string[], targetCompanyIds: string[]) {
+  if (targetCompanyIds.length > 0) {
+    const companyMembers = await prisma.companyMember.findMany({
+      where: { companyId: { in: targetCompanyIds }, isCurrent: true },
       include: { user: { select: { email: true } } },
     });
-    return [...new Set([userEmail, ...groupMembers.map((m) => m.user.email)])];
+    return [...new Set([userEmail, ...companyMembers.map((m) => m.user.email)])];
   }
 
   const batchUsers = await prisma.userBatch.findMany({
@@ -91,7 +91,6 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
       title: formData.get("title") as string,
       description: formData.get("description") as string | undefined,
       eventType: formData.get("eventType") as EventType,
-      targetGroupId: (formData.get("targetGroupId") as string) || undefined,
       startTime: formData.get("startTime") as string,
       endTime: formData.get("endTime") as string,
       timezone: (formData.get("timezone") as string) || "UTC",
@@ -99,9 +98,9 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     };
 
      const validated = eventSchema.parse(data);
-     const resolvedTargetGroup = await resolveEventTargetGroup(validated.targetGroupId || undefined, batchIds);
-     if ("error" in resolvedTargetGroup) {
-       return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+     const resolvedTargets = await resolveEventTargetCompanies(batchIds, formData);
+     if ("error" in resolvedTargets) {
+       return { success: false, error: resolvedTargets.error || "Invalid target companies" };
      }
 
     for (const bid of batchIds) {
@@ -120,7 +119,8 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
         data: {
           batchId: batchIds[0],
           creatorId: user.id,
-          targetGroupId: resolvedTargetGroup.targetGroupId,
+          targetGroupId: null,
+          targetCompanyIds: resolvedTargets.targetCompanyIds,
           title: validated.title,
           description: validated.description || null,
           eventType: validated.eventType,
@@ -142,7 +142,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
     if (isCalendarConfigured()) {
       try {
-        const attendeeEmails = await getEventAttendeeEmails(user.email, batchIds, resolvedTargetGroup.targetGroupId);
+        const attendeeEmails = await getEventAttendeeEmails(user.email, batchIds, resolvedTargets.targetCompanyIds);
 
         const calResult = validated.eventType === "office_hour" || validated.eventType === "virtual"
           ? await createCalendarEventWithMeet({

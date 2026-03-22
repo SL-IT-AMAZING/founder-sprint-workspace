@@ -5,6 +5,7 @@ export type BatchStatus = "active" | "archived";
 export type UserBatchStatus = "invited" | "active" | "dropped_out";
 export type QuestionStatus = "open" | "closed";
 export type OfficeHourSlotStatus = "available" | "requested" | "confirmed" | "completed" | "cancelled";
+export type OfficeHourSlotMode = "direct_company" | "direct_founder" | "open_batch";
 export type OfficeHourRequestStatus = "pending" | "waitlisted" | "approved" | "rejected" | "cancelled";
 export type LikeTargetType = "post" | "comment";
 export type EventType = "one_off" | "office_hour" | "in_person" | "virtual" | "general_session";
