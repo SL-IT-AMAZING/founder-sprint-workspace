@@ -1,0 +1,107 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - link "Outsome" [ref=e5] [cursor=pointer]:
+          - /url: /feed
+          - img "Outsome" [ref=e6]
+        - generic [ref=e7]:
+          - link "Feed" [ref=e8] [cursor=pointer]:
+            - /url: /feed
+          - link "Dashboard" [ref=e9] [cursor=pointer]:
+            - /url: /dashboard
+          - generic [ref=e10]:
+            - link "Batch" [ref=e11] [cursor=pointer]:
+              - /url: /schedule
+            - button "Batch menu" [ref=e12] [cursor=pointer]: ▼
+          - link "Admin" [ref=e13] [cursor=pointer]:
+            - /url: /admin
+          - button "Founder Sprint Batch 6" [ref=e16] [cursor=pointer]:
+            - generic [ref=e17]: Founder Sprint Batch 6
+            - img [ref=e18]
+      - textbox "Search Outsome" [ref=e21]
+      - generic [ref=e22]:
+        - link [ref=e23] [cursor=pointer]:
+          - /url: /messages
+          - img [ref=e24]
+        - link "TA" [ref=e27] [cursor=pointer]:
+          - /url: /settings
+          - generic [ref=e28]: TA
+        - button "Sign out" [ref=e30] [cursor=pointer]
+        - button "Menu" [ref=e31] [cursor=pointer]:
+          - img "Menu" [ref=e32]
+    - main [ref=e33]:
+      - generic [ref=e34]:
+        - heading "Schedule" [level=1] [ref=e35]
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "All" [ref=e38] [cursor=pointer]
+            - button "In-person" [ref=e39] [cursor=pointer]: In-person
+            - button "Virtual" [ref=e41] [cursor=pointer]: Virtual
+            - button "General Session" [ref=e43] [cursor=pointer]: General Session
+            - button "Office Hour" [ref=e45] [cursor=pointer]: Office Hour
+          - generic [ref=e47]:
+            - generic [ref=e49]:
+              - generic [ref=e50]:
+                - button "Previous month" [ref=e51] [cursor=pointer]:
+                  - img [ref=e52]
+                - heading "March 2026" [level=3] [ref=e54]
+                - button "Next month" [ref=e55] [cursor=pointer]:
+                  - img [ref=e56]
+              - generic [ref=e58]:
+                - generic [ref=e59]: Sun
+                - generic [ref=e60]: Mon
+                - generic [ref=e61]: Tue
+                - generic [ref=e62]: Wed
+                - generic [ref=e63]: Thu
+                - generic [ref=e64]: Fri
+                - generic [ref=e65]: Sat
+              - generic [ref=e66]:
+                - button "Sunday, March 1, 2026" [ref=e67] [cursor=pointer]: "1"
+                - button "Monday, March 2, 2026" [ref=e68] [cursor=pointer]: "2"
+                - button "Tuesday, March 3, 2026" [ref=e69] [cursor=pointer]: "3"
+                - button "Wednesday, March 4, 2026" [ref=e70] [cursor=pointer]: "4"
+                - button "Thursday, March 5, 2026" [ref=e71] [cursor=pointer]: "5"
+                - button "Friday, March 6, 2026" [ref=e72] [cursor=pointer]: "6"
+                - button "Saturday, March 7, 2026" [ref=e73] [cursor=pointer]: "7"
+                - button "Sunday, March 8, 2026" [ref=e74] [cursor=pointer]: "8"
+                - button "Monday, March 9, 2026" [ref=e75] [cursor=pointer]: "9"
+                - button "Tuesday, March 10, 2026" [ref=e76] [cursor=pointer]: "10"
+                - button "Wednesday, March 11, 2026" [ref=e77] [cursor=pointer]: "11"
+                - button "Thursday, March 12, 2026" [ref=e78] [cursor=pointer]: "12"
+                - button "Friday, March 13, 2026" [ref=e79] [cursor=pointer]: "13"
+                - button "Saturday, March 14, 2026" [ref=e80] [cursor=pointer]: "14"
+                - button "Sunday, March 15, 2026" [ref=e81] [cursor=pointer]: "15"
+                - button "Monday, March 16, 2026" [ref=e82] [cursor=pointer]: "16"
+                - button "Tuesday, March 17, 2026" [ref=e83] [cursor=pointer]: "17"
+                - button "Wednesday, March 18, 2026" [ref=e84] [cursor=pointer]: "18"
+                - button "Thursday, March 19, 2026" [ref=e85] [cursor=pointer]: "19"
+                - button "Friday, March 20, 2026" [ref=e86] [cursor=pointer]: "20"
+                - button "Saturday, March 21, 2026" [ref=e87] [cursor=pointer]: "21"
+                - button "Sunday, March 22, 2026" [ref=e88] [cursor=pointer]: "22"
+                - button "Monday, March 23, 2026" [ref=e89] [cursor=pointer]: "23"
+                - button "Tuesday, March 24, 2026" [ref=e90] [cursor=pointer]: "24"
+                - button "Wednesday, March 25, 2026" [ref=e91] [cursor=pointer]: "25"
+                - button "Thursday, March 26, 2026" [ref=e92] [cursor=pointer]: "26"
+                - button "Friday, March 27, 2026" [ref=e93] [cursor=pointer]: "27"
+                - button "Saturday, March 28, 2026" [ref=e94] [cursor=pointer]: "28"
+                - button "Sunday, March 29, 2026" [ref=e95] [cursor=pointer]: "29"
+                - button "Monday, March 30, 2026" [ref=e96] [cursor=pointer]: "30"
+                - button "Tuesday, March 31, 2026" [ref=e97] [cursor=pointer]: "31"
+                - button "Wednesday, April 1, 2026" [ref=e98] [cursor=pointer]: "1"
+                - button "Thursday, April 2, 2026" [ref=e99] [cursor=pointer]: "2"
+                - button "Friday, April 3, 2026" [ref=e100] [cursor=pointer]: "3"
+                - button "Saturday, April 4, 2026" [ref=e101] [cursor=pointer]: "4"
+            - generic [ref=e103]:
+              - generic [ref=e104]: Day Details
+              - generic [ref=e106]:
+                - img [ref=e107]
+                - generic [ref=e109]: Select a day to view details
+              - button "Create Event" [active] [ref=e111] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e117] [cursor=pointer]:
+    - img [ref=e118]
+  - alert [ref=e121]
+```

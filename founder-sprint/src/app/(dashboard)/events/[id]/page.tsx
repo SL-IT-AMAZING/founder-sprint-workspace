@@ -82,6 +82,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </div>
             )}
 
+            {event.targetGroup && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Audience
+                </p>
+                <p className="text-base">{event.targetGroup.name}</p>
+              </div>
+            )}
+
             {/* Organizer */}
             <div className="pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
               <p className="text-sm font-medium mb-2" style={{ color: "var(--color-foreground-muted)" }}>

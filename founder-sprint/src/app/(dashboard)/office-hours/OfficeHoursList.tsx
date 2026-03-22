@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getDisplayName } from "@/lib/utils";
 import { isAdmin, isFounder } from "@/lib/permissions-client";
-import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext, cancelRequest } from "@/actions/office-hour";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext, cancelRequest, promoteWaitlistedRequest } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 import type { FounderOption, MentorOption } from "@/types/invite";
@@ -65,6 +65,7 @@ interface OfficeHourSlot {
     profileImage: string | null;
   };
   requests: OfficeHourRequest[];
+  targetFounderIds: string[];
   company?: {
     id: string;
     name: string;
@@ -144,8 +145,9 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
    const toast = useToast();
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
-    const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
-    const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+      const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
+      const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+      const [selectedTargetFounderIds, setSelectedTargetFounderIds] = useState<string[]>([]);
      const [selectedMentorId, setSelectedMentorId] = useState<string>(mentors.length === 1 ? mentors[0].id : "");
      const [grantCreditsModalOpen, setGrantCreditsModalOpen] = useState(false);
      const [selectedCreditFounderId, setSelectedCreditFounderId] = useState<string>("");
@@ -179,6 +181,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       setScheduleFounders(result.data.founders);
       setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
       setSelectedFounderId("");
+      setSelectedTargetFounderIds([]);
       setError(null);
     } else {
       setError(result.error);
@@ -193,6 +196,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     setScheduleFounders(founders);
     setSelectedCompanyId(defaultCompanyId);
     setSelectedFounderId("");
+    setSelectedTargetFounderIds([]);
   };
 
   const loadGrantBatchContext = async (batchId: string) => {
@@ -274,6 +278,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       formData.set("founderId", selectedFounderId);
       result = await scheduleIndividualOfficeHour(formData);
     } else {
+      selectedTargetFounderIds.forEach((founderId) => formData.append("targetFounderIds", founderId));
       formData.set("companyId", selectedCompanyId);
       result = await scheduleGroupOfficeHour(formData);
     }
@@ -285,6 +290,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       setScheduleModalOpen(false);
       setScheduleMode("company");
       setSelectedFounderId("");
+      setSelectedTargetFounderIds([]);
       setSelectedCompanyId(defaultCompanyId);
       (e.target as HTMLFormElement).reset();
       router.refresh();
@@ -363,6 +369,15 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     } else if (result.warning) {
       toast.warning(result.warning);
       router.refresh();
+    } else {
+      router.refresh();
+    }
+  };
+
+  const handlePromoteWaitlisted = async (requestId: string) => {
+    const result = await promoteWaitlistedRequest(requestId);
+    if (!result.success) {
+      toast.error(result.error);
     } else {
       router.refresh();
     }
@@ -489,9 +504,14 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
           {slots.map((slot) => {
             const isHost = slot.host.id === user.id;
             const pendingRequests = slot.requests.filter((r) => r.status === "pending");
+            const waitlistedRequests = slot.requests.filter((r) => r.status === "waitlisted");
             const approvedRequest = slot.requests.find((r) => r.status === "approved");
             const userPendingRequest = slot.requests.find((r) => r.requester.id === user.id && r.status === "pending");
+            const userWaitlistedRequest = slot.requests.find((r) => r.requester.id === user.id && r.status === "waitlisted");
             const userHasRequested = Boolean(userPendingRequest);
+            const userIsWaitlisted = Boolean(userWaitlistedRequest);
+            const canFounderAccessSlot = slot.targetFounderIds.length === 0 || slot.targetFounderIds.includes(user.id);
+            const hasActiveRequest = pendingRequests.length > 0 || Boolean(approvedRequest);
 
             return (
               <div key={slot.id} className="card space-y-3">
@@ -521,13 +541,23 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                   </div>
 
                   <div className="flex gap-2">
-                    {canRequest && slot.status === "available" && !userHasRequested && companies.length > 0 && (
+                    {canRequest && canFounderAccessSlot && slot.status === "available" && !userHasRequested && !userIsWaitlisted && companies.length > 0 && (
                       <Button
                         size="sm"
                         onClick={() => openRequestModal(slot)}
                         disabled={loading}
                       >
                         Request
+                      </Button>
+                    )}
+                    {canRequest && canFounderAccessSlot && !userHasRequested && !userIsWaitlisted && companies.length > 0 && hasActiveRequest && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => openRequestModal(slot)}
+                        disabled={loading}
+                      >
+                        Join Waitlist
                       </Button>
                     )}
                     {isFounderUser && companies.length === 0 && slot.status === "available" && (
@@ -543,6 +573,22 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                             size="sm"
                             variant="ghost"
                             onClick={() => handleCancelRequest(userPendingRequest.id)}
+                            disabled={loading}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {userIsWaitlisted && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">Waitlisted</Badge>
+                        {userWaitlistedRequest && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(userWaitlistedRequest.id)}
                             disabled={loading}
                             style={{ color: "var(--color-error)" }}
                           >
@@ -696,6 +742,32 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                     ))}
                   </div>
                 )}
+
+                {(isHost || isAdminUser) && waitlistedRequests.length > 0 && (
+                  <div className="pt-2 border-t space-y-3" style={{ borderColor: "var(--color-card-border)" }}>
+                    <div className="text-sm font-medium">Waitlist</div>
+                    {waitlistedRequests.map((request) => (
+                      <div key={request.id} className="flex items-start justify-between gap-4 p-3 rounded" style={{ backgroundColor: "var(--color-background-secondary)" }}>
+                        <div className="flex items-start gap-3">
+                          <Avatar src={request.requester.profileImage} name={getDisplayName(request.requester)} size={36} />
+                          <div className="space-y-1">
+                            <div className="font-medium text-sm">{getDisplayName(request.requester)}</div>
+                            {request.agenda && <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Agenda: {request.agenda}</div>}
+                            {request.message && <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>{request.message}</div>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handlePromoteWaitlisted(request.id)} disabled={loading || hasActiveRequest}>
+                            Promote
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => handleRejectRequest(request.id)} disabled={loading}>
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -829,23 +901,49 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             </button>
           </div>
           {scheduleMode === "company" ? (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Company</label>
-              <select
-                name="companyId"
-                required={scheduleMode === "company"}
-                className="w-full px-3 py-2 rounded-md border text-sm"
-                style={{
-                  backgroundColor: "var(--color-background)",
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-foreground)",
-                }}
-              >
-                <option value="">Select company</option>
-                {scheduleCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
-                ))}
-              </select>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Company</label>
+                <select
+                  name="companyId"
+                  required={scheduleMode === "company"}
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Select company</option>
+                  {scheduleCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Open to founders (optional)</label>
+                <select
+                  multiple
+                  value={selectedTargetFounderIds}
+                  onChange={(e) => setSelectedTargetFounderIds(Array.from(e.target.selectedOptions).map((option) => option.value))}
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                    minHeight: 140,
+                  }}
+                >
+                  {scheduleFounders.map((founder) => (
+                    <option key={founder.id} value={founder.id}>
+                      {(founder.name || founder.email)}{founder.companyName ? ` — ${founder.companyName}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                  Leave empty to open this slot to all founders in the batch.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="space-y-1.5">

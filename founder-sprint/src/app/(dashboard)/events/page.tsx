@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getEvents } from "@/actions/event";
 import { getOfficeHourBatchContext } from "@/actions/office-hour";
 import { getAllBatchesForSelect } from "@/actions/session";
+import { getGroups } from "@/actions/group";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EventsList } from "./EventsList";
@@ -14,9 +15,10 @@ export default async function EventsPage() {
     redirect("/auth/login");
   }
 
-  const [events, allBatches, batchContextResult] = await Promise.all([
+  const [events, allBatches, groups, batchContextResult] = await Promise.all([
     getEvents(user.batchId),
     getAllBatchesForSelect(),
+    getGroups(user.batchId),
     getOfficeHourBatchContext(user.batchId),
   ]);
   const batchOptions = allBatches.map(b => ({
@@ -28,6 +30,7 @@ export default async function EventsPage() {
   const batchContext = batchContextResult.success
     ? batchContextResult.data
     : { companies: [], founders: [], mentors: [] };
+  const groupOptions = groups.map((group) => ({ id: group.id, name: group.name }));
 
   return (
     <div className="space-y-6">
@@ -47,6 +50,7 @@ export default async function EventsPage() {
         batchOptions={batchOptions}
         companies={batchContext.companies}
         founders={batchContext.founders}
+        groupOptions={groupOptions}
         currentBatchId={user.batchId}
       />
     </div>

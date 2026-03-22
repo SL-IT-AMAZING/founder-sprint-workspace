@@ -50,6 +50,8 @@ const USER_ADMIN_AUDIT_ACTIONS = [
   "user_additional_roles_changed",
   "user_deactivated",
   "user_reactivated",
+  "user_batch_dropped_out",
+  "user_batch_restored",
   "invite_resent",
 ] as const;
 
@@ -864,6 +866,108 @@ export async function reactivateUser(
       batchId,
       userEmail: targetUser.email,
       previousStatus: targetUser.status,
+      newStatus: "active",
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+export async function dropoutUserFromBatch(
+  userId: string,
+  batchId: string
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (userId === user.id) {
+    return { success: false, error: "Cannot drop yourself out of the batch" };
+  }
+
+  const membership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    include: { user: { select: { email: true } } },
+  });
+
+  if (!membership) {
+    return { success: false, error: "Batch membership not found" };
+  }
+
+  if (membership.status !== "active") {
+    return { success: false, error: "Only active batch memberships can be dropped out" };
+  }
+
+  await prisma.userBatch.update({
+    where: { userId_batchId: { userId, batchId } },
+    data: { status: "dropped_out" },
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "user_batch_dropped_out",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: membership.user.email,
+      previousStatus: membership.status,
+      newStatus: "dropped_out",
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+export async function restoreUserBatch(
+  userId: string,
+  batchId: string
+): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const membership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    include: { user: { select: { email: true } } },
+  });
+
+  if (!membership) {
+    return { success: false, error: "Batch membership not found" };
+  }
+
+  if (membership.status !== "dropped_out") {
+    return { success: false, error: "Only dropped out memberships can be restored" };
+  }
+
+  await prisma.userBatch.update({
+    where: { userId_batchId: { userId, batchId } },
+    data: { status: "active" },
+  });
+
+  await createAuditLogEntry({
+    actor: user,
+    action: "user_batch_restored",
+    targetId: userId,
+    details: {
+      batchId,
+      userEmail: membership.user.email,
+      previousStatus: membership.status,
       newStatus: "active",
     },
   });

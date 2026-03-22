@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isStaff, isFounder, canCreateOfficeHourSlot, isAdmin } from "@/lib/permissions";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
-import type { ActionResult } from "@/types";
+import type { ActionResult, OfficeHourRequestStatus, OfficeHourSlotStatus } from "@/types";
 import { isCalendarConfigured, createCalendarEventWithMeet } from "@/lib/google-calendar";
 import { fromZonedTime } from "date-fns-tz";
 import { startOfWeek } from "date-fns";
@@ -63,6 +63,68 @@ interface RequesterStats {
   weeklyLimit: number;
   remainingWeeklyRequests: number;
   isBatchActive: boolean;
+}
+
+async function resolveTargetFounderIds(batchId: string, formData: FormData) {
+  const rawIds = formData.getAll("targetFounderIds").filter((value): value is string => typeof value === "string");
+  const founderIds = [...new Set(rawIds.map((value) => value.trim()).filter(Boolean))];
+
+  if (founderIds.length === 0) {
+    return { success: true as const, founderIds: [] as string[] };
+  }
+
+  const memberships = await prisma.userBatch.findMany({
+    where: {
+      batchId,
+      status: "active",
+      userId: { in: founderIds },
+      OR: [
+        { role: "founder" },
+        { role: "co_founder" },
+        { additionalRoles: { has: "founder" } },
+        { additionalRoles: { has: "co_founder" } },
+      ],
+    },
+    select: { userId: true },
+  });
+
+  const validFounderIds = memberships.map((membership) => membership.userId);
+  if (validFounderIds.length !== founderIds.length) {
+    return { success: false as const, error: "Some selected founders are invalid for this batch." };
+  }
+
+  return { success: true as const, founderIds: validFounderIds };
+}
+
+async function recalculateSlotStatus(slotId: string) {
+  const slot = await prisma.officeHourSlot.findUnique({
+    where: { id: slotId },
+    include: {
+      requests: {
+        select: { status: true },
+      },
+    },
+  });
+
+  if (!slot) return;
+
+  const hasApproved = slot.requests.some((request) => request.status === "approved");
+  const hasPending = slot.requests.some((request) => request.status === "pending");
+  const hasWaitlisted = slot.requests.some((request) => request.status === "waitlisted");
+
+  let nextStatus: OfficeHourSlotStatus = "available";
+  if (hasApproved) {
+    nextStatus = "confirmed";
+  } else if (hasPending || hasWaitlisted) {
+    nextStatus = "requested";
+  }
+
+  if (slot.status !== nextStatus) {
+    await prisma.officeHourSlot.update({
+      where: { id: slotId },
+      data: { status: nextStatus },
+    });
+  }
 }
 
 async function getRequesterStats(userId: string, batchId: string): Promise<RequesterStats> {
@@ -289,6 +351,8 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
   const timezone = timezoneMap[timezoneInput] || "UTC";
   const targetBatch = await resolveTargetBatchId(user, requestedBatchId);
   if (!targetBatch.success) return targetBatch;
+  const targetFounders = await resolveTargetFounderIds(targetBatch.batchId, formData);
+  if (!targetFounders.success) return { success: false, error: targetFounders.error };
 
   // 4. Validate time (30-min slot, not in past)
   const start = new Date(startTime);
@@ -335,6 +399,7 @@ export async function scheduleGroupOfficeHour(formData: FormData) {
         timezone,
         status: "confirmed",
         companyId,
+        targetFounderIds: targetFounders.founderIds,
       },
     });
 
@@ -448,7 +513,8 @@ export async function scheduleIndividualOfficeHour(formData: FormData): Promise<
         startTime: start,
         endTime: end,
         timezone,
-        status: "confirmed",
+       status: "confirmed",
+       targetFounderIds: [founder.id],
       },
     });
 
@@ -717,7 +783,8 @@ export async function getOfficeHourSlots(batchId: string, userId?: string, userR
       filteredSlots = filteredSlots.filter((s) => {
         const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
         const matchesDirectRequest = s.requests.some((request) => request.requester.id === userId);
-        return matchesCompany || matchesDirectRequest;
+        const matchesTargetedFounder = s.targetFounderIds.length === 0 || s.targetFounderIds.includes(userId);
+        return (matchesCompany && matchesTargetedFounder) || matchesDirectRequest;
       });
     }
 
@@ -823,19 +890,26 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
       return { success: false, error: "Office hour slot not found" };
     }
 
-    // Allow requests on slots with status "available" OR "requested"
-    if (slot.status !== "available" && slot.status !== "requested") {
+    if (slot.targetFounderIds.length > 0 && !slot.targetFounderIds.includes(user.id)) {
+      return { success: false, error: "This office hour is not open to you" };
+    }
+
+    // Allow requests on slots with status "available", "requested", or "confirmed" (waitlist case)
+    if (slot.status !== "available" && slot.status !== "requested" && slot.status !== "confirmed") {
       return { success: false, error: "This slot is no longer available" };
     }
 
-    // Check if user already has a pending request for this slot
     const existingRequest = slot.requests.find(
-      (req: { requesterId: string; status: string }) => req.requesterId === user.id && req.status === "pending"
+      (req: { requesterId: string; status: string }) =>
+        req.requesterId === user.id && ["pending", "approved", "waitlisted"].includes(req.status)
     );
 
     if (existingRequest) {
-      return { success: false, error: "You already have a pending request for this slot" };
+      return { success: false, error: "You already have an active request for this slot" };
     }
+
+    const hasActiveRequest = slot.requests.some((req: { status: string }) => ["pending", "approved"].includes(req.status));
+    const nextStatus: OfficeHourRequestStatus = hasActiveRequest ? "waitlisted" : "pending";
 
     const request = await prisma.officeHourRequest.create({
       data: {
@@ -843,15 +917,11 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
         requesterId: user.id,
         message: validated.message || null,
         agenda: validated.agenda,
-        status: "pending",
+        status: nextStatus,
       },
     });
 
-    // Update slot status to requested
-    await prisma.officeHourSlot.update({
-      where: { id: validated.slotId },
-      data: { status: "requested" },
-    });
+    await recalculateSlotStatus(validated.slotId);
 
     revalidatePath("/office-hours");
     revalidateTag(`office-hours-${slot.batchId}`);
@@ -920,7 +990,6 @@ export async function respondToRequest(requestId: string, status: "approved" | "
       return { success: false, error: "Unauthorized: only the host or admins can respond to requests" };
     }
 
-    // Update request status
     await prisma.officeHourRequest.update({
       where: { id: validated.requestId },
       data: {
@@ -936,7 +1005,6 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         data: { status: "confirmed" },
       });
 
-      // Reject all other pending requests for this slot
       await prisma.officeHourRequest.updateMany({
         where: {
           slotId: request.slotId,
@@ -949,7 +1017,6 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         },
       });
 
-      // Google Calendar + Meet link generation
       let warning: string | undefined;
 
       if (isCalendarConfigured()) {
@@ -1023,7 +1090,6 @@ export async function respondToRequest(requestId: string, status: "approved" | "
         }
       }
 
-      // Send approval email to all attendees (non-blocking)
       try {
         const [host, requester] = await Promise.all([
           prisma.user.findUnique({
@@ -1089,21 +1155,7 @@ export async function respondToRequest(requestId: string, status: "approved" | "
       revalidateSchedule(request.slot.batchId);
       return { success: true, data: undefined, warning };
     } else {
-      // If rejected, check if there are other pending requests
-      const pendingRequests = await prisma.officeHourRequest.count({
-        where: {
-          slotId: request.slotId,
-          status: "pending",
-        },
-      });
-
-      // If no pending requests, set slot back to available
-      if (pendingRequests === 0) {
-        await prisma.officeHourSlot.update({
-          where: { id: request.slotId },
-          data: { status: "available" },
-        });
-      }
+      await recalculateSlotStatus(request.slotId);
 
       revalidatePath("/office-hours");
       revalidateTag(`office-hours-${request.slot.batchId}`);
@@ -1303,9 +1355,9 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
     const isRequester = request.requesterId === user.id;
     const isAdminUser = user.role === "super_admin" || user.role === "admin";
 
-    if (request.status === "pending") {
+    if (request.status === "pending" || request.status === "waitlisted") {
       if (!isRequester) {
-        return { success: false, error: "Unauthorized: only the requester can cancel pending requests" };
+        return { success: false, error: "Unauthorized: only the requester can cancel this request" };
       }
     } else if (request.status === "approved") {
       if (!isAdminUser) {
@@ -1323,26 +1375,7 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
       },
     });
 
-    if (request.status === "approved") {
-      await prisma.officeHourSlot.update({
-        where: { id: request.slotId },
-        data: { status: "cancelled" },
-      });
-    } else {
-      const pendingRequests = await prisma.officeHourRequest.count({
-        where: {
-          slotId: request.slotId,
-          status: "pending",
-        },
-      });
-
-      if (pendingRequests === 0 && request.slot.status === "requested") {
-        await prisma.officeHourSlot.update({
-          where: { id: request.slotId },
-          data: { status: "available" },
-        });
-      }
-    }
+    await recalculateSlotStatus(request.slotId);
 
     revalidatePath("/office-hours");
     revalidateTag(`office-hours-${request.slot.batchId}`);
@@ -1352,4 +1385,51 @@ export async function cancelRequest(requestId: string): Promise<ActionResult> {
     console.error("Failed to cancel request:", error);
     return { success: false, error: "Failed to cancel request" };
   }
+}
+
+export async function promoteWaitlistedRequest(requestId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user || !isStaff(user.role)) {
+    return { success: false, error: "Unauthorized: staff access required" };
+  }
+
+  const request = await prisma.officeHourRequest.findUnique({
+    where: { id: requestId },
+    include: { slot: { include: { requests: true } } },
+  });
+
+  if (!request) {
+    return { success: false, error: "Request not found" };
+  }
+
+  const isHost = request.slot.hostId === user.id;
+  const isAdminUser = user.role === "super_admin" || user.role === "admin";
+  if (!isHost && !isAdminUser) {
+    return { success: false, error: "Unauthorized: only the host or admins can promote waitlisted requests" };
+  }
+
+  if (request.status !== "waitlisted") {
+    return { success: false, error: "Only waitlisted requests can be promoted" };
+  }
+
+  const hasActiveRequest = request.slot.requests.some(
+    (slotRequest) => slotRequest.id !== request.id && ["pending", "approved"].includes(slotRequest.status)
+  );
+  if (hasActiveRequest) {
+    return { success: false, error: "Resolve the current active request before promoting from waitlist" };
+  }
+
+  await prisma.officeHourRequest.update({
+    where: { id: requestId },
+    data: {
+      status: "pending",
+      respondedAt: null,
+    },
+  });
+
+  await recalculateSlotStatus(request.slotId);
+  revalidatePath("/office-hours");
+  revalidateTag(`office-hours-${request.slot.batchId}`);
+  revalidateSchedule(request.slot.batchId);
+  return { success: true, data: undefined };
 }

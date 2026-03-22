@@ -49,6 +49,7 @@ interface Event {
     email: string;
     profileImage: string | null;
   };
+  targetGroup?: { id: string; name: string } | null;
   batches?: { batch: { id: string; name: string } }[];
 }
 
@@ -58,6 +59,7 @@ interface EventsListProps {
   batchOptions: BatchOption[];
   companies: CompanyOption[];
   founders: FounderOption[];
+  groupOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
 
@@ -106,6 +108,7 @@ export function EventsList({
   batchOptions,
   companies,
   founders,
+  groupOptions,
   currentBatchId,
 }: EventsListProps) {
   const router = useRouter();
@@ -359,27 +362,43 @@ export function EventsList({
             />
           </div>
           <div className="space-y-3">
-            <h3 className="font-medium">
-              {selectedDate ? formatDate(selectedDate) : "Select a day"}
-            </h3>
-            {selectedDate && selectedDateEvents.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                No events on this day
-              </p>
-            )}
-            {selectedDateEvents.map((event) => (
-              <div key={event.id} className="card p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-sm">{event.title}</h4>
-                  <Badge variant={getEventTypeBadgeVariant(event.eventType)}>
-                    {getEventTypeLabel(event.eventType)}
-                  </Badge>
-                </div>
-                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
-                  {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
+            <div className="card p-4 space-y-3">
+              <h3 className="font-medium">Day Details</h3>
+              {!selectedDate ? (
+                <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                  Select a day to view details.
                 </p>
-              </div>
-            ))}
+              ) : selectedDateEvents.length === 0 ? (
+                <>
+                  <div className="text-sm font-medium">{formatDate(selectedDate)}</div>
+                  <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                    No events on this day.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-medium">{formatDate(selectedDate)}</div>
+                  {selectedDateEvents.map((event) => (
+                    <div key={event.id} className="rounded-lg border p-3 space-y-2" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-sm">{event.title}</h4>
+                        <Badge variant={getEventTypeBadgeVariant(event.eventType)}>
+                          {getEventTypeLabel(event.eventType)}
+                        </Badge>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                        {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
+                      </p>
+                      {event.location && (
+                        <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                          {event.location}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
           </div>
         </div>
       ) : filteredEvents.length === 0 ? (
@@ -684,6 +703,24 @@ export function EventsList({
                 name="location"
                 placeholder="Location or meeting link (optional)"
               />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Target Group (optional)</label>
+                <select
+                  name="targetGroupId"
+                  defaultValue=""
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Entire selected batch</option>
+                  {groupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
           <div className="flex justify-end gap-3 pt-2">

@@ -244,7 +244,9 @@ export async function GET(request: Request) {
     const userIsGlobalAdmin = user?.role === "super_admin" || user?.role === "admin";
     
     if (!user || (!hasActiveBatch && !userIsGlobalAdmin)) {
-      await supabase.auth.signOut();
+      if (!user || user.status === "inactive") {
+        await supabase.auth.signOut();
+      }
       return NextResponse.redirect(`${origin}/no-batch`);
     }
 

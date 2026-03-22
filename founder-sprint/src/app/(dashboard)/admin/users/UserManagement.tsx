@@ -12,6 +12,8 @@ import {
   resendInvite,
   deactivateUser,
   reactivateUser,
+  dropoutUserFromBatch,
+  restoreUserBatch,
   getRecentUserManagementAuditLogs,
   getFounderActivitySummaries,
 } from "@/actions/user-management";
@@ -47,7 +49,7 @@ interface BatchUser {
   batchId: string;
   role: UserRole;
   additionalRoles: string[];
-  status: "invited" | "active";
+  status: "invited" | "active" | "dropped_out";
   invitedAt: Date;
   user: {
     id: string;
@@ -374,6 +376,34 @@ export function UserManagement({ batches }: UserManagementProps) {
     });
   };
 
+  const handleDropoutUser = async (userId: string, userName: string) => {
+    if (!confirm(`Mark ${userName} as dropped out from this batch? They will lose access to this batch but remain active in other batches.`)) return;
+
+    startTransition(async () => {
+      const result = await dropoutUserFromBatch(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("User dropped out from batch");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleRestoreBatchUser = async (userId: string) => {
+    startTransition(async () => {
+      const result = await restoreUserBatch(userId, selectedBatchId);
+      if (result.success) {
+        toast.success("Batch membership restored");
+        loadUsers(selectedBatchId);
+        loadAuditLogs(selectedBatchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
   const getAuditDescription = (entry: AuditEntry) => {
     let details: Record<string, unknown> = {};
     try {
@@ -400,6 +430,14 @@ export function UserManagement({ batches }: UserManagementProps) {
 
     if (entry.action === "user_reactivated") {
       return `${entry.userName} reactivated ${userEmail}`;
+    }
+
+    if (entry.action === "user_batch_dropped_out") {
+      return `${entry.userName} marked ${userEmail} as dropped out from this batch`;
+    }
+
+    if (entry.action === "user_batch_restored") {
+      return `${entry.userName} restored ${userEmail} to this batch`;
     }
 
     if (entry.action === "invite_resent") {
@@ -494,9 +532,9 @@ export function UserManagement({ batches }: UserManagementProps) {
                   <div className="flex items-center justify-between gap-2">
                     {renderRoleBadges(userBatch)}
                     <div className="flex items-center gap-2">
-                      <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
-                        {userBatch.status}
-                      </Badge>
+                        <Badge variant={userBatch.status === "active" ? "success" : userBatch.status === "dropped_out" ? "default" : "warning"}>
+                          {userBatch.status}
+                        </Badge>
                       {userBatch.user.status === "inactive" && (
                         <Badge variant="error">Deactivated</Badge>
                       )}
@@ -531,25 +569,44 @@ export function UserManagement({ batches }: UserManagementProps) {
                         </Button>
                       </>
                     )}
-                    {userBatch.user.status === "inactive" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                        {userBatch.user.status === "inactive" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
                         onClick={() => handleReactivateUser(userBatch.userId)}
                         disabled={isPending}
                       >
-                        Reactivate
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
-                        disabled={isPending}
-                      >
-                        Deactivate
-                      </Button>
-                    )}
+                            Reactivate
+                          </Button>
+                        ) : userBatch.status === "dropped_out" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRestoreBatchUser(userBatch.userId)}
+                            disabled={isPending}
+                          >
+                            Restore Batch
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDropoutUser(userBatch.userId, getDisplayName(userBatch.user))}
+                              disabled={isPending || userBatch.status !== "active"}
+                            >
+                              Dropout
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                              disabled={isPending}
+                            >
+                              Deactivate
+                            </Button>
+                          </>
+                        )}
                     <Button
                       variant="danger"
                       size="sm"
@@ -616,7 +673,7 @@ export function UserManagement({ batches }: UserManagementProps) {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <Badge variant={userBatch.status === "active" ? "success" : "warning"}>
+                        <Badge variant={userBatch.status === "active" ? "success" : userBatch.status === "dropped_out" ? "default" : "warning"}>
                           {userBatch.status}
                         </Badge>
                         {userBatch.user.status === "inactive" && (
@@ -654,25 +711,44 @@ export function UserManagement({ batches }: UserManagementProps) {
                             </Button>
                           </>
                         )}
-                        {userBatch.user.status === "inactive" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                    {userBatch.user.status === "inactive" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
                             onClick={() => handleReactivateUser(userBatch.userId)}
                             disabled={isPending}
                           >
-                            Reactivate
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
-                            disabled={isPending}
-                          >
-                            Deactivate
-                          </Button>
-                        )}
+                        Reactivate
+                      </Button>
+                    ) : userBatch.status === "dropped_out" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRestoreBatchUser(userBatch.userId)}
+                        disabled={isPending}
+                      >
+                        Restore Batch
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDropoutUser(userBatch.userId, getDisplayName(userBatch.user))}
+                          disabled={isPending || userBatch.status !== "active"}
+                        >
+                          Dropout
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                          disabled={isPending}
+                        >
+                          Deactivate
+                        </Button>
+                      </>
+                    )}
                         <Button
                           variant="danger"
                           size="sm"

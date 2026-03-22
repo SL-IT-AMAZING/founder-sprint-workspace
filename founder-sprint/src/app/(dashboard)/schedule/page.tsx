@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { getScheduleItems } from "@/actions/schedule";
 import { getOfficeHourBatchContext } from "@/actions/office-hour";
+import { getGroups } from "@/actions/group";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
@@ -36,7 +37,7 @@ export default async function SchedulePage({
   const rangeStart = startOfWeek(startOfMonth(monthDate));
   const rangeEnd = endOfWeek(endOfMonth(monthDate));
 
-  const [items, batchContextResult, totalBatchMembers, batchOptions] = await Promise.all([
+  const [items, batchContextResult, totalBatchMembers, batchOptions, groups] = await Promise.all([
     getScheduleItems({
       batchId: user.batchId,
       viewerId: user.id,
@@ -54,10 +55,12 @@ export default async function SchedulePage({
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
+    getGroups(user.batchId),
   ]);
   const batchContext = batchContextResult.success
     ? batchContextResult.data
     : { companies: [], founders: [], mentors: [] };
+  const groupOptions = groups.map((group) => ({ id: group.id, name: group.name }));
 
   return (
     <div className="space-y-6">
@@ -73,6 +76,7 @@ export default async function SchedulePage({
         founders={batchContext.founders}
         totalBatchMembers={totalBatchMembers}
         batchOptions={batchOptions}
+        groupOptions={groupOptions}
         currentBatchId={user.batchId}
       />
     </div>

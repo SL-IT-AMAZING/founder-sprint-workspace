@@ -17,11 +17,48 @@ const eventSchema = z.object({
   title: z.string().min(1, "Title is required").max(200),
   description: z.string().max(2000).optional(),
   eventType: z.enum(["office_hour", "in_person", "virtual", "general_session"]),
+  targetGroupId: z.string().uuid().optional().or(z.literal("")),
   startTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid start time"),
   endTime: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid end time"),
   timezone: z.string().default("UTC"),
   location: z.string().optional(),
 });
+
+async function resolveEventTargetGroup(targetGroupIdRaw: string | undefined, batchIds: string[]) {
+  const targetGroupId = targetGroupIdRaw?.trim() || "";
+  if (!targetGroupId) return { targetGroupId: null } as const;
+
+  if (batchIds.length !== 1) {
+    return { error: "Scoped events must belong to exactly one batch." } as const;
+  }
+
+  const group = await prisma.group.findFirst({
+    where: { id: targetGroupId, batchId: batchIds[0] },
+    select: { id: true },
+  });
+
+  if (!group) {
+    return { error: "Selected target group is invalid for the chosen batch." } as const;
+  }
+
+  return { targetGroupId } as const;
+}
+
+async function getEventAttendeeEmails(userEmail: string, batchIds: string[], targetGroupId: string | null) {
+  if (targetGroupId) {
+    const groupMembers = await prisma.groupMember.findMany({
+      where: { groupId: targetGroupId },
+      include: { user: { select: { email: true } } },
+    });
+    return [...new Set([userEmail, ...groupMembers.map((m) => m.user.email)])];
+  }
+
+  const batchUsers = await prisma.userBatch.findMany({
+    where: { batchId: { in: batchIds }, status: "active" },
+    include: { user: { select: { email: true } } },
+  });
+  return [...new Set([userEmail, ...batchUsers.map((ub) => ub.user.email)])];
+}
 
 export async function createEvent(formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
@@ -54,6 +91,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
       title: formData.get("title") as string,
       description: formData.get("description") as string | undefined,
       eventType: formData.get("eventType") as EventType,
+      targetGroupId: (formData.get("targetGroupId") as string) || undefined,
       startTime: formData.get("startTime") as string,
       endTime: formData.get("endTime") as string,
       timezone: (formData.get("timezone") as string) || "UTC",
@@ -61,6 +99,10 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
     };
 
      const validated = eventSchema.parse(data);
+     const resolvedTargetGroup = await resolveEventTargetGroup(validated.targetGroupId || undefined, batchIds);
+     if ("error" in resolvedTargetGroup) {
+       return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+     }
 
     for (const bid of batchIds) {
       const eventCount = await prisma.eventBatch.count({ where: { batchId: bid } });
@@ -78,6 +120,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
         data: {
           batchId: batchIds[0],
           creatorId: user.id,
+          targetGroupId: resolvedTargetGroup.targetGroupId,
           title: validated.title,
           description: validated.description || null,
           eventType: validated.eventType,
@@ -99,24 +142,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
 
     if (isCalendarConfigured()) {
       try {
-        const groupIds = formData.getAll("groupIds") as string[];
-
-        let attendeeEmails: string[];
-        if (groupIds.length > 0) {
-          // Specific companies selected — get their members
-          const groupMembers = await prisma.groupMember.findMany({
-            where: { groupId: { in: groupIds } },
-            include: { user: { select: { email: true } } },
-          });
-          // Always include the creator + deduplicate
-          attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
-        } else {
-          const batchUsers = await prisma.userBatch.findMany({
-            where: { batchId: { in: batchIds }, status: "active" },
-            include: { user: { select: { email: true } } },
-          });
-          attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
-        }
+        const attendeeEmails = await getEventAttendeeEmails(user.email, batchIds, resolvedTargetGroup.targetGroupId);
 
         const calResult = validated.eventType === "office_hour" || validated.eventType === "virtual"
           ? await createCalendarEventWithMeet({
@@ -177,10 +203,22 @@ export async function getEvents(batchId: string) {
     if (!user) return [];
     if (!isAdmin(user.role) && user.batchId !== batchId) return [];
 
+    const cacheKey = isAdmin(user.role) ? `events-${batchId}-admin` : `events-${batchId}-${user.id}`;
+
     const events = await unstable_cache(
       () =>
         prisma.event.findMany({
-          where: { batches: { some: { batchId } } },
+          where: {
+            batches: { some: { batchId } },
+            ...(isAdmin(user.role)
+              ? {}
+              : {
+                  OR: [
+                    { targetGroupId: null },
+                    { targetGroup: { members: { some: { userId: user.id } } } },
+                  ],
+                }),
+          },
           include: {
             creator: {
               select: {
@@ -200,10 +238,13 @@ export async function getEvents(batchId: string) {
                 },
               },
             },
+            targetGroup: {
+              select: { id: true, name: true },
+            },
           },
           orderBy: { startTime: "desc" },
         }),
-      [`events-${batchId}`],
+      [cacheKey],
       { revalidate: 60, tags: [`events-${batchId}`] }
     )();
 
@@ -216,10 +257,24 @@ export async function getEvents(batchId: string) {
 
 export async function getEvent(eventId: string, batchId?: string) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return null;
+
+    const isUserAdmin = isAdmin(user.role);
     const event = await unstable_cache(
       () =>
         prisma.event.findFirst({
-          where: batchId ? { id: eventId, batches: { some: { batchId } } } : { id: eventId },
+          where: {
+            ...(batchId ? { id: eventId, batches: { some: { batchId } } } : { id: eventId }),
+            ...(isUserAdmin
+              ? {}
+              : {
+                  OR: [
+                    { targetGroupId: null },
+                    { targetGroup: { members: { some: { userId: user.id } } } },
+                  ],
+                }),
+          },
           include: {
             creator: {
               select: {
@@ -239,9 +294,12 @@ export async function getEvent(eventId: string, batchId?: string) {
                 },
               },
             },
+            targetGroup: {
+              select: { id: true, name: true },
+            },
           },
         }),
-      [`event-${eventId}-${batchId ?? "all"}`],
+      [`event-${eventId}-${batchId ?? "all"}-${isUserAdmin ? "admin" : user.id}`],
       { revalidate: 60, tags: [`event-${eventId}`] }
     )();
 
@@ -316,6 +374,7 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
       title: formData.get("title") as string,
       description: formData.get("description") as string | undefined,
       eventType: formData.get("eventType") as EventType,
+      targetGroupId: (formData.get("targetGroupId") as string) || undefined,
       startTime: formData.get("startTime") as string,
       endTime: formData.get("endTime") as string,
       timezone: (formData.get("timezone") as string) || "UTC",
@@ -358,6 +417,10 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     }
 
     const targetBatchIds = batchIds.length > 0 ? batchIds : eventBatchIds;
+    const resolvedTargetGroup = await resolveEventTargetGroup(validated.targetGroupId || undefined, targetBatchIds);
+    if ("error" in resolvedTargetGroup) {
+      return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+    }
 
     const ianaTimezone = toIanaTimezone(validated.timezone);
     const startTimeUtc = fromZonedTime(validated.startTime, ianaTimezone);
@@ -373,6 +436,7 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
           where: { id: eventId },
           data: {
             batchId: batchIds[0],
+            targetGroupId: resolvedTargetGroup.targetGroupId,
             title: validated.title,
             description: validated.description || null,
             eventType: validated.eventType,
@@ -387,6 +451,7 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
       await prisma.event.update({
         where: { id: eventId },
         data: {
+          targetGroupId: resolvedTargetGroup.targetGroupId,
           title: validated.title,
           description: validated.description || null,
           eventType: validated.eventType,
@@ -401,24 +466,7 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     // Attempt to update Google Calendar event if googleEventId exists
     if (event.googleEventId) {
       try {
-        const groupIds = formData.getAll("groupIds") as string[];
-
-        let attendeeEmails: string[];
-        if (groupIds.length > 0) {
-          // Specific companies selected — get their members
-          const groupMembers = await prisma.groupMember.findMany({
-            where: { groupId: { in: groupIds } },
-            include: { user: { select: { email: true } } },
-          });
-          // Always include the creator + deduplicate
-          attendeeEmails = [...new Set([user.email, ...groupMembers.map((m: { user: { email: string } }) => m.user.email)])];
-        } else {
-          const batchUsers = await prisma.userBatch.findMany({
-            where: { batchId: { in: targetBatchIds }, status: "active" },
-            include: { user: { select: { email: true } } },
-          });
-          attendeeEmails = [...new Set([user.email, ...batchUsers.map((ub: { user: { email: string } }) => ub.user.email)])];
-        }
+        const attendeeEmails = await getEventAttendeeEmails(user.email, targetBatchIds, resolvedTargetGroup.targetGroupId);
 
         await updateCalendarEvent(event.googleEventId, {
           summary: validated.title,
