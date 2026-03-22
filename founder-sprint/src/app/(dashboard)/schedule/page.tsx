@@ -1,14 +1,16 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { getScheduleItems } from "@/actions/schedule";
 import { getOfficeHourBatchContext } from "@/actions/office-hour";
+import { getGroups } from "@/actions/group";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, parse, isValid } from "date-fns";
+import type { VisibleScheduleFilter } from "@/types/schedule";
 
 export const revalidate = 60;
 
-const VALID_TYPES = new Set(["event", "officeHour", "session"]);
+const VALID_TYPES = new Set(["in_person", "virtual", "general_session", "office_hour"]);
 
 export default async function SchedulePage({
   searchParams,
@@ -29,13 +31,13 @@ export default async function SchedulePage({
     params.day && /^\d{4}-\d{2}-\d{2}$/.test(params.day) ? params.day : null;
   const typeFilter =
     params.type && VALID_TYPES.has(params.type)
-      ? (params.type as "event" | "officeHour" | "session")
+      ? (params.type as VisibleScheduleFilter)
       : null;
 
   const rangeStart = startOfWeek(startOfMonth(monthDate));
   const rangeEnd = endOfWeek(endOfMonth(monthDate));
 
-  const [items, batchContextResult, totalBatchMembers, batchOptions] = await Promise.all([
+  const [items, batchContextResult, totalBatchMembers, batchOptions, groups] = await Promise.all([
     getScheduleItems({
       batchId: user.batchId,
       viewerId: user.id,
@@ -53,10 +55,12 @@ export default async function SchedulePage({
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
+    getGroups(user.batchId),
   ]);
   const batchContext = batchContextResult.success
     ? batchContextResult.data
     : { companies: [], founders: [], mentors: [] };
+  const groupOptions = groups.map((group) => ({ id: group.id, name: group.name }));
 
   return (
     <div className="space-y-6">
@@ -72,6 +76,7 @@ export default async function SchedulePage({
         founders={batchContext.founders}
         totalBatchMembers={totalBatchMembers}
         batchOptions={batchOptions}
+        groupOptions={groupOptions}
         currentBatchId={user.batchId}
       />
     </div>

@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { getDisplayName } from "@/lib/utils";
 import { isAdmin, isFounder } from "@/lib/permissions-client";
-import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext } from "@/actions/office-hour";
+import { requestOfficeHour, respondToRequest, deleteSlot, scheduleGroupOfficeHour, scheduleIndividualOfficeHour, proposeOfficeHour, grantOfficeHourCredits, markOfficeHourNoShow, getOfficeHourBatchContext, cancelRequest, promoteWaitlistedRequest } from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import type { UserWithBatch, OfficeHourSlotStatus, OfficeHourRequestStatus } from "@/types";
 import type { FounderOption, MentorOption } from "@/types/invite";
@@ -65,6 +65,7 @@ interface OfficeHourSlot {
     profileImage: string | null;
   };
   requests: OfficeHourRequest[];
+  targetFounderIds: string[];
   company?: {
     id: string;
     name: string;
@@ -84,10 +85,11 @@ interface OfficeHoursListProps {
   founders: FounderOption[];
   mentors: MentorOption[];
   requesterStats: {
-    totalCredits: number;
-    remainingCredits: number;
+    totalCredits: number | null;
+    remainingCredits: number | null;
     weeklyLimit: number;
     remainingWeeklyRequests: number;
+    isBatchActive: boolean;
   };
   batchOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
@@ -143,8 +145,9 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
    const toast = useToast();
    const scheduleEndTimeRef = useRef<HTMLInputElement>(null);
    const proposeEndTimeRef = useRef<HTMLInputElement>(null);
-    const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
-    const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+      const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
+      const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+      const [selectedTargetFounderIds, setSelectedTargetFounderIds] = useState<string[]>([]);
      const [selectedMentorId, setSelectedMentorId] = useState<string>(mentors.length === 1 ? mentors[0].id : "");
      const [grantCreditsModalOpen, setGrantCreditsModalOpen] = useState(false);
      const [selectedCreditFounderId, setSelectedCreditFounderId] = useState<string>("");
@@ -152,6 +155,9 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
      const [scheduleCompanies, setScheduleCompanies] = useState<CompanyForList[]>(companies);
      const [scheduleFounders, setScheduleFounders] = useState<FounderOption[]>(founders);
      const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
+     const [grantBatchId, setGrantBatchId] = useState<string>(currentBatchId);
+     const [grantFounders, setGrantFounders] = useState<FounderOption[]>(founders);
+     const [grantContextLoading, setGrantContextLoading] = useState(false);
 
   const isAdminUser = isAdmin(user.role);
   const isFounderUser = isFounder(user.role);
@@ -175,6 +181,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       setScheduleFounders(result.data.founders);
       setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
       setSelectedFounderId("");
+      setSelectedTargetFounderIds([]);
       setError(null);
     } else {
       setError(result.error);
@@ -189,6 +196,31 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     setScheduleFounders(founders);
     setSelectedCompanyId(defaultCompanyId);
     setSelectedFounderId("");
+    setSelectedTargetFounderIds([]);
+  };
+
+  const loadGrantBatchContext = async (batchId: string) => {
+    if (!isAdminUser) return;
+
+    setGrantContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
+
+    if (result.success) {
+      setGrantBatchId(batchId);
+      setGrantFounders(result.data.founders);
+      setSelectedCreditFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
+    }
+
+    setGrantContextLoading(false);
+  };
+
+  const resetGrantContext = () => {
+    setGrantBatchId(currentBatchId);
+    setGrantFounders(founders);
+    setSelectedCreditFounderId("");
   };
 
   const handleScheduleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +278,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       formData.set("founderId", selectedFounderId);
       result = await scheduleIndividualOfficeHour(formData);
     } else {
+      selectedTargetFounderIds.forEach((founderId) => formData.append("targetFounderIds", founderId));
       formData.set("companyId", selectedCompanyId);
       result = await scheduleGroupOfficeHour(formData);
     }
@@ -257,6 +290,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       setScheduleModalOpen(false);
       setScheduleMode("company");
       setSelectedFounderId("");
+      setSelectedTargetFounderIds([]);
       setSelectedCompanyId(defaultCompanyId);
       (e.target as HTMLFormElement).reset();
       router.refresh();
@@ -340,6 +374,15 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     }
   };
 
+  const handlePromoteWaitlisted = async (requestId: string) => {
+    const result = await promoteWaitlistedRequest(requestId);
+    if (!result.success) {
+      toast.error(result.error);
+    } else {
+      router.refresh();
+    }
+  };
+
   const handleRejectRequest = async (requestId: string) => {
     if (!confirm("Are you sure you want to reject this request?")) return;
 
@@ -373,6 +416,17 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     }
   };
 
+  const handleCancelRequest = async (requestId: string) => {
+    if (!confirm("Are you sure you want to cancel this request?")) return;
+
+    const result = await cancelRequest(requestId);
+    if (!result.success) {
+      toast.error(result.error);
+    } else {
+      router.refresh();
+    }
+  };
+
   const openRequestModal = (slot: OfficeHourSlot) => {
     setSelectedSlot(slot);
     setRequestModalOpen(true);
@@ -389,10 +443,10 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
     const amount = Number(formData.get("amount") as string);
     const reason = (formData.get("reason") as string) || undefined;
 
-    const result = await grantOfficeHourCredits(founderId, user.batchId, amount, reason);
+    const result = await grantOfficeHourCredits(founderId, grantBatchId, amount, reason);
     if (result.success) {
       setGrantCreditsModalOpen(false);
-      setSelectedCreditFounderId("");
+      resetGrantContext();
       (e.target as HTMLFormElement).reset();
       router.refresh();
     } else {
@@ -406,7 +460,11 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
       <div className="flex items-center justify-end gap-2">
         {isFounderUser && (
           <div className="mr-auto flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
-            <Badge variant="default">Credits {requesterStats.remainingCredits}/{requesterStats.totalCredits}</Badge>
+            {requesterStats.isBatchActive ? (
+              <Badge variant="success">Unlimited during active batch</Badge>
+            ) : (
+              <Badge variant="default">Credits {requesterStats.remainingCredits}/{requesterStats.totalCredits}</Badge>
+            )}
             <Badge variant="warning">Weekly requests left {requesterStats.remainingWeeklyRequests}/{requesterStats.weeklyLimit}</Badge>
           </div>
         )}
@@ -417,7 +475,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
         )}
         {isAdminUser && (
           <>
-            <Button variant="secondary" size="sm" onClick={() => setGrantCreditsModalOpen(true)}>
+            <Button variant="secondary" size="sm" onClick={() => { resetGrantContext(); setGrantCreditsModalOpen(true); }}>
               Grant Credits
             </Button>
               <button
@@ -446,8 +504,14 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
           {slots.map((slot) => {
             const isHost = slot.host.id === user.id;
             const pendingRequests = slot.requests.filter((r) => r.status === "pending");
+            const waitlistedRequests = slot.requests.filter((r) => r.status === "waitlisted");
             const approvedRequest = slot.requests.find((r) => r.status === "approved");
-            const userHasRequested = slot.requests.some((r) => r.requester.id === user.id && r.status === "pending");
+            const userPendingRequest = slot.requests.find((r) => r.requester.id === user.id && r.status === "pending");
+            const userWaitlistedRequest = slot.requests.find((r) => r.requester.id === user.id && r.status === "waitlisted");
+            const userHasRequested = Boolean(userPendingRequest);
+            const userIsWaitlisted = Boolean(userWaitlistedRequest);
+            const canFounderAccessSlot = slot.targetFounderIds.length === 0 || slot.targetFounderIds.includes(user.id);
+            const hasActiveRequest = pendingRequests.length > 0 || Boolean(approvedRequest);
 
             return (
               <div key={slot.id} className="card space-y-3">
@@ -477,7 +541,7 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                   </div>
 
                   <div className="flex gap-2">
-                    {canRequest && slot.status === "available" && !userHasRequested && companies.length > 0 && (
+                    {canRequest && canFounderAccessSlot && slot.status === "available" && !userHasRequested && !userIsWaitlisted && companies.length > 0 && (
                       <Button
                         size="sm"
                         onClick={() => openRequestModal(slot)}
@@ -486,13 +550,52 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                         Request
                       </Button>
                     )}
+                    {canRequest && canFounderAccessSlot && !userHasRequested && !userIsWaitlisted && companies.length > 0 && hasActiveRequest && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => openRequestModal(slot)}
+                        disabled={loading}
+                      >
+                        Join Waitlist
+                      </Button>
+                    )}
                     {isFounderUser && companies.length === 0 && slot.status === "available" && (
                       <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
                         Join a company to request
                       </p>
                     )}
                     {userHasRequested && (
-                      <Badge variant="warning">Request Pending</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="warning">Request Pending</Badge>
+                        {userPendingRequest && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(userPendingRequest.id)}
+                            disabled={loading}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {userIsWaitlisted && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">Waitlisted</Badge>
+                        {userWaitlistedRequest && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(userWaitlistedRequest.id)}
+                            disabled={loading}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     )}
                     {(isHost || user.role === "super_admin" || user.role === "admin") &&
                      (user.role === "super_admin" || user.role === "admin" || slot.status === "completed" || (pendingRequests.length === 0 && !approvedRequest)) && (
@@ -549,15 +652,27 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                           </div>
                         )}
                       </div>
-                      {(isHost || isAdminUser) && slot.status === "completed" && (
-                        <Button
-                          size="sm"
-                          variant={approvedRequest.noShow ? "secondary" : "ghost"}
-                          onClick={() => handleNoShowToggle(approvedRequest.id, !approvedRequest.noShow)}
-                        >
-                          {approvedRequest.noShow ? "Mark Attended" : "Mark No-show"}
-                        </Button>
-                      )}
+                      <div className="flex gap-2">
+                        {(isHost || isAdminUser) && slot.status === "completed" && (
+                          <Button
+                            size="sm"
+                            variant={approvedRequest.noShow ? "secondary" : "ghost"}
+                            onClick={() => handleNoShowToggle(approvedRequest.id, !approvedRequest.noShow)}
+                          >
+                            {approvedRequest.noShow ? "Mark Attended" : "Mark No-show"}
+                          </Button>
+                        )}
+                        {isAdminUser && slot.status === "confirmed" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelRequest(approvedRequest.id)}
+                            style={{ color: "var(--color-error)" }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -620,6 +735,32 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
                             onClick={() => handleRejectRequest(request.id)}
                             disabled={loading}
                           >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(isHost || isAdminUser) && waitlistedRequests.length > 0 && (
+                  <div className="pt-2 border-t space-y-3" style={{ borderColor: "var(--color-card-border)" }}>
+                    <div className="text-sm font-medium">Waitlist</div>
+                    {waitlistedRequests.map((request) => (
+                      <div key={request.id} className="flex items-start justify-between gap-4 p-3 rounded" style={{ backgroundColor: "var(--color-background-secondary)" }}>
+                        <div className="flex items-start gap-3">
+                          <Avatar src={request.requester.profileImage} name={getDisplayName(request.requester)} size={36} />
+                          <div className="space-y-1">
+                            <div className="font-medium text-sm">{getDisplayName(request.requester)}</div>
+                            {request.agenda && <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Agenda: {request.agenda}</div>}
+                            {request.message && <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>{request.message}</div>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handlePromoteWaitlisted(request.id)} disabled={loading || hasActiveRequest}>
+                            Promote
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => handleRejectRequest(request.id)} disabled={loading}>
                             Reject
                           </Button>
                         </div>
@@ -760,23 +901,49 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
             </button>
           </div>
           {scheduleMode === "company" ? (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Company</label>
-              <select
-                name="companyId"
-                required={scheduleMode === "company"}
-                className="w-full px-3 py-2 rounded-md border text-sm"
-                style={{
-                  backgroundColor: "var(--color-background)",
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-foreground)",
-                }}
-              >
-                <option value="">Select company</option>
-                {scheduleCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
-                ))}
-              </select>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Company</label>
+                <select
+                  name="companyId"
+                  required={scheduleMode === "company"}
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Select company</option>
+                  {scheduleCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c._count.members} members)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Open to founders (optional)</label>
+                <select
+                  multiple
+                  value={selectedTargetFounderIds}
+                  onChange={(e) => setSelectedTargetFounderIds(Array.from(e.target.selectedOptions).map((option) => option.value))}
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                    minHeight: 140,
+                  }}
+                >
+                  {scheduleFounders.map((founder) => (
+                    <option key={founder.id} value={founder.id}>
+                      {(founder.name || founder.email)}{founder.companyName ? ` — ${founder.companyName}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                  Leave empty to open this slot to all founders in the batch.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -957,16 +1124,35 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
         </form>
       </Modal>
 
-      <Modal open={grantCreditsModalOpen} onClose={() => { setGrantCreditsModalOpen(false); setError(null); setSelectedCreditFounderId(""); }} title="Grant Office Hour Credits">
+      <Modal open={grantCreditsModalOpen} onClose={() => { setGrantCreditsModalOpen(false); setError(null); resetGrantContext(); }} title="Grant Office Hour Credits">
         <form onSubmit={handleGrantCredits} className="space-y-4">
           {error && (
             <div className="p-3 rounded text-sm" style={{ backgroundColor: "var(--color-error-light)", color: "var(--color-error)" }}>
               {error}
             </div>
           )}
+          {isAdminUser && batchOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Batch</label>
+              <select
+                value={grantBatchId}
+                onChange={(e) => void loadGrantBatchContext(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                {batchOptions.map((batch) => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <SearchableSelect
             label="Founder"
-            options={founders.map((f) => ({
+            options={grantFounders.map((f) => ({
               id: f.id,
               label: f.name || f.email,
               secondary: f.companyName ? `${f.email} - ${f.companyName}` : f.email,
@@ -981,8 +1167,8 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
           <Input label="Credits to add" name="amount" type="number" min="1" defaultValue="1" required />
           <Textarea label="Reason (Optional)" name="reason" rows={3} placeholder="Why are you granting extra credits?" />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setGrantCreditsModalOpen(false)}>Cancel</Button>
-            <Button type="submit" loading={loading}>Grant Credits</Button>
+            <Button type="button" variant="secondary" onClick={() => { setGrantCreditsModalOpen(false); resetGrantContext(); }}>Cancel</Button>
+            <Button type="submit" loading={loading || grantContextLoading}>Grant Credits</Button>
           </div>
         </form>
       </Modal>

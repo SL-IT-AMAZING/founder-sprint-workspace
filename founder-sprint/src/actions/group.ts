@@ -9,6 +9,21 @@ import type { ActionResult } from "@/types";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
+function revalidateGroupLinkedViews(batchId: string, groupId?: string) {
+  revalidatePath("/groups");
+  revalidatePath("/events");
+  revalidatePath("/schedule");
+  revalidatePath("/dashboard");
+  revalidateTag(`groups-${batchId}`);
+  revalidateTag(`events-${batchId}`);
+  revalidateTag(`schedule-${batchId}`);
+  if (groupId) {
+    revalidatePath(`/groups/${groupId}`);
+    revalidatePath(`/groups/${groupId}/manage`);
+    revalidateTag(`group-${groupId}`);
+  }
+}
+
 const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional().or(z.literal("")),
@@ -43,9 +58,7 @@ export async function createGroup(formData: FormData): Promise<ActionResult<{ id
     },
   });
 
-  revalidatePath("/groups");
-  revalidateTag(`groups-${user.batchId}`);
-  revalidateTag(`group-${group.id}`);
+  revalidateGroupLinkedViews(user.batchId, group.id);
   return { success: true, data: { id: group.id } };
 }
 
@@ -135,10 +148,7 @@ export async function joinGroup(groupId: string): Promise<ActionResult> {
     },
   });
 
-  revalidatePath("/groups");
-  revalidatePath(`/groups/${groupId}`);
-  revalidateTag(`groups-${user.batchId}`);
-  revalidateTag(`group-${groupId}`);
+  revalidateGroupLinkedViews(user.batchId, groupId);
   return { success: true, data: undefined };
 }
 
@@ -205,11 +215,7 @@ export async function addMembersToGroup(
 
   // Company sync now handled by CompanyMember — removed group.name auto-set
 
-  revalidatePath("/groups");
-  revalidatePath(`/groups/${groupId}`);
-  revalidatePath(`/groups/${groupId}/manage`);
-  revalidateTag(`groups-${group.batchId}`);
-  revalidateTag(`group-${groupId}`);
+  revalidateGroupLinkedViews(group.batchId, groupId);
 
   return { success: true, data: undefined };
 }
@@ -275,11 +281,7 @@ export async function updateGroup(
     },
   });
 
-  revalidatePath("/groups");
-  revalidatePath(`/groups/${groupId}`);
-  revalidatePath(`/groups/${groupId}/manage`);
-  revalidateTag(`groups-${user.batchId}`);
-  revalidateTag(`group-${groupId}`);
+  revalidateGroupLinkedViews(user.batchId, groupId);
   return { success: true, data: undefined };
 }
 
@@ -295,9 +297,7 @@ export async function deleteGroup(groupId: string): Promise<ActionResult> {
     where: { id: groupId },
   });
 
-  revalidatePath("/groups");
-  revalidateTag(`groups-${user.batchId}`);
-  revalidateTag(`group-${groupId}`);
+  revalidateGroupLinkedViews(user.batchId, groupId);
   return { success: true, data: undefined };
 }
 
@@ -333,10 +333,6 @@ export async function removeGroupMember(
     where: { id: member.id },
   });
 
-  revalidatePath("/groups");
-  revalidatePath(`/groups/${groupId}`);
-  revalidatePath(`/groups/${groupId}/manage`);
-  revalidateTag(`groups-${user.batchId}`);
-  revalidateTag(`group-${groupId}`);
+  revalidateGroupLinkedViews(user.batchId, groupId);
   return { success: true, data: undefined };
 }

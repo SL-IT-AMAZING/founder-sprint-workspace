@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatRelativeTime, formatDate, getRoleDisplayName, getDisplayName } from "@/lib/utils";
 import { getBatchStatusLabel, getBatchStatusVariant, isBatchActive } from "@/lib/batch-utils";
 import Link from "next/link";
+import { getEvents } from "@/actions/event";
 
 export const revalidate = 30;
 
@@ -20,21 +21,17 @@ export default async function DashboardPage() {
   // Fetch all dashboard data in parallel
   const [
     openQuestionsCount,
-    upcomingEventsCount,
     pendingAssignmentsCount,
     officeHoursCount,
     teamMembersCount,
     recentQuestions,
-    upcomingEvents,
     activeAssignments,
     batchInfo,
+    visibleEvents,
   ] = await Promise.all([
     // Stats
     prisma.question.count({
       where: { batchId: user.batchId, status: "open" },
-    }),
-    prisma.event.count({
-      where: { batchId: user.batchId, startTime: { gt: now }, eventType: { not: "office_hour" } },
     }),
     prisma.assignment.count({
       where: { batchId: user.batchId, dueDate: { gt: now } },
@@ -64,14 +61,6 @@ export default async function DashboardPage() {
       take: 5,
     }),
     // Upcoming Events (next 3)
-    prisma.event.findMany({
-      where: {
-        batchId: user.batchId,
-        startTime: { gt: now },
-      },
-      orderBy: { startTime: "asc" },
-      take: 3,
-    }),
     // Active Assignments (next 5 with closest deadlines)
     prisma.assignment.findMany({
       where: {
@@ -85,7 +74,16 @@ export default async function DashboardPage() {
     prisma.batch.findUnique({
       where: { id: user.batchId },
     }),
+    getEvents(user.batchId),
   ]);
+
+  const upcomingEvents = visibleEvents
+    .filter((event) => new Date(event.startTime) > now)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    .slice(0, 3);
+  const upcomingEventsCount = visibleEvents.filter(
+    (event) => new Date(event.startTime) > now && event.eventType !== "office_hour"
+  ).length;
 
   const userIsAdmin = isAdmin(user.role);
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, isStaff, isAdmin } from "@/lib/permissions";
 
 export const revalidate = 60;
-import { getSubmissions } from "@/actions/assignment";
+import { getAssignments, getSubmissions } from "@/actions/assignment";
 import { SubmissionsDashboard } from "./SubmissionsDashboard";
 
 export default async function SubmissionsPage() {
@@ -18,5 +18,9 @@ export default async function SubmissionsPage() {
     ? await getSubmissions()
     : await getSubmissions(user.batchId);
 
-  return <SubmissionsDashboard submissions={submissions} />;
+  const assignments = isAdmin(user.role)
+    ? await getAssignments()
+    : await getAssignments(user.batchId);
+
+  return <SubmissionsDashboard submissions={submissions} assignments={assignments} />;
 }

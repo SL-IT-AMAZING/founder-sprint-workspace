@@ -2,10 +2,10 @@
 export type UserRole = "super_admin" | "admin" | "mentor" | "founder" | "co_founder";
 export type UserStatus = "active" | "inactive" | (string & {});
 export type BatchStatus = "active" | "archived";
-export type UserBatchStatus = "invited" | "active";
+export type UserBatchStatus = "invited" | "active" | "dropped_out";
 export type QuestionStatus = "open" | "closed";
 export type OfficeHourSlotStatus = "available" | "requested" | "confirmed" | "completed" | "cancelled";
-export type OfficeHourRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type OfficeHourRequestStatus = "pending" | "waitlisted" | "approved" | "rejected" | "cancelled";
 export type LikeTargetType = "post" | "comment";
 export type EventType = "one_off" | "office_hour" | "in_person" | "virtual" | "general_session";
 

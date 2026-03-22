@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { formatDate, getDisplayName } from "@/lib/utils";
+import { getAssignmentNonSubmitters } from "@/actions/assignment";
 
 interface User {
   id: string;
@@ -17,6 +19,7 @@ interface User {
 interface Assignment {
   id: string;
   title: string;
+  dueDate?: Date;
   batch?: { id: string; name: string };
   targetGroup?: { id: string; name: string } | null;
 }
@@ -39,6 +42,7 @@ interface Submission {
 
 interface SubmissionsDashboardProps {
   submissions: Submission[];
+  assignments: Assignment[];
 }
 
 type StatusFilter = "all" | "pending" | "in_review" | "approved" | "needs_revision";
@@ -61,16 +65,17 @@ function getStatusLabel(status: string): string {
   }
 }
 
-export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps) {
+export function SubmissionsDashboard({ submissions, assignments }: SubmissionsDashboardProps) {
   const [selectedAssignment, setSelectedAssignment] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
   const [selectedBatch, setSelectedBatch] = useState<string>("all");
   const [selectedLateFilter, setSelectedLateFilter] = useState<"all" | "late" | "on_time">("all");
   const [selectedFeedbackFilter, setSelectedFeedbackFilter] = useState<"all" | "with_feedback" | "without_feedback">("all");
-
-  const assignments = Array.from(
-    new Map(submissions.map((s) => [s.assignment.id, s.assignment])).values()
-  );
+  const [showDueThisWeekOnly, setShowDueThisWeekOnly] = useState(false);
+  const [nonSubmittersAssignmentId, setNonSubmittersAssignmentId] = useState<string>("all");
+  const [nonSubmitters, setNonSubmitters] = useState<User[]>([]);
+  const [nonSubmittersError, setNonSubmittersError] = useState<string>("");
+  const [isPending, startTransition] = useTransition();
 
   const batches = Array.from(
     new Map(
@@ -88,12 +93,50 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
       selectedLateFilter === "all" ||
       (selectedLateFilter === "late" ? s.isLate : !s.isLate);
     const hasFeedback = s.feedbacks.length > 0;
+    const dueAt = s.assignment.dueDate ? new Date(s.assignment.dueDate) : null;
+    const weekStart = new Date();
+    const day = weekStart.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    weekStart.setDate(weekStart.getDate() + diff);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
     const matchesFeedback =
       selectedFeedbackFilter === "all" ||
       (selectedFeedbackFilter === "with_feedback" ? hasFeedback : !hasFeedback);
+    const matchesDueThisWeek = !showDueThisWeekOnly || (dueAt !== null && dueAt >= weekStart && dueAt < weekEnd);
 
-    return matchesAssignment && matchesStatus && matchesBatch && matchesLateness && matchesFeedback;
+    return matchesAssignment && matchesStatus && matchesBatch && matchesLateness && matchesFeedback && matchesDueThisWeek;
   });
+
+  const unreviewedCount = submissions.filter((submission) => submission.feedbacks.length === 0).length;
+
+  const handleNeedsReviewFilter = () => {
+    const isActive = selectedFeedbackFilter === "without_feedback";
+    setSelectedFeedbackFilter(isActive ? "all" : "without_feedback");
+    if (!isActive) {
+      setSelectedStatus("all");
+    }
+  };
+
+  const handleLoadNonSubmitters = () => {
+    if (nonSubmittersAssignmentId === "all") {
+      setNonSubmitters([]);
+      setNonSubmittersError("");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await getAssignmentNonSubmitters(nonSubmittersAssignmentId);
+        setNonSubmitters(result);
+        setNonSubmittersError("");
+      } catch {
+        setNonSubmitters([]);
+        setNonSubmittersError("Failed to load non-submitters.");
+      }
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -102,6 +145,35 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
       </div>
 
       <div className="card">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Button
+            variant={selectedFeedbackFilter === "without_feedback" ? "primary" : "secondary"}
+            onClick={handleNeedsReviewFilter}
+          >
+            Needs Review ({unreviewedCount})
+          </Button>
+          <Button
+            variant={showDueThisWeekOnly ? "primary" : "secondary"}
+            onClick={() => setShowDueThisWeekOnly((value) => !value)}
+          >
+            Due This Week
+          </Button>
+          {(selectedAssignment !== "all" || selectedStatus !== "all" || selectedBatch !== "all" || selectedLateFilter !== "all" || selectedFeedbackFilter !== "all") && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSelectedAssignment("all");
+                setSelectedStatus("all");
+                setSelectedBatch("all");
+                setSelectedLateFilter("all");
+                setSelectedFeedbackFilter("all");
+                setShowDueThisWeekOnly(false);
+              }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium">Assignment:</label>
@@ -198,6 +270,58 @@ export function SubmissionsDashboard({ submissions }: SubmissionsDashboardProps)
             </select>
           </div>
         </div>
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-medium">Non-submitters</h2>
+            <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+              Select an assignment to list the intended recipients who still have not submitted.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={nonSubmittersAssignmentId}
+              onChange={(e) => setNonSubmittersAssignmentId(e.target.value)}
+              className="px-3 py-2 rounded-lg border text-sm"
+              style={{
+                borderColor: "var(--color-card-border)",
+                backgroundColor: "var(--color-background)",
+              }}
+            >
+              <option value="all">Select assignment</option>
+              {assignments.map((assignment) => (
+                <option key={assignment.id} value={assignment.id}>
+                  {assignment.title}
+                </option>
+              ))}
+            </select>
+            <Button onClick={handleLoadNonSubmitters} loading={isPending} disabled={nonSubmittersAssignmentId === "all"}>
+              Load
+            </Button>
+          </div>
+        </div>
+
+        {nonSubmittersError ? (
+          <p className="text-sm" style={{ color: "var(--color-error)" }}>{nonSubmittersError}</p>
+        ) : nonSubmittersAssignmentId === "all" ? (
+          <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Choose an assignment to see who is missing a submission.</p>
+        ) : nonSubmitters.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Everyone assigned to this assignment has submitted.</p>
+        ) : (
+          <div className="space-y-2">
+            {nonSubmitters.map((user) => (
+              <div key={user.id} className="flex items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}>
+                <Avatar src={user.profileImage} name={getDisplayName(user)} size={32} />
+                <div>
+                  <p className="text-sm font-medium">{getDisplayName(user)}</p>
+                  <p className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>{user.email}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {filteredSubmissions.length === 0 ? (

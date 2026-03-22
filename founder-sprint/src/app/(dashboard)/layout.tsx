@@ -3,6 +3,7 @@ import DashboardMain from "@/components/layout/DashboardMain";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin as checkIsAdmin } from "@/lib/permissions";
 import { getUserBatches } from "@/actions/batch-switcher";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardLayout({
   children,
@@ -12,7 +13,9 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/login");
+    const supabase = await createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    redirect(authUser ? "/no-batch" : "/login");
   }
 
   const userIsAdmin = checkIsAdmin(user);

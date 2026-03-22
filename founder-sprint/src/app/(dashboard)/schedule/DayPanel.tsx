@@ -14,10 +14,15 @@ import { CompanySelect } from "@/components/ui/CompanySelect";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { createEvent } from "@/actions/event";
 import { scheduleGroupOfficeHour, scheduleIndividualOfficeHour, getOfficeHourBatchContext } from "@/actions/office-hour";
-import { createSession } from "@/actions/session";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
-import { SCHEDULE_COLORS, SCHEDULE_LABELS } from "@/types/schedule";
+import {
+  SCHEDULE_COLORS,
+  SCHEDULE_LABELS,
+  VISIBLE_SCHEDULE_COLORS,
+  VISIBLE_SCHEDULE_LABELS,
+  getVisibleScheduleFilterForItem,
+} from "@/types/schedule";
 import { displayRangeInUserTimezone } from "@/lib/timezone";
 
 interface DayPanelProps {
@@ -29,12 +34,28 @@ interface DayPanelProps {
   founders: FounderOption[];
   totalBatchMembers: number;
   batchOptions: Array<{ id: string; name: string }>;
+  groupOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
 
 function formatItemTime(item: ScheduleItem, userTimezone: string | null): string {
   if (item.isAllDay) return "All day";
   return displayRangeInUserTimezone(item.startTime, item.endTime, userTimezone, item.timezone);
+}
+
+function getItemAccent(item: ScheduleItem) {
+  const visibleKind = getVisibleScheduleFilterForItem(item);
+  if (visibleKind) {
+    return {
+      color: VISIBLE_SCHEDULE_COLORS[visibleKind],
+      label: VISIBLE_SCHEDULE_LABELS[visibleKind],
+    };
+  }
+
+  return {
+    color: SCHEDULE_COLORS[item.kind],
+    label: SCHEDULE_LABELS[item.kind],
+  };
 }
 
 function getStatusVariant(
@@ -56,14 +77,8 @@ function getStatusVariant(
   }
 }
 
-type CreateType = "event" | "officeHour" | "session";
-
-const eventTypeOptions = [
-  { value: "general_session", label: "General Session" },
-  { value: "office_hour", label: "Office Hour" },
-  { value: "virtual", label: "Virtual Event" },
-  { value: "in_person", label: "In-person Event" },
-];
+type CreateType = "event" | "officeHour";
+type EventCreateKind = "in_person" | "virtual" | "general_session";
 
 const timezoneOptions = [
   { value: "America/Los_Angeles", label: "PST (Pacific)" },
@@ -71,9 +86,10 @@ const timezoneOptions = [
   { value: "UTC", label: "UTC" },
 ];
 
-export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, currentBatchId }: DayPanelProps) {
+export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, groupOptions, currentBatchId }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<CreateType | null>(null);
+  const [selectedEventType, setSelectedEventType] = useState<EventCreateKind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -88,8 +104,6 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
   const dateStr = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
   const defaultStartDateTime = dateStr ? `${dateStr}T09:00` : undefined;
   const defaultEndDateTime = dateStr ? `${dateStr}T10:00` : undefined;
-  const defaultSessionDate = dateStr || undefined;
-
   const loadOfficeHourBatchContext = async (batchId: string) => {
     setScheduleContextLoading(true);
     const result = await getOfficeHourBatchContext(batchId);
@@ -118,25 +132,27 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
 
   const createTitle =
     createType === "event"
-      ? "Create Event"
+      ? selectedEventType === "in_person"
+        ? "Create Event: In-person"
+        : selectedEventType === "virtual"
+        ? "Create Event: Virtual"
+        : "Create General Session"
       : createType === "officeHour"
       ? "Create Office Hour"
-      : createType === "session"
-      ? "Create Session"
       : "Create";
 
   const createButtonLabel =
     createType === "event"
-      ? "Create Event"
+      ? selectedEventType === "general_session"
+        ? "Create General Session"
+        : "Create Event"
       : createType === "officeHour"
       ? "Create Office Hour"
-      : "Create Session";
+      : "Create";
 
-  const handleCreate = (path: string) => {
-    const nextType: CreateType | null =
-      path === "/events" ? "event" : path === "/office-hours" ? "officeHour" : path === "/sessions" ? "session" : null;
-
+  const handleCreate = (nextType: CreateType, eventType?: EventCreateKind) => {
     setCreateType(nextType);
+    setSelectedEventType(eventType ?? null);
     setError(null);
     if (nextType === "officeHour") {
       resetOfficeHourContext();
@@ -146,6 +162,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
 
   const handleCloseModal = () => {
     setCreateType(null);
+    setSelectedEventType(null);
     setError(null);
     setOhMode("company");
     resetOfficeHourContext();
@@ -159,6 +176,10 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
     const formData = new FormData(e.currentTarget);
 
     if (createType === "event") {
+      if (!selectedEventType) {
+        setError("Please choose an event type");
+        return;
+      }
       const startTime = formData.get("startTime") as string;
       const endTime = formData.get("endTime") as string;
       if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -184,26 +205,11 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
       }
     }
 
-    if (createType === "session") {
-      const sessionDate = (formData.get("sessionDate") as string) || dateStr;
-      const startTime = formData.get("startTime") as string;
-      const endTime = formData.get("endTime") as string;
-
-      if ((startTime && !endTime) || (!startTime && endTime)) {
-        setError("Start and end time must both be provided");
-        return;
-      }
-
-      if (startTime && endTime && new Date(`${sessionDate}T${endTime}`) <= new Date(`${sessionDate}T${startTime}`)) {
-        setError("End time must be after start time");
-        return;
-      }
-    }
-
     startTransition(() => {
       void (async () => {
-        let result;
+        let result: Awaited<ReturnType<typeof createEvent>> | Awaited<ReturnType<typeof scheduleGroupOfficeHour>> | Awaited<ReturnType<typeof scheduleIndividualOfficeHour>> | null = null;
         if (createType === "event") {
+          formData.set("eventType", selectedEventType!);
           result = await createEvent(formData);
         } else if (createType === "officeHour") {
           formData.set("batchId", selectedAdminBatchId);
@@ -214,8 +220,11 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
             formData.set("companyId", selectedCompanyId);
             result = await scheduleGroupOfficeHour(formData);
           }
-        } else {
-          result = await createSession(formData);
+        }
+
+        if (!result) {
+          setError("Failed to create item");
+          return;
         }
 
         if (result.success) {
@@ -295,6 +304,9 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
         {items.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {items.map((item) => (
+              (() => {
+                const accent = getItemAccent(item);
+                return (
               <Link
                 key={item.id}
                 href={item.deepLink}
@@ -317,14 +329,14 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                   }
                 >
                   <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      backgroundColor: SCHEDULE_COLORS[item.kind],
-                      flexShrink: 0,
-                      marginTop: 5,
-                    }}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: accent.color,
+                        flexShrink: 0,
+                        marginTop: 5,
+                      }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -355,7 +367,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                           color: "var(--color-foreground-secondary)",
                         }}
                       >
-                        {SCHEDULE_LABELS[item.kind]}
+                        {accent.label}
                       </span>
                       {item.status && (
                         <Badge variant={getStatusVariant(item.status)}>
@@ -397,12 +409,14 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                   </span>
                 </div>
               </Link>
+                );
+              })()
             ))}
           </div>
         )}
       </div>
 
-      {isAdmin && selectedDay && (
+      {isAdmin && (
         <div style={{ marginTop: 12, borderTop: "1px solid #E8E4DE", paddingTop: 12, position: "relative" }}>
           <button
             onClick={() => setCreateOpen(!createOpen)}
@@ -417,7 +431,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               gap: 4,
             }}
           >
-            + Create
+            Create Event
           </button>
           {createOpen && (
             <div
@@ -435,13 +449,14 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               }}
             >
               {[
-                { label: "Event", path: "/events", color: SCHEDULE_COLORS.event },
-                { label: "Office Hour", path: "/office-hours", color: SCHEDULE_COLORS.officeHour },
-                { label: "Session", path: "/sessions", color: SCHEDULE_COLORS.session },
+                { label: "Event: In-person", type: "event" as const, eventType: "in_person" as const, color: "#F59E0B" },
+                { label: "Event: Virtual", type: "event" as const, eventType: "virtual" as const, color: "#10B981" },
+                { label: "General Session", type: "event" as const, eventType: "general_session" as const, color: "#8B5CF6" },
+                { label: "Office Hour", type: "officeHour" as const, color: SCHEDULE_COLORS.officeHour },
               ].map((opt) => (
                 <button
-                  key={opt.path}
-                  onClick={() => handleCreate(opt.path)}
+                  key={opt.label}
+                  onClick={() => handleCreate(opt.type, opt.eventType)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -506,7 +521,6 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                 placeholder="Event description (optional)"
                 rows={3}
               />
-              <Select label="Event Type" name="eventType" options={eventTypeOptions} required />
               <Input
                 label="Start Time"
                 name="startTime"
@@ -523,6 +537,24 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
               <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Target Group (optional)</label>
+                <select
+                  name="targetGroupId"
+                  defaultValue=""
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Entire selected batch</option>
+                  {groupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </div>
               <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} />
             </>
           )}
@@ -605,29 +637,6 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               <Input label="Start Time" name="startTime" type="datetime-local" required defaultValue={defaultStartDateTime} />
               <Input label="End Time" name="endTime" type="datetime-local" required defaultValue={defaultEndDateTime} />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
-            </>
-          )}
-
-          {createType === "session" && (
-            <>
-              <Input label="Title" name="title" required placeholder="Session title" />
-              <Textarea
-                label="Description"
-                name="description"
-                placeholder="Session description (optional)"
-                rows={3}
-              />
-              <Input
-                label="Session Date"
-                name="sessionDate"
-                type="date"
-                required
-                defaultValue={defaultSessionDate}
-              />
-              <Input label="Start Time" name="startTime" type="time" defaultValue="09:00" />
-              <Input label="End Time" name="endTime" type="time" defaultValue="10:00" />
-              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
-              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} />
             </>
           )}
 

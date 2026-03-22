@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { isSameDay } from "date-fns";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -11,12 +11,25 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Calendar } from "@/components/ui/Calendar";
-import { formatDateTime, formatDate, getDisplayName } from "@/lib/utils";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { formatDate, getDisplayName } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
+import {
+  getOfficeHourBatchContext,
+  scheduleGroupOfficeHour,
+  scheduleIndividualOfficeHour,
+} from "@/actions/office-hour";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import type { UserWithBatch, EventType } from "@/types";
+import type { CompanyOption, FounderOption } from "@/types/invite";
+import type { ScheduleItem, VisibleScheduleFilter } from "@/types/schedule";
+import {
+  VISIBLE_SCHEDULE_COLORS,
+  VISIBLE_SCHEDULE_FILTERS,
+  VISIBLE_SCHEDULE_LABELS,
+} from "@/types/schedule";
 import { displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
 
 type ViewMode = "list" | "calendar";
@@ -36,6 +49,7 @@ interface Event {
     email: string;
     profileImage: string | null;
   };
+  targetGroup?: { id: string; name: string } | null;
   batches?: { batch: { id: string; name: string } }[];
 }
 
@@ -43,13 +57,17 @@ interface EventsListProps {
   user: UserWithBatch;
   events: Event[];
   batchOptions: BatchOption[];
+  companies: CompanyOption[];
+  founders: FounderOption[];
+  groupOptions: Array<{ id: string; name: string }>;
+  currentBatchId: string;
 }
 
 const eventTypeOptions = [
+  { value: "in_person", label: "Event: In-person" },
+  { value: "virtual", label: "Event: Virtual" },
   { value: "general_session", label: "General Session" },
   { value: "office_hour", label: "Office Hour" },
-  { value: "virtual", label: "Virtual Event" },
-  { value: "in_person", label: "In-person Event" },
 ];
 
 function getEventTypeBadgeVariant(type: EventType): "default" | "success" | "warning" {
@@ -84,29 +102,78 @@ function getEventTypeLabel(type: EventType): string {
   }
 }
 
-export function EventsList({ user, events, batchOptions }: EventsListProps) {
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<EventType | "all">("all");
+export function EventsList({
+  user,
+  events,
+  batchOptions,
+  companies,
+  founders,
+  groupOptions,
+  currentBatchId,
+}: EventsListProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillDate = searchParams.get("date");
+  const canCreate = isAdmin(user.role);
+  const [createModalOpen, setCreateModalOpen] = useState(Boolean(prefillDate && canCreate));
+  const [selectedCreateEventType, setSelectedCreateEventType] = useState<EventType | null>(null);
+  const [selectedType, setSelectedType] = useState<VisibleScheduleFilter | "all">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleMode, setScheduleMode] = useState<"company" | "individual">("company");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(companies.length === 1 ? companies[0].id : "");
+  const [selectedFounderId, setSelectedFounderId] = useState<string>("");
+  const [selectedAdminBatchId, setSelectedAdminBatchId] = useState<string>(currentBatchId);
+  const [officeHourCompanies, setOfficeHourCompanies] = useState<CompanyOption[]>(companies);
+  const [officeHourFounders, setOfficeHourFounders] = useState<FounderOption[]>(founders);
+  const [scheduleContextLoading, setScheduleContextLoading] = useState(false);
   const toast = useToast();
 
-  const searchParams = useSearchParams();
-  const prefillDate = searchParams.get("date");
+  const resetOfficeHourContext = () => {
+    setScheduleMode("company");
+    setSelectedAdminBatchId(currentBatchId);
+    setOfficeHourCompanies(companies);
+    setOfficeHourFounders(founders);
+    setSelectedCompanyId(companies.length === 1 ? companies[0].id : "");
+    setSelectedFounderId("");
+  };
 
-  const canCreate = isAdmin(user.role);
+  const loadOfficeHourBatchContext = async (batchId: string) => {
+    setScheduleContextLoading(true);
+    const result = await getOfficeHourBatchContext(batchId);
 
-  useEffect(() => {
-    if (prefillDate && canCreate) {
-      setCreateModalOpen(true);
+    if (result.success) {
+      setSelectedAdminBatchId(batchId);
+      setOfficeHourCompanies(result.data.companies);
+      setOfficeHourFounders(result.data.founders);
+      setSelectedCompanyId(result.data.companies.length === 1 ? result.data.companies[0].id : "");
+      setSelectedFounderId("");
+      setError(null);
+    } else {
+      setError(result.error);
     }
-  }, [prefillDate, canCreate]);
+
+    setScheduleContextLoading(false);
+  };
 
   const filteredEvents = selectedType === "all"
     ? events
-    : events.filter((e) => e.eventType === selectedType);
+    : events.filter((event) => event.eventType === selectedType);
+
+  const calendarItems: ScheduleItem[] = filteredEvents.map((event) => ({
+    id: event.id,
+    kind: event.eventType === "office_hour" ? "officeHour" : event.eventType === "general_session" ? "session" : "event",
+    title: event.title,
+    startTime: new Date(event.startTime).toISOString(),
+    endTime: new Date(event.endTime).toISOString(),
+    timezone: event.timezone,
+    isAllDay: false,
+    eventType: event.eventType,
+    location: event.location || undefined,
+    deepLink: "/events",
+  }));
 
   const handleDayClick = (date: Date) => {
     setSelectedDate((prev) => (prev && isSameDay(prev, date) ? null : date));
@@ -128,7 +195,14 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
     setLoading(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
+    if (!selectedCreateEventType) {
+      setError("Please choose what to create");
+      setLoading(false);
+      return;
+    }
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
@@ -136,11 +210,57 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
       setLoading(false);
       return;
     }
+
+    if (selectedCreateEventType === "office_hour") {
+      if (scheduleMode === "individual" && !selectedFounderId) {
+        setError("Please select a founder");
+        setLoading(false);
+        return;
+      }
+
+      if (scheduleMode === "company" && !selectedCompanyId) {
+        setError("Please select a company");
+        setLoading(false);
+        return;
+      }
+
+      formData.set("batchId", selectedAdminBatchId);
+
+      const result = scheduleMode === "individual"
+        ? await (() => {
+            formData.set("founderId", selectedFounderId);
+            return scheduleIndividualOfficeHour(formData);
+          })()
+        : await (() => {
+            formData.set("companyId", selectedCompanyId);
+            return scheduleGroupOfficeHour(formData);
+          })();
+
+      if (result.success) {
+        setCreateModalOpen(false);
+        setSelectedCreateEventType(null);
+        resetOfficeHourContext();
+        form.reset();
+        if ("warning" in result && result.warning) {
+          toast.warning(result.warning);
+        }
+        toast.success("Office hour scheduled. Redirected to Office Hours.");
+        router.push("/office-hours");
+      } else {
+        setError(result.error || "Failed to schedule office hour");
+      }
+
+      setLoading(false);
+      return;
+    }
+
     const result = await createEvent(formData);
 
     if (result.success) {
       setCreateModalOpen(false);
-      (e.target as HTMLFormElement).reset();
+      setSelectedCreateEventType(null);
+      resetOfficeHourContext();
+      form.reset();
       if (result.warning) toast.warning(result.warning);
     } else {
       setError(result.error);
@@ -169,34 +289,32 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           >
             All
           </button>
-          <button
-            onClick={() => setSelectedType("general_session")}
-            className={selectedType === "general_session" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            General Session
-          </button>
-          <button
-            onClick={() => setSelectedType("office_hour")}
-            className={selectedType === "office_hour" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            Office Hour
-          </button>
-          <button
-            onClick={() => setSelectedType("virtual")}
-            className={selectedType === "virtual" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            Virtual
-          </button>
-          <button
-            onClick={() => setSelectedType("in_person")}
-            className={selectedType === "in_person" ? "btn btn-primary" : "btn btn-secondary"}
-            style={{ fontSize: 14, height: 36, padding: "0 16px" }}
-          >
-            In-person
-          </button>
+          {VISIBLE_SCHEDULE_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setSelectedType(filter)}
+              className={selectedType === filter ? "btn btn-primary" : "btn btn-secondary"}
+              style={{
+                fontSize: 14,
+                height: 36,
+                padding: "0 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: VISIBLE_SCHEDULE_COLORS[filter],
+                  flexShrink: 0,
+                }}
+              />
+              {VISIBLE_SCHEDULE_LABELS[filter]}
+            </button>
+          ))}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex border rounded overflow-hidden" style={{ borderColor: "#e0e0e0" }}>
@@ -226,7 +344,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
             </button>
           </div>
           {canCreate && (
-            <Button onClick={() => setCreateModalOpen(true)} size="sm">
+            <Button onClick={() => { setCreateModalOpen(true); setSelectedCreateEventType(null); }} size="sm">
               Create Event
             </Button>
           )}
@@ -236,30 +354,51 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
       {viewMode === "calendar" ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <Calendar events={filteredEvents} onDayClick={handleDayClick} selectedDay={selectedDate} />
+            <Calendar
+              items={calendarItems}
+              onDayClick={handleDayClick}
+              selectedDay={selectedDate}
+              typeFilter={selectedType === "all" ? null : selectedType}
+            />
           </div>
           <div className="space-y-3">
-            <h3 className="font-medium">
-              {selectedDate ? formatDate(selectedDate) : "Select a day"}
-            </h3>
-            {selectedDate && selectedDateEvents.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-                No events on this day
-              </p>
-            )}
-            {selectedDateEvents.map((event) => (
-              <div key={event.id} className="card p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-sm">{event.title}</h4>
-                  <Badge variant={getEventTypeBadgeVariant(event.eventType)}>
-                    {getEventTypeLabel(event.eventType)}
-                  </Badge>
-                </div>
-                <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
-                  {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
+            <div className="card p-4 space-y-3">
+              <h3 className="font-medium">Day Details</h3>
+              {!selectedDate ? (
+                <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                  Select a day to view details.
                 </p>
-              </div>
-            ))}
+              ) : selectedDateEvents.length === 0 ? (
+                <>
+                  <div className="text-sm font-medium">{formatDate(selectedDate)}</div>
+                  <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                    No events on this day.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-medium">{formatDate(selectedDate)}</div>
+                  {selectedDateEvents.map((event) => (
+                    <div key={event.id} className="rounded-lg border p-3 space-y-2" style={{ borderColor: "var(--color-card-border)", backgroundColor: "var(--color-background-secondary)" }}>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-sm">{event.title}</h4>
+                        <Badge variant={getEventTypeBadgeVariant(event.eventType)}>
+                          {getEventTypeLabel(event.eventType)}
+                        </Badge>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                        {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
+                      </p>
+                      {event.location && (
+                        <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                          {event.location}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
           </div>
         </div>
       ) : filteredEvents.length === 0 ? (
@@ -268,7 +407,7 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           description={selectedType === "all" ? "No events scheduled yet" : `No ${getEventTypeLabel(selectedType as EventType).toLowerCase()} events scheduled`}
           action={
             canCreate ? (
-              <Button onClick={() => setCreateModalOpen(true)}>Create Event</Button>
+              <Button onClick={() => { setCreateModalOpen(true); setSelectedCreateEventType(null); }}>Create Event</Button>
             ) : undefined
           }
         />
@@ -344,7 +483,16 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
         </div>
       )}
 
-      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create Event">
+      <Modal
+        open={createModalOpen}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setSelectedCreateEventType(null);
+          setError(null);
+          resetOfficeHourContext();
+        }}
+        title={selectedCreateEventType === "office_hour" ? "Create Office Hour" : "Create Event"}
+      >
         <form onSubmit={handleCreateEvent} className="space-y-4">
           {error && (
             <div
@@ -356,59 +504,257 @@ export function EventsList({ user, events, batchOptions }: EventsListProps) {
           )}
 
           <BatchSelect batches={batchOptions} />
-          <Input
-            label="Title"
-            name="title"
-            required
-            placeholder="Event title"
-          />
-          <Textarea
-            label="Description"
-            name="description"
-            placeholder="Event description (optional)"
-            rows={3}
-          />
-          <Select
-            label="Event Type"
-            name="eventType"
-            options={eventTypeOptions}
-            required
-          />
-           <Input
-             label="Start Time"
-             name="startTime"
-             type="datetime-local"
-             required
-             defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
-           />
-           <Input
-             label="End Time"
-             name="endTime"
-             type="datetime-local"
-             required
-             defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
-           />
-          <Select
-            label="Timezone"
-            name="timezone"
-            options={[
-              { value: "America/Los_Angeles", label: "PST (Pacific)" },
-              { value: "Asia/Seoul", label: "KST (Korea)" },
-              { value: "UTC", label: "UTC" },
-            ]}
-            required
-          />
-          <Input
-            label="Location"
-            name="location"
-            placeholder="Location or meeting link (optional)"
-          />
+          {!selectedCreateEventType ? (
+            <div className="space-y-2">
+              {eventTypeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCreateEventType(option.value as EventType);
+                    setError(null);
+                    if (option.value === "office_hour") {
+                      resetOfficeHourContext();
+                    }
+                  }}
+                  className="w-full rounded-md border px-3 py-3 text-left text-sm"
+                  style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : selectedCreateEventType === "office_hour" ? (
+            <>
+              {batchOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Batch</label>
+                  <select
+                    value={selectedAdminBatchId}
+                    onChange={(e) => void loadOfficeHourBatchContext(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border text-sm"
+                    style={{
+                      backgroundColor: "var(--color-background)",
+                      borderColor: "var(--color-border)",
+                      color: "var(--color-foreground)",
+                    }}
+                  >
+                    {batchOptions.map((batch) => (
+                      <option key={batch.id} value={batch.id}>{batch.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #e0e0e0" }}>
+                <button
+                  type="button"
+                  onClick={() => { setScheduleMode("company"); setSelectedFounderId(""); }}
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    fontFamily: '"BDO Grotesk", sans-serif',
+                    border: "none",
+                    cursor: "pointer",
+                    backgroundColor: scheduleMode === "company" ? "#1A1A1A" : "transparent",
+                    color: scheduleMode === "company" ? "#FFFFFF" : "#666666",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Company Team
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setScheduleMode("individual"); setSelectedCompanyId(""); }}
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    fontFamily: '"BDO Grotesk", sans-serif',
+                    border: "none",
+                    borderLeft: "1px solid #e0e0e0",
+                    cursor: "pointer",
+                    backgroundColor: scheduleMode === "individual" ? "#1A1A1A" : "transparent",
+                    color: scheduleMode === "individual" ? "#FFFFFF" : "#666666",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  Primary Founder
+                </button>
+              </div>
+
+              {scheduleMode === "company" ? (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Company</label>
+                  <select
+                    name="companyId"
+                    value={selectedCompanyId}
+                    onChange={(e) => setSelectedCompanyId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-md border text-sm"
+                    style={{
+                      backgroundColor: "var(--color-background)",
+                      borderColor: "var(--color-border)",
+                      color: "var(--color-foreground)",
+                    }}
+                  >
+                    <option value="">Select company</option>
+                    {officeHourCompanies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name} ({company.memberCount} members)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <SearchableSelect
+                  label="Primary founder contact"
+                  options={officeHourFounders.map((founder) => ({
+                    id: founder.id,
+                    label: founder.name || founder.email,
+                    secondary: founder.companyName ? `${founder.email} - ${founder.companyName}` : founder.email,
+                    imageUrl: founder.profileImage,
+                  }))}
+                  value={selectedFounderId}
+                  onChange={setSelectedFounderId}
+                  placeholder="Search by founder name or email..."
+                  required
+                  emptyMessage="No founders found"
+                />
+              )}
+
+              <Input
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+              />
+              <Input
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Timezone</label>
+                <select
+                  name="timezone"
+                  defaultValue="KST"
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="KST">KST (Korea Standard Time)</option>
+                  <option value="PST">PST (Pacific Standard Time)</option>
+                  <option value="EST">EST (Eastern Standard Time)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <input type="hidden" name="eventType" value={selectedCreateEventType} />
+              <Input
+                label="Title"
+                name="title"
+                required
+                placeholder="Event title"
+              />
+              <Textarea
+                label="Description"
+                name="description"
+                placeholder="Event description (optional)"
+                rows={3}
+              />
+              <Input
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T09:00` : undefined}
+              />
+              <Input
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                required
+                defaultValue={prefillDate ? `${prefillDate}T10:00` : undefined}
+              />
+              <Select
+                label="Timezone"
+                name="timezone"
+                options={[
+                  { value: "America/Los_Angeles", label: "PST (Pacific)" },
+                  { value: "Asia/Seoul", label: "KST (Korea)" },
+                  { value: "UTC", label: "UTC" },
+                ]}
+                required
+              />
+              <Input
+                label="Location"
+                name="location"
+                placeholder="Location or meeting link (optional)"
+              />
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Target Group (optional)</label>
+                <select
+                  name="targetGroupId"
+                  defaultValue=""
+                  className="w-full px-3 py-2 rounded-md border text-sm"
+                  style={{
+                    backgroundColor: "var(--color-background)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                >
+                  <option value="">Entire selected batch</option>
+                  {groupOptions.map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
+            {selectedCreateEventType ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setSelectedCreateEventType(null);
+                  setError(null);
+                  resetOfficeHourContext();
+                }}
+              >
+                Back
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setCreateModalOpen(false);
+                setSelectedCreateEventType(null);
+                setError(null);
+                resetOfficeHourContext();
+              }}
+            >
               Cancel
             </Button>
-            <Button type="submit" loading={loading}>
-              Create Event
+            <Button type="submit" loading={loading || scheduleContextLoading} disabled={!selectedCreateEventType}>
+              {selectedCreateEventType === "office_hour"
+                ? scheduleMode === "individual"
+                  ? "Schedule & Send Invite"
+                  : "Schedule & Send Invites"
+                : "Create Event"}
             </Button>
           </div>
         </form>

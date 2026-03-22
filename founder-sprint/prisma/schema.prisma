@@ -26,6 +26,7 @@ enum BatchStatus {
 enum UserBatchStatus {
   invited
   active
+  dropped_out
 }
 
 enum QuestionStatus {
@@ -43,6 +44,7 @@ enum OfficeHourSlotStatus {
 
 enum OfficeHourRequestStatus {
   pending
+  waitlisted
   approved
   rejected
   cancelled
@@ -263,6 +265,7 @@ model OfficeHourSlot {
 
   groupId        String?              @map("group_id") @db.Uuid
   companyId      String?              @map("company_id") @db.Uuid
+  targetFounderIds String[]           @default([]) @map("target_founder_ids")
 
   // Relations
   batch    Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
@@ -462,6 +465,7 @@ model Event {
   id            String    @id @default(uuid()) @db.Uuid
   batchId       String    @map("batch_id") @db.Uuid
   creatorId     String    @map("creator_id") @db.Uuid
+  targetGroupId String?   @map("target_group_id") @db.Uuid
   title         String    @db.VarChar(200)
   description   String?   @db.Text
   eventType     EventType @map("event_type")
@@ -474,9 +478,10 @@ model Event {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  batch   Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  batches EventBatch[]
+  batch        Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  creator      User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  targetGroup  Group? @relation("TargetedEvents", fields: [targetGroupId], references: [id], onDelete: SetNull)
+  batches      EventBatch[]
 
   @@index([batchId, startTime])
   @@map("events")
@@ -498,6 +503,7 @@ model Group {
   members         GroupMember[]
   targetAssignments Assignment[] @relation("TargetedAssignments")
   targetSessions  Session[]      @relation("TargetedSessions")
+  targetEvents    Event[]        @relation("TargetedEvents")
   posts           Post[]
   officeHourSlots OfficeHourSlot[]
 

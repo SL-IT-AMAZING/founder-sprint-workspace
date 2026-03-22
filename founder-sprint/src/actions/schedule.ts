@@ -19,6 +19,14 @@ export async function getScheduleItems(params: {
         where: {
           batches: { some: { batchId } },
           startTime: { gte: rangeStart, lte: rangeEnd },
+          ...((viewerRole === "admin" || viewerRole === "super_admin")
+            ? {}
+            : {
+                OR: [
+                  { targetGroupId: null },
+                  { targetGroup: { members: { some: { userId: viewerId } } } },
+                ],
+              }),
         },
         select: {
           id: true,
@@ -27,6 +35,7 @@ export async function getScheduleItems(params: {
           endTime: true,
           timezone: true,
           eventType: true,
+          targetGroupId: true,
           location: true,
           googleEventId: true,
         },
