@@ -27,7 +27,7 @@ import {
   VISIBLE_SCHEDULE_FILTERS,
   VISIBLE_SCHEDULE_LABELS,
 } from "@/types/schedule";
-import { displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
+import { TIMEZONE_OPTIONS, displayInUserTimezone, displayRangeInUserTimezone } from "@/lib/timezone";
 import { addMinutesToDateTimeLocalValue, getDateTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 type ViewMode = "list" | "calendar";
@@ -542,11 +542,7 @@ export function EventsList({
               <Select
                 label="Timezone"
                 name="timezone"
-                options={[
-                  { value: "America/Los_Angeles", label: "PST (Pacific)" },
-                  { value: "Asia/Seoul", label: "KST (Korea)" },
-                  { value: "UTC", label: "UTC" },
-                ]}
+                options={TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
                 required
               />
               <Input

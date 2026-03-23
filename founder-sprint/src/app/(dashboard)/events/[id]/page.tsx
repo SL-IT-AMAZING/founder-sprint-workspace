@@ -5,7 +5,8 @@ import { getEvent } from "@/actions/event";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatDate, getDisplayName } from "@/lib/utils";
+import { getDisplayName } from "@/lib/utils";
+import { displayRangeInUserTimezone } from "@/lib/timezone";
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,7 +56,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 Date & Time
               </p>
               <p className="text-base">
-                {formatDate(event.startTime)} - {formatDate(event.endTime)}
+                {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
               </p>
               <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                 {event.timezone}

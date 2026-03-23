@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { displayRangeInUserTimezone } from "@/lib/timezone";
 
 const transporter =
   process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
@@ -131,10 +132,7 @@ export async function sendOfficeHourRequestEmail({
   }
   if (hasUndeliverableRecipient(to)) return { success: true };
 
-  const dateStr = startTime.toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
-  const timeStr = `${startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} - ${endTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+  const dateTimeStr = displayRangeInUserTimezone(startTime, endTime, null, "UTC");
 
   try {
     await transporter.sendMail({
@@ -156,8 +154,7 @@ export async function sendOfficeHourRequestEmail({
                 <strong>${requesterName}</strong>${companyName ? ` from <strong>${companyName}</strong>` : ""} has requested an office hour with you.
               </p>
               <div style="background: #fefaf3; border: 1px solid #e0d6c8; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Date: <strong style="color: #2F2C26;">${dateStr}</strong></p>
-                <p style="margin: 0; font-size: 14px; color: #666;">Time: <strong style="color: #2F2C26;">${timeStr}</strong></p>
+                <p style="margin: 0; font-size: 14px; color: #666;">When: <strong style="color: #2F2C26;">${dateTimeStr}</strong></p>
               </div>
               ${agenda ? `<p style="font-size: 14px; color: #2F2C26; margin-top: 16px;"><strong>Agenda:</strong> ${agenda}</p>` : ""}
               ${message ? `<p style="font-size: 14px; color: #2F2C26; background: #f5f5f5; padding: 12px; border-radius: 6px; border-left: 3px solid #2F2C26;"><em>"${message}"</em></p>` : ""}
@@ -323,10 +320,7 @@ export async function sendOfficeHourApprovalEmail({
   }
   if (hasUndeliverableRecipient(to)) return { success: true };
 
-  const dateStr = startTime.toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
-  const timeStr = `${startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} - ${endTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
+  const dateTimeStr = displayRangeInUserTimezone(startTime, endTime, null, "UTC");
 
   try {
     await transporter.sendMail({
@@ -349,8 +343,7 @@ export async function sendOfficeHourApprovalEmail({
                 Your office hour with <strong>${hostName}</strong>${companyName ? ` for <strong>${companyName}</strong>` : ""} has been approved.
               </p>
               <div style="background: #fefaf3; border: 1px solid #e0d6c8; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Date: <strong style="color: #2F2C26;">${dateStr}</strong></p>
-                <p style="margin: 0; font-size: 14px; color: #666;">Time: <strong style="color: #2F2C26;">${timeStr}</strong></p>
+                <p style="margin: 0; font-size: 14px; color: #666;">When: <strong style="color: #2F2C26;">${dateTimeStr}</strong></p>
               </div>
               ${meetLink ? `
               <div style="text-align: center; margin: 24px 0;">

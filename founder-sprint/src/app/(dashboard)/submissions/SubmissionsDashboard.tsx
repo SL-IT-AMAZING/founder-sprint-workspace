@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { formatDate, getDisplayName } from "@/lib/utils";
-import { getAssignmentNonSubmitters } from "@/actions/assignment";
+import { getAssignmentNonSubmitters, sendAssignmentDeadlineReminders } from "@/actions/assignment";
+import { useToast } from "@/hooks/useToast";
 
 interface User {
   id: string;
@@ -76,6 +77,7 @@ export function SubmissionsDashboard({ submissions, assignments }: SubmissionsDa
   const [nonSubmitters, setNonSubmitters] = useState<User[]>([]);
   const [nonSubmittersError, setNonSubmittersError] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const toast = useToast();
 
   const batches = Array.from(
     new Map(
@@ -134,6 +136,19 @@ export function SubmissionsDashboard({ submissions, assignments }: SubmissionsDa
       } catch {
         setNonSubmitters([]);
         setNonSubmittersError("Failed to load non-submitters.");
+      }
+    });
+  };
+
+  const handleSendReminder = () => {
+    if (nonSubmittersAssignmentId === "all") return;
+
+    startTransition(async () => {
+      const result = await sendAssignmentDeadlineReminders(nonSubmittersAssignmentId);
+      if (result.success) {
+        toast.success(`Reminders sent to ${result.data.sent} founder${result.data.sent === 1 ? "" : "s"}`);
+      } else {
+        toast.error(result.error);
       }
     });
   };
@@ -300,6 +315,11 @@ export function SubmissionsDashboard({ submissions, assignments }: SubmissionsDa
             <Button onClick={handleLoadNonSubmitters} loading={isPending} disabled={nonSubmittersAssignmentId === "all"}>
               Load
             </Button>
+            {nonSubmittersAssignmentId !== "all" && nonSubmitters.length > 0 && (
+              <Button variant="secondary" onClick={handleSendReminder} loading={isPending}>
+                Send Reminder
+              </Button>
+            )}
           </div>
         </div>
 

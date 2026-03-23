@@ -22,7 +22,7 @@ import {
   VISIBLE_SCHEDULE_LABELS,
   getVisibleScheduleFilterForItem,
 } from "@/types/schedule";
-import { displayRangeInUserTimezone } from "@/lib/timezone";
+import { TIMEZONE_OPTIONS, displayRangeInUserTimezone } from "@/lib/timezone";
 import { addMinutesToDateTimeLocalValue, getDateTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 interface DayPanelProps {
@@ -79,11 +79,7 @@ function getStatusVariant(
 
 type EventCreateKind = "in_person" | "virtual" | "general_session";
 
-const timezoneOptions = [
-  { value: "America/Los_Angeles", label: "PST (Pacific)" },
-  { value: "Asia/Seoul", label: "KST (Korea)" },
-  { value: "UTC", label: "UTC" },
-];
+const timezoneOptions = TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }));
 
 export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, groupOptions, currentBatchId }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
