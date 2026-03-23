@@ -61,7 +61,7 @@ const UpdateSessionSchema = z.object({
 
 async function resolveSessionTargetCompanies(batchIds: string[], formData: FormData) {
   const companyIds = [...new Set(formData.getAll("companyIds").map((value) => value.toString().trim()).filter(Boolean))];
-  if (companyIds.length === 0) return { targetCompanyIds: [] } as const;
+  if (companyIds.length === 0) return { targetCompanyIds: [] as string[] };
 
   if (batchIds.length !== 1) {
     return { error: "Specific companies can only be used when exactly one batch is selected." } as const;
@@ -76,7 +76,7 @@ async function resolveSessionTargetCompanies(batchIds: string[], formData: FormD
     return { error: "Some selected companies are invalid for the selected batch." } as const;
   }
 
-  return { targetCompanyIds: companyIds } as const;
+  return { targetCompanyIds: [...companyIds] };
 }
 
 function toFullDatetime(dateStr: string, timeOrDatetime: string): string {
@@ -294,7 +294,7 @@ export async function createSession(formData: FormData): Promise<ActionResult<{ 
           where: { companyId: { in: resolvedTargets.targetCompanyIds }, isCurrent: true },
           include: { user: { select: { email: true } } },
         });
-        attendeeEmails = [...new Set([user.email, ...companyMembers.map((m: { user: { email: string } }) => m.user.email)])];
+        attendeeEmails = [...new Set([user.email, ...companyMembers.map((m) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({
           where: { batchId: { in: batchIds }, status: "active" },
@@ -553,7 +553,7 @@ export async function updateSession(
           where: { companyId: { in: finalTargetCompanyIds }, isCurrent: true },
           include: { user: { select: { email: true } } },
         });
-        attendeeEmails = [...new Set([user.email, ...companyMembers.map((m: { user: { email: string } }) => m.user.email)])];
+        attendeeEmails = [...new Set([user.email, ...companyMembers.map((m) => m.user.email)])];
       } else {
         const batchUsers = await prisma.userBatch.findMany({
           where: { batchId: { in: nextBatchIds }, status: "active" },
