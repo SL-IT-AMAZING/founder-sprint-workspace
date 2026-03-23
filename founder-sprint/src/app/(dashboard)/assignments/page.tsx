@@ -13,7 +13,7 @@ export default async function AssignmentsPage() {
 
   const userIsAdmin = isAdmin(user.role);
   const [assignments, batches, templates, companies] = await Promise.all([
-    userIsAdmin ? getAssignments() : getAssignments(user.batchId),
+    getAssignments(user.batchId),
     userIsAdmin ? getActiveBatches() : Promise.resolve([]),
     getAssignmentTemplates(),
     getCompaniesForBatch(user.batchId),
