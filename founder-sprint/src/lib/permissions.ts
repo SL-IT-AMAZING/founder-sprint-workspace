@@ -130,14 +130,19 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   // Fetch ALL active batch memberships for multi-batch support
   const allBatchMemberships = await prisma.userBatch.findMany({
     where: { userId: user.id, status: "active" },
-    select: { batchId: true },
+    select: { batchId: true, role: true },
   });
   const userBatchIds = allBatchMemberships.map(b => b.batchId);
+  const hasSuperAdminMembership = allBatchMemberships.some((membership) => membership.role === "super_admin");
+  const effectiveGlobalRole = globalRole === "super_admin" || hasSuperAdminMembership
+    ? "super_admin"
+    : globalRole;
+  const isElevatedAdmin = effectiveGlobalRole === "super_admin" || effectiveGlobalRole === "admin";
 
   const userTimezone = (user as { timezone?: string | null }).timezone ?? null;
 
   if (user.userBatches.length === 0) {
-    if (isGlobalAdmin) {
+    if (isElevatedAdmin) {
       const selectedBatch =
         (batchId
           ? await prisma.batch.findUnique({
@@ -160,7 +165,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
         jobTitle: user.jobTitle,
         company: user.company,
         bio: user.bio,
-        role: globalRole,
+        role: effectiveGlobalRole,
         additionalRoles: [],
         batchId: selectedBatch?.id || "",
         batchName: selectedBatch?.name || "",
@@ -185,14 +190,19 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     jobTitle: user.jobTitle,
     company: user.company,
     bio: user.bio,
-    role: isGlobalAdmin ? globalRole! : (ub.role as UserRole),
-    additionalRoles: isGlobalAdmin ? [] : additionalRoles,
+    role: effectiveGlobalRole ?? (ub.role as UserRole),
+    additionalRoles: isElevatedAdmin ? [] : additionalRoles,
     batchId: ub.batchId,
     batchName: ub.batch.name,
     batchEndDate: ub.batch.endDate,
     batchStatus: ub.batch.status as import("@/types").BatchStatus,
     userBatchIds,
   };
+});
+
+export const isCurrentUserSuperAdmin = cache(async (): Promise<boolean> => {
+  const user = await getCurrentUser();
+  return user?.role === "super_admin";
 });
 
 export function isAdmin(subject: PermissionSubject): boolean {

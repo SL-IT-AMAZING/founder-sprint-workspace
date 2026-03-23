@@ -25,7 +25,6 @@ interface ScheduleViewProps {
   founders: FounderOption[];
   totalBatchMembers: number;
   batchOptions: Array<{ id: string; name: string }>;
-  groupOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
 
@@ -40,7 +39,6 @@ export function ScheduleView({
   founders,
   totalBatchMembers,
   batchOptions,
-  groupOptions,
   currentBatchId,
 }: ScheduleViewProps) {
   const [isPending, startTransition] = useTransition();
@@ -162,7 +160,6 @@ export function ScheduleView({
             founders={founders}
             totalBatchMembers={totalBatchMembers}
             batchOptions={batchOptions}
-            groupOptions={groupOptions}
             currentBatchId={currentBatchId}
           />
         </div>

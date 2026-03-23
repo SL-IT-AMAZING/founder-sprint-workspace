@@ -38,6 +38,7 @@ interface Company {
 interface AdminViewProps {
   batches: Batch[];
   companies: Company[];
+  canAssignSuperAdmin: boolean;
 }
 
 type AdminTab = "batches" | "users" | "companies";
@@ -84,7 +85,7 @@ const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-export function AdminView({ batches, companies }: AdminViewProps) {
+export function AdminView({ batches, companies, canAssignSuperAdmin }: AdminViewProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -202,6 +203,7 @@ export function AdminView({ batches, companies }: AdminViewProps) {
             status: b.status,
             endDate: b.endDate,
           }))}
+          canAssignSuperAdmin={canAssignSuperAdmin}
         />
       )}
       {activeTab === "companies" && (

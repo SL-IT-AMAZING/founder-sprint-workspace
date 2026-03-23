@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,19 +17,29 @@ interface NavItemData {
 const NAV_ITEMS: NavItemData[] = [
   { id: 'dashboard', label: 'Dashboard', iconSrc: '/images/icon-decorative-home.svg', href: '/dashboard', prefetch: true },
   { id: 'feed', label: 'Feed', iconSrc: '/images/icon-decorative-messaging.svg', href: '/feed', prefetch: true },
-  { id: 'assignments', label: 'Assignments', iconSrc: '/images/icon-decorative-planner.svg', href: '/assignments', prefetch: true },
-  { id: 'questions', label: 'Questions', iconSrc: '/images/icon-decorative-comments.svg', href: '/questions', prefetch: true },
-  { id: 'groups', label: 'Companies', iconSrc: '/images/icon-decorative-hierarchy.svg', href: '/groups' },
   {
-    id: 'schedule',
-    label: 'Schedule',
+    id: 'batch',
+    label: 'Batch',
     iconSrc: '/images/icon-decorative-calendar.svg',
     href: '/schedule',
     prefetch: true,
     children: [
-      { id: 'events', label: 'Events', href: '/events' },
-      { id: 'sessions', label: 'Sessions', href: '/sessions' },
+      { id: 'schedule', label: 'Schedule', href: '/schedule' },
+      { id: 'assignments', label: 'Assignments', href: '/assignments' },
       { id: 'office-hours', label: 'Office Hours', href: '/office-hours' },
+      { id: 'questions', label: 'Questions', href: '/questions' },
+    ],
+  },
+  {
+    id: 'community',
+    label: 'Community',
+    iconSrc: '/images/icon-decorative-hierarchy.svg',
+    href: '/founders',
+    prefetch: true,
+    children: [
+      { id: 'founders', label: 'Founders', href: '/founders' },
+      { id: 'companies', label: 'Companies', href: '/companies' },
+      { id: 'messages', label: 'Messages', href: '/messages' },
     ],
   },
   { id: 'settings', label: 'Settings', iconSrc: '/images/icon-decorative-settings.svg', href: '/settings' },
@@ -39,7 +49,10 @@ const ADMIN_NAV_ITEMS: NavItemData[] = [
   { id: 'admin', label: 'Admin', iconSrc: '/images/icon-decorative-favorites-shield.svg', href: '/admin' },
 ];
 
-const SCHEDULE_PATHS = ['/schedule', '/events', '/sessions', '/office-hours'];
+const GROUPED_PATHS: Record<string, string[]> = {
+  batch: ['/schedule', '/assignments', '/office-hours', '/questions'],
+  community: ['/founders', '/companies', '/messages'],
+};
 
 const styles = {
   container: {
@@ -65,17 +78,12 @@ interface NavItemProps {
 const NavItem: React.FC<NavItemProps> = ({ item, isActive, pathname }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
-  const isInScheduleSection = hasChildren && SCHEDULE_PATHS.some(
+  const isInGroupedSection = hasChildren && (GROUPED_PATHS[item.id] || []).some(
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   );
 
-  const [isOpen, setIsOpen] = useState(isInScheduleSection);
-
-  useEffect(() => {
-    if (isInScheduleSection) {
-      setIsOpen(true);
-    }
-  }, [pathname]);
+  const [manualOpen, setManualOpen] = useState(isInGroupedSection);
+  const isOpen = isInGroupedSection || manualOpen;
 
   const itemStyle: React.CSSProperties = {
     display: 'flex',
@@ -144,9 +152,9 @@ const NavItem: React.FC<NavItemProps> = ({ item, isActive, pathname }) => {
           </Link>
           <button
             type="button"
-            onClick={() => setIsOpen((prev) => !prev)}
+            onClick={() => setManualOpen((prev) => !prev)}
             aria-expanded={isOpen}
-            aria-label={isOpen ? 'Collapse schedule menu' : 'Expand schedule menu'}
+            aria-label={isOpen ? `Collapse ${item.label} menu` : `Expand ${item.label} menu`}
             style={{
               padding: '4px 4px 4px 8px',
               background: 'none',
@@ -283,7 +291,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ isAdmin = fa
           const isActive =
             pathname === item.href ||
             pathname.startsWith(`${item.href}/`) ||
-            (item.id === 'schedule' && SCHEDULE_PATHS.some(
+            (item.id in GROUPED_PATHS && (GROUPED_PATHS[item.id] || []).some(
               (p) => pathname === p || pathname.startsWith(`${p}/`)
             ));
 

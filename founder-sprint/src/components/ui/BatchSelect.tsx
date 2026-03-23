@@ -24,6 +24,8 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
   );
   const [search, setSearch] = useState("");
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  const lastSelectionSignatureRef = useRef<string | null>(null);
 
   const allSelected = batches.length > 0 && selectedIds.size === batches.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < batches.length;
@@ -33,6 +35,10 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
       selectAllRef.current.indeterminate = someSelected;
     }
   }, [someSelected]);
+
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
 
   const handleSelectAll = useCallback(() => {
     if (allSelected) {
@@ -65,8 +71,16 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
   const totalMembers = batches.reduce((sum, b) => sum + b.memberCount, 0);
 
   useEffect(() => {
-    onSelectionChange?.({ mode, batchIds: Array.from(selectedIds) });
-  }, [mode, selectedIds, onSelectionChange]);
+    const batchIds = Array.from(selectedIds);
+    const signature = JSON.stringify({ mode, batchIds });
+
+    if (lastSelectionSignatureRef.current === signature) {
+      return;
+    }
+
+    lastSelectionSignatureRef.current = signature;
+    onSelectionChangeRef.current?.({ mode, batchIds });
+  }, [mode, selectedIds]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

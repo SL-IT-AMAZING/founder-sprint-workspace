@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, requireRole, isAdmin } from "@/lib/permissions";
+import { getCurrentUser, isCurrentUserSuperAdmin, requireRole, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
 import { ASSIGNABLE_ROLES, isRoleBelow } from "@/lib/role-hierarchy";
@@ -15,7 +15,7 @@ const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 const InviteUserSchema = z.object({
   email: z.string().email(),
   name: z.string().max(100).optional().transform((v) => v || undefined),
-  role: z.enum(["admin", "mentor", "founder", "co_founder"]),
+  role: z.enum(["super_admin", "admin", "mentor", "founder", "co_founder"]),
   batchId: z.string().uuid(),
   linkedInUrl: z.string().optional(),
   founderId: z.string().uuid().optional(), // Required when role is co_founder
@@ -24,19 +24,23 @@ const InviteUserSchema = z.object({
 
 const BulkInviteSchema = z.object({
   emails: z.string().min(1),
-  role: z.enum(["admin", "mentor", "founder", "co_founder"]),
+  role: z.enum(["super_admin", "admin", "mentor", "founder", "co_founder"]),
   batchId: z.string().uuid(),
 });
 
 interface InviteUserParams {
   email: string;
   name?: string;
-  role: "admin" | "mentor" | "founder" | "co_founder";
+  role: "super_admin" | "admin" | "mentor" | "founder" | "co_founder";
   batchId: string;
   linkedInUrl?: string;
   founderId?: string;
   companyId?: string;
   callerRole?: UserRole;
+}
+
+function getBatchRoleForAssignment(role: InviteUserParams["role"]): Exclude<UserRole, "super_admin"> {
+  return role === "super_admin" ? "admin" : role;
 }
 
 type AdminActor = {
@@ -76,6 +80,11 @@ async function inviteUserCore(
   params: InviteUserParams
 ): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
   const { email, name, role, batchId, founderId, companyId } = params;
+  const batchRole = getBatchRoleForAssignment(role);
+
+  if (role === "super_admin" && params.callerRole !== "super_admin") {
+    return { success: false, error: "Only Super Admin can assign Super Admin role" };
+  }
 
   if (role === "co_founder" && !founderId) {
     return { success: false, error: "founderId is required when inviting a co-founder" };
@@ -160,8 +169,17 @@ async function inviteUserCore(
 
   const invitedUser = await prisma.user.upsert({
     where: { email },
-    create: { email, name: name || email.split("@")[0], status: "active" },
-    update: { ...(name ? { name } : {}), status: "active" },
+    create: {
+      email,
+      name: name || email.split("@")[0],
+      status: "active",
+      ...(role === "super_admin" ? { role: "super_admin" as import("@prisma/client").$Enums.UserRole } : {}),
+    },
+    update: {
+      ...(name ? { name } : {}),
+      status: "active",
+      ...(role === "super_admin" ? { role: "super_admin" as import("@prisma/client").$Enums.UserRole } : {}),
+    },
   });
 
   const canDirectActivate = Boolean(
@@ -182,7 +200,7 @@ async function inviteUserCore(
       const activatedMembership = await prisma.userBatch.update({
         where: { userId_batchId: { userId: invitedUser.id, batchId } },
         data: {
-          role: role as import("@prisma/client").$Enums.UserRole,
+          role: batchRole as import("@prisma/client").$Enums.UserRole,
           founderId: role === "co_founder" ? founderId : null,
           status: "active",
           joinedAt: new Date(),
@@ -227,7 +245,7 @@ async function inviteUserCore(
     data: {
       userId: invitedUser.id,
       batchId,
-      role: role as import("@prisma/client").$Enums.UserRole,
+      role: batchRole as import("@prisma/client").$Enums.UserRole,
       founderId: role === "co_founder" ? founderId : undefined,
       status: membershipStatus,
       joinedAt: membershipStatus === "active" ? new Date() : undefined,
@@ -303,6 +321,7 @@ async function inviteUserCore(
 export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+  const canAssignSuperAdmin = await isCurrentUserSuperAdmin();
 
   try {
     requireRole(user.role, ["super_admin", "admin"]);
@@ -324,7 +343,10 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  const result = await inviteUserCore({ ...parsed.data, callerRole: user.role });
+  const result = await inviteUserCore({
+    ...parsed.data,
+    callerRole: canAssignSuperAdmin ? "super_admin" : user.role,
+  });
 
   if (result.success) {
     revalidatePath("/admin/users");
@@ -341,6 +363,7 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
 }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+  const canAssignSuperAdmin = await isCurrentUserSuperAdmin();
 
   try {
     requireRole(user.role, ["super_admin", "admin"]);
@@ -402,11 +425,11 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
   const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }> = [];
 
   for (const email of uniqueEmails) {
-    const result = await inviteUserCore({
+        const result = await inviteUserCore({
           email,
           role: parsed.data.role,
           batchId: parsed.data.batchId,
-          callerRole: user.role,
+          callerRole: canAssignSuperAdmin ? "super_admin" : user.role,
         });
 
     if (result.success) {
@@ -445,6 +468,7 @@ export async function updateUserRole(
 ): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
+  const canAssignSuperAdmin = await isCurrentUserSuperAdmin();
 
   try {
     requireRole(user.role, ["super_admin", "admin"]);
@@ -453,7 +477,7 @@ export async function updateUserRole(
   }
 
   // Cannot change super_admin role
-  if (newRole === "super_admin" && user.role !== "super_admin") {
+  if (newRole === "super_admin" && !canAssignSuperAdmin) {
     return { success: false, error: "Only Super Admin can assign Super Admin role" };
   }
 
@@ -461,7 +485,7 @@ export async function updateUserRole(
     where: { userId_batchId: { userId, batchId } },
     include: {
       user: {
-        select: { email: true },
+        select: { email: true, role: true },
       },
     },
   });
@@ -470,21 +494,37 @@ export async function updateUserRole(
     return { success: false, error: "User not found in this batch" };
   }
 
-  const previousRole = existingMembership.role as UserRole;
+  const previousRole = (existingMembership.user.role === "super_admin"
+    ? "super_admin"
+    : existingMembership.role) as UserRole;
 
   if (previousRole !== newRole) {
+    const nextPrimaryBatchRole = newRole === "super_admin" ? "admin" : newRole;
     const previousAdditionalRoles = (existingMembership.additionalRoles ?? []).filter(
       (role): role is UserRole => ASSIGNABLE_ROLES.includes(role as UserRole)
     );
-    const nextAdditionalRoles = previousAdditionalRoles.filter((role) => isRoleBelow(role, newRole));
+    const nextAdditionalRoles = previousAdditionalRoles.filter((role) => isRoleBelow(role, nextPrimaryBatchRole));
     const removedAdditionalRoles = previousAdditionalRoles.filter((role) => !nextAdditionalRoles.includes(role));
 
-    await prisma.userBatch.update({
-      where: { userId_batchId: { userId, batchId } },
-      data: {
-        role: newRole as import("@prisma/client").$Enums.UserRole,
-        additionalRoles: nextAdditionalRoles,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: newRole === "super_admin"
+            ? "super_admin"
+            : existingMembership.user.role === "super_admin"
+              ? newRole as import("@prisma/client").$Enums.UserRole
+              : undefined,
+        },
+      });
+
+      await tx.userBatch.update({
+        where: { userId_batchId: { userId, batchId } },
+        data: {
+          role: nextPrimaryBatchRole as import("@prisma/client").$Enums.UserRole,
+          additionalRoles: nextAdditionalRoles,
+        },
+      });
     });
 
     await createAuditLogEntry({
@@ -1074,6 +1114,7 @@ export async function getBatchUsers(batchId: string) {
 
   return batchUsers.map((membership) => ({
     ...membership,
+    role: membership.user.role === "super_admin" ? "super_admin" : membership.role,
     additionalRoles: membership.additionalRoles ?? [],
     user: {
       ...membership.user,

@@ -1,12 +1,14 @@
 import { Suspense } from "react";
 import { getBatches } from "@/actions/batch";
 import { getCompaniesDirectory } from "@/actions/directory";
+import { getCurrentUser } from "@/lib/permissions";
 import { AdminView } from "./AdminView";
 
 export const revalidate = 30;
 
 export default async function AdminPage() {
-  const [batches, companiesResult] = await Promise.all([
+  const [user, batches, companiesResult] = await Promise.all([
+    getCurrentUser(),
     getBatches(),
     getCompaniesDirectory({}),
   ]);
@@ -15,7 +17,7 @@ export default async function AdminPage() {
 
   return (
     <Suspense>
-      <AdminView batches={batches} companies={companies} />
+      <AdminView batches={batches} companies={companies} canAssignSuperAdmin={user?.role === "super_admin"} />
     </Suspense>
   );
 }

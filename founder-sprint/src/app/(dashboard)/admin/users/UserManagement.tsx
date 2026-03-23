@@ -41,6 +41,7 @@ interface Batch {
 
 interface UserManagementProps {
   batches: Batch[];
+  canAssignSuperAdmin: boolean;
 }
 
 interface BatchUser {
@@ -85,14 +86,14 @@ interface FounderActivityEntry {
   postCount: number;
 }
 
-const roleOptions = [
+const baseRoleOptions = [
   { value: "admin", label: "Admin" },
   { value: "mentor", label: "Mentor" },
   { value: "founder", label: "Founder" },
   { value: "co_founder", label: "Co-founder" },
 ];
 
-export function UserManagement({ batches }: UserManagementProps) {
+export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementProps) {
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [users, setUsers] = useState<BatchUser[]>([]);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -113,6 +114,9 @@ export function UserManagement({ batches }: UserManagementProps) {
   const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roleOptions = canAssignSuperAdmin
+    ? [{ value: "super_admin", label: "Super Admin" }, ...baseRoleOptions]
+    : baseRoleOptions;
 
   useEffect(() => {
     return () => {
@@ -287,6 +291,10 @@ export function UserManagement({ batches }: UserManagementProps) {
       return <span className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Super admins are managed separately.</span>;
     }
 
+    const editableRoleOptions = canAssignSuperAdmin
+      ? [{ value: "super_admin", label: "Super Admin" }, ...baseRoleOptions]
+      : baseRoleOptions;
+
     return (
       <div className={`flex ${compact ? "flex-col" : "flex-col items-end"} gap-2`}>
         <select
@@ -296,10 +304,9 @@ export function UserManagement({ batches }: UserManagementProps) {
           className={compact ? "form-input flex-1" : "form-input"}
           style={compact ? { fontSize: "14px", height: 36 } : { minWidth: 140, fontSize: "14px", height: 36 }}
         >
-          <option value="admin">Admin</option>
-          <option value="mentor">Mentor</option>
-          <option value="founder">Founder</option>
-          <option value="co_founder">Co-founder</option>
+          {editableRoleOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </select>
         {renderAdditionalRoleControls(userBatch)}
       </div>
