@@ -26,7 +26,7 @@ const eventSchema = z.object({
 
 async function resolveEventTargetCompanies(batchIds: string[], formData: FormData) {
   const companyIds = [...new Set(formData.getAll("companyIds").map((value) => value.toString().trim()).filter(Boolean))];
-  if (companyIds.length === 0) return { targetCompanyIds: [] } as const;
+  if (companyIds.length === 0) return { targetCompanyIds: [] as string[] };
 
   if (batchIds.length !== 1) {
     return { error: "Specific companies can only be used when exactly one batch is selected." } as const;
@@ -41,7 +41,7 @@ async function resolveEventTargetCompanies(batchIds: string[], formData: FormDat
     return { error: "Some selected companies are invalid for the chosen batch." } as const;
   }
 
-  return { targetCompanyIds: companyIds } as const;
+  return { targetCompanyIds: [...companyIds] };
 }
 
 async function getEventAttendeeEmails(userEmail: string, batchIds: string[], targetCompanyIds: string[]) {
@@ -167,6 +167,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult<{ id
           await prisma.event.update({
             where: { id: event.id },
             data: {
+              googleMeetLink: calResult.meetLink || null,
               googleEventId: calResult.eventId,
             },
           });
@@ -202,6 +203,7 @@ export async function getEvents(batchId: string) {
     const user = await getCurrentUser();
     if (!user) return [];
     if (!isAdmin(user.role) && user.batchId !== batchId) return [];
+    const userCompanyIds = isAdmin(user.role) ? [] : await getUserCompanyIds(user.id);
 
     const cacheKey = isAdmin(user.role) ? `events-${batchId}-admin` : `events-${batchId}-${user.id}`;
 
@@ -214,8 +216,8 @@ export async function getEvents(batchId: string) {
               ? {}
               : {
                   OR: [
-                    { targetGroupId: null },
-                    { targetGroup: { members: { some: { userId: user.id } } } },
+                    { targetCompanyIds: { isEmpty: true } },
+                    ...(userCompanyIds.length > 0 ? [{ targetCompanyIds: { hasSome: userCompanyIds } }] : []),
                   ],
                 }),
           },
@@ -237,9 +239,6 @@ export async function getEvents(batchId: string) {
                   },
                 },
               },
-            },
-            targetGroup: {
-              select: { id: true, name: true },
             },
           },
           orderBy: { startTime: "desc" },
@@ -261,6 +260,7 @@ export async function getEvent(eventId: string, batchId?: string) {
     if (!user) return null;
 
     const isUserAdmin = isAdmin(user.role);
+    const userCompanyIds = isUserAdmin ? [] : await getUserCompanyIds(user.id);
     const event = await unstable_cache(
       () =>
         prisma.event.findFirst({
@@ -270,8 +270,8 @@ export async function getEvent(eventId: string, batchId?: string) {
               ? {}
               : {
                   OR: [
-                    { targetGroupId: null },
-                    { targetGroup: { members: { some: { userId: user.id } } } },
+                    { targetCompanyIds: { isEmpty: true } },
+                    ...(userCompanyIds.length > 0 ? [{ targetCompanyIds: { hasSome: userCompanyIds } }] : []),
                   ],
                 }),
           },
@@ -293,9 +293,6 @@ export async function getEvent(eventId: string, batchId?: string) {
                   },
                 },
               },
-            },
-            targetGroup: {
-              select: { id: true, name: true },
             },
           },
         }),
@@ -374,7 +371,6 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
       title: formData.get("title") as string,
       description: formData.get("description") as string | undefined,
       eventType: formData.get("eventType") as EventType,
-      targetGroupId: (formData.get("targetGroupId") as string) || undefined,
       startTime: formData.get("startTime") as string,
       endTime: formData.get("endTime") as string,
       timezone: (formData.get("timezone") as string) || "UTC",
@@ -417,9 +413,9 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     }
 
     const targetBatchIds = batchIds.length > 0 ? batchIds : eventBatchIds;
-    const resolvedTargetGroup = await resolveEventTargetGroup(validated.targetGroupId || undefined, targetBatchIds);
-    if ("error" in resolvedTargetGroup) {
-      return { success: false, error: resolvedTargetGroup.error || "Invalid target group" };
+    const resolvedTargets = await resolveEventTargetCompanies(targetBatchIds, formData);
+    if ("error" in resolvedTargets) {
+      return { success: false, error: resolvedTargets.error || "Invalid target companies" };
     }
 
     const ianaTimezone = toIanaTimezone(validated.timezone);
@@ -435,14 +431,16 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
         await tx.event.update({
           where: { id: eventId },
           data: {
-            batchId: batchIds[0],
-            targetGroupId: resolvedTargetGroup.targetGroupId,
-            title: validated.title,
+           batchId: batchIds[0],
+           targetGroupId: null,
+           targetCompanyIds: resolvedTargets.targetCompanyIds,
+           title: validated.title,
             description: validated.description || null,
             eventType: validated.eventType,
             startTime: startTimeUtc,
             endTime: endTimeUtc,
             timezone: ianaTimezone,
+            googleMeetLink: null,
             location: validated.location || null,
           },
         });
@@ -451,13 +449,15 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
       await prisma.event.update({
         where: { id: eventId },
         data: {
-          targetGroupId: resolvedTargetGroup.targetGroupId,
+          targetGroupId: null,
+          targetCompanyIds: resolvedTargets.targetCompanyIds,
           title: validated.title,
           description: validated.description || null,
           eventType: validated.eventType,
           startTime: startTimeUtc,
           endTime: endTimeUtc,
           timezone: ianaTimezone,
+          googleMeetLink: null,
           location: validated.location || null,
         },
       });
@@ -466,9 +466,8 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
     // Attempt to update Google Calendar event if googleEventId exists
     if (event.googleEventId) {
       try {
-        const attendeeEmails = await getEventAttendeeEmails(user.email, targetBatchIds, resolvedTargetGroup.targetGroupId);
-
-        await updateCalendarEvent(event.googleEventId, {
+        const attendeeEmails = await getEventAttendeeEmails(user.email, targetBatchIds, resolvedTargets.targetCompanyIds);
+        const calResult = await updateCalendarEvent(event.googleEventId, {
           summary: validated.title,
           description: validated.description || undefined,
           startTime: startTimeUtc,
@@ -476,6 +475,15 @@ export async function updateEvent(eventId: string, formData: FormData): Promise<
           attendeeEmails,
           timezone: ianaTimezone,
           location: validated.location || undefined,
+        });
+
+        await prisma.event.update({
+          where: { id: eventId },
+          data: {
+            googleMeetLink: validated.eventType === "virtual" || validated.eventType === "office_hour"
+              ? calResult?.meetLink || event.googleMeetLink || null
+              : null,
+          },
         });
       } catch (err) {
         console.error("Failed to update Google Calendar event:", err);

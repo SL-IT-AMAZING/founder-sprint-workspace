@@ -71,6 +71,17 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </div>
             )}
 
+            {event.googleMeetLink && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Meeting Link
+                </p>
+                <a href={event.googleMeetLink} target="_blank" rel="noreferrer" className="text-base underline" style={{ color: "var(--color-primary)" }}>
+                  {event.googleMeetLink}
+                </a>
+              </div>
+            )}
+
             {event.description && (
               <div>
                 <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
@@ -82,12 +93,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </div>
             )}
 
-            {event.targetGroup && (
+            {(event.targetCompanyIds?.length || 0) > 0 && (
               <div>
                 <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
                   Audience
                 </p>
-                <p className="text-base">{event.targetGroup.name}</p>
+                <p className="text-base">Specific companies ({event.targetCompanyIds.length})</p>
               </div>
             )}
 
