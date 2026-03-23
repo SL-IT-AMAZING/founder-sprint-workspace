@@ -203,6 +203,15 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
     return { success: false, error: "Source batch not found" };
   }
 
+  const sourceStartDate = new Date(sourceBatch.startDate);
+  const newStartDate = new Date(parsed.data.startDate);
+  const offsetMs = newStartDate.getTime() - sourceStartDate.getTime();
+
+  function shiftDate(original: Date | null): Date | null {
+    if (!original) return null;
+    return new Date(new Date(original).getTime() + offsetMs);
+  }
+
   const [sourceAssignments, sourceSessions] = await Promise.all([
     prisma.assignment.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
     prisma.session.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
@@ -238,7 +247,8 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
           reviewCriteria: assignment.reviewCriteria,
           targetGroupId: null,
           targetUserIds: [],
-          dueDate: assignment.dueDate,
+          targetCompanyIds: [],
+          dueDate: shiftDate(assignment.dueDate) || assignment.dueDate,
         })),
       });
     }
@@ -249,14 +259,15 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
           batchId: newBatch.id,
           title: session.title,
           description: session.description,
-          sessionDate: session.sessionDate,
-          startTime: session.startTime,
-          endTime: session.endTime,
+          sessionDate: shiftDate(session.sessionDate) || session.sessionDate,
+          startTime: shiftDate(session.startTime) || session.startTime,
+          endTime: shiftDate(session.endTime) || session.endTime,
           timezone: session.timezone,
           slidesUrl: null,
           recordingUrl: null,
           googleEventId: null,
           targetGroupId: null,
+          targetCompanyIds: [],
         })),
       });
     }

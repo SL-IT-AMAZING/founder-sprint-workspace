@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isStaff, isFounder } from "@/lib/permissions";
+import { getCurrentUser, isStaff, isFounder, isAdmin } from "@/lib/permissions";
 import { getAssignment, getAssignmentNonSubmitters } from "@/actions/assignment";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, getDisplayName } from "@/lib/utils";
 import { SubmissionForm } from "./SubmissionForm";
 import { SubmissionsList } from "./SubmissionsList";
 import { SendReminderButton } from "./SendReminderButton";
+import { DeleteAssignmentButton } from "./DeleteAssignmentButton";
 
 export default async function AssignmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,6 +47,9 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
             <Badge variant="default">
               {assignment.targetCompanyIds.length} specific compan{assignment.targetCompanyIds.length > 1 ? "ies" : "y"}
             </Badge>
+          )}
+          {isAdmin(user.role) && (
+            <DeleteAssignmentButton assignmentId={id} assignmentTitle={assignment.title} />
           )}
         </div>
       </div>
