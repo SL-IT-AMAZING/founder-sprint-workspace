@@ -42,12 +42,9 @@ export default async function AssignmentDetailPage({ params }: { params: Promise
           ) : (
             <Badge variant="warning">Open</Badge>
           )}
-          {assignment.targetGroup && (
-            <Badge variant="default">Group: {assignment.targetGroup.name}</Badge>
-          )}
-          {assignment.targetUserIds.length > 0 && (
+          {(assignment.targetCompanyIds?.length || 0) > 0 && (
             <Badge variant="default">
-              {assignment.targetUserIds.length} specific user{assignment.targetUserIds.length > 1 ? "s" : ""}
+              {assignment.targetCompanyIds.length} specific compan{assignment.targetCompanyIds.length > 1 ? "ies" : "y"}
             </Badge>
           )}
         </div>
