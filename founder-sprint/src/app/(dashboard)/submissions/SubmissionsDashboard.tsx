@@ -21,7 +21,7 @@ interface Assignment {
   title: string;
   dueDate?: Date;
   batch?: { id: string; name: string };
-  targetGroup?: { id: string; name: string } | null;
+  targetCompanyIds?: string[];
 }
 
 interface Feedback {

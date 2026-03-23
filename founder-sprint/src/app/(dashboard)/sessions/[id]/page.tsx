@@ -35,8 +35,8 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                 <Badge variant={isPastSession ? "default" : "success"}>
                   {isPastSession ? "Past Session" : "Upcoming"}
                 </Badge>
-                {session.targetGroup && (
-                  <Badge variant="default">Group: {session.targetGroup.name}</Badge>
+                {(session.targetCompanyIds?.length || 0) > 0 && (
+                  <Badge variant="default">Companies: {session.targetCompanyIds.length}</Badge>
                 )}
               </div>
             </div>

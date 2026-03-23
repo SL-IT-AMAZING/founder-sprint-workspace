@@ -492,25 +492,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
               />
               <Select label="Timezone" name="timezone" options={timezoneOptions} required />
               <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Target Group (optional)</label>
-                <select
-                  name="targetGroupId"
-                  defaultValue=""
-                  className="w-full px-3 py-2 rounded-md border text-sm"
-                  style={{
-                    backgroundColor: "var(--color-background)",
-                    borderColor: "var(--color-border)",
-                    color: "var(--color-foreground)",
-                  }}
-                >
-                  <option value="">Entire selected batch</option>
-                  {groupOptions.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-              </div>
-              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} />
+              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} label="Target Companies" inputName="companyIds" />
             </>
           )}
 

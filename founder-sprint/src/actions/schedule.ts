@@ -15,6 +15,14 @@ export async function getScheduleItems(params: {
   const isAdminViewer = viewerRole === "admin" || viewerRole === "super_admin";
 
   const fetchSchedule = async () => {
+    const userCompanies = isAdminViewer
+      ? []
+      : await prisma.companyMember.findMany({
+          where: { userId: viewerId, isCurrent: true },
+          select: { companyId: true },
+        });
+    const companyIds = new Set(userCompanies.map((c) => c.companyId));
+
     const [events, officeHourSlots, sessions] = await Promise.all([
       prisma.event.findMany({
         where: {
@@ -24,8 +32,8 @@ export async function getScheduleItems(params: {
             ? {}
             : {
                 OR: [
-                  { targetGroupId: null },
-                  { targetGroup: { members: { some: { userId: viewerId } } } },
+                  { targetCompanyIds: { isEmpty: true } },
+                  ...(companyIds.size > 0 ? [{ targetCompanyIds: { hasSome: Array.from(companyIds) } }] : []),
                 ],
               }),
         },
@@ -36,7 +44,8 @@ export async function getScheduleItems(params: {
           endTime: true,
           timezone: true,
           eventType: true,
-          targetGroupId: true,
+          targetCompanyIds: true,
+          googleMeetLink: true,
           location: true,
           googleEventId: true,
         },
@@ -74,8 +83,8 @@ export async function getScheduleItems(params: {
             ? {}
             : {
                 OR: [
-                  { targetGroupId: null },
-                  { targetGroup: { members: { some: { userId: viewerId } } } },
+                  { targetCompanyIds: { isEmpty: true } },
+                  ...(companyIds.size > 0 ? [{ targetCompanyIds: { hasSome: Array.from(companyIds) } }] : []),
                 ],
               }),
           OR: [
@@ -93,6 +102,7 @@ export async function getScheduleItems(params: {
           startTime: true,
           endTime: true,
           timezone: true,
+          targetCompanyIds: true,
           googleEventId: true,
         },
         orderBy: [{ startTime: "asc" }, { sessionDate: "asc" }],
@@ -101,11 +111,6 @@ export async function getScheduleItems(params: {
 
     let filteredOH = officeHourSlots;
     if (viewerRole === "founder" || viewerRole === "co_founder") {
-      const userCompanies = await prisma.companyMember.findMany({
-        where: { userId: viewerId, isCurrent: true },
-        select: { companyId: true },
-      });
-      const companyIds = new Set(userCompanies.map((c) => c.companyId));
       filteredOH = officeHourSlots.filter((s) => {
         const matchesCompany = Boolean(s.companyId && companyIds.has(s.companyId));
         const matchesDirectRequest = s.requests.some((request) => request.requesterId === viewerId);
@@ -139,6 +144,7 @@ export async function getScheduleItems(params: {
         timezone: e.timezone,
         isAllDay: false,
         eventType: e.eventType as ScheduleItem["eventType"],
+        googleMeetLink: e.googleMeetLink || undefined,
         location: e.location || undefined,
         deepLink: "/events",
       });

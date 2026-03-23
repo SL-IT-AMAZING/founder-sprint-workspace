@@ -12,6 +12,8 @@ import { Select } from "@/components/ui/Select";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Calendar } from "@/components/ui/Calendar";
 import { OfficeHourSchedulerModal } from "@/components/office-hours/OfficeHourSchedulerModal";
+import { CompanySelect, type CompanyOption as TargetCompanyOption } from "@/components/ui/CompanySelect";
+import { getCompaniesForBatch } from "@/actions/company";
 import { formatDate, getDisplayName } from "@/lib/utils";
 import { isAdmin } from "@/lib/permissions-client";
 import { createEvent, deleteEvent } from "@/actions/event";
@@ -39,13 +41,14 @@ interface Event {
   endTime: Date;
   timezone: string;
   location: string | null;
+  googleMeetLink: string | null;
   creator: {
     id: string;
     name: string | null;
     email: string;
     profileImage: string | null;
   };
-  targetGroup?: { id: string; name: string } | null;
+  targetCompanyIds: string[];
   batches?: { batch: { id: string; name: string } }[];
 }
 
@@ -55,7 +58,6 @@ interface EventsListProps {
   batchOptions: BatchOption[];
   companies: CompanyOption[];
   founders: FounderOption[];
-  groupOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
 
@@ -104,7 +106,6 @@ export function EventsList({
   batchOptions,
   companies,
   founders,
-  groupOptions,
   currentBatchId,
 }: EventsListProps) {
   const searchParams = useSearchParams();
@@ -116,6 +117,8 @@ export function EventsList({
   const [selectedType, setSelectedType] = useState<VisibleScheduleFilter | "all">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [availableCompanies, setAvailableCompanies] = useState<TargetCompanyOption[]>(companies.map((company) => ({ id: company.id, name: company.name, memberCount: company.memberCount })));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
@@ -217,6 +220,16 @@ export function EventsList({
     }
 
     setLoading(false);
+  };
+
+  const handleBatchSelection = async (selection: { mode: "all" | "specific"; batchIds: string[] }) => {
+    setSelectedBatchIds(selection.batchIds);
+    if (selection.mode === "specific" && selection.batchIds.length === 1) {
+      const nextCompanies = await getCompaniesForBatch(selection.batchIds[0]);
+      setAvailableCompanies(nextCompanies.map((company) => ({ id: company.id, name: company.name, memberCount: company._count.members })));
+    } else {
+      setAvailableCompanies([]);
+    }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -344,6 +357,11 @@ export function EventsList({
                           {event.location}
                         </p>
                       )}
+                      {event.googleMeetLink && (
+                        <a href={event.googleMeetLink} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: "var(--color-primary)" }}>
+                          Open meeting
+                        </a>
+                      )}
                     </div>
                   ))}
                 </>
@@ -412,6 +430,14 @@ export function EventsList({
                         <strong>Location:</strong> {event.location}
                       </div>
                     )}
+                    {event.googleMeetLink && (
+                      <div>
+                        <strong>Meeting:</strong>{" "}
+                        <a href={event.googleMeetLink} target="_blank" rel="noreferrer" style={{ color: "var(--color-primary)", textDecoration: "underline" }}>
+                          Open link
+                        </a>
+                      </div>
+                    )}
                   </div>
                   <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                     Created by {getDisplayName(event.creator)}
@@ -453,7 +479,7 @@ export function EventsList({
             </div>
           )}
 
-          <BatchSelect batches={batchOptions} />
+          <BatchSelect batches={batchOptions} onSelectionChange={handleBatchSelection} />
           {!selectedCreateEventType ? (
             <div className="space-y-2">
               {eventTypeOptions.map((option) => (
@@ -528,24 +554,14 @@ export function EventsList({
                 name="location"
                 placeholder="Location or meeting link (optional)"
               />
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Target Group (optional)</label>
-                <select
-                  name="targetGroupId"
-                  defaultValue=""
-                  className="w-full px-3 py-2 rounded-md border text-sm"
-                  style={{
-                    backgroundColor: "var(--color-background)",
-                    borderColor: "var(--color-border)",
-                    color: "var(--color-foreground)",
-                  }}
-                >
-                  <option value="">Entire selected batch</option>
-                  {groupOptions.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-              </div>
+              <CompanySelect
+                companies={availableCompanies}
+                totalBatchMembers={availableCompanies.reduce((sum, company) => sum + company.memberCount, 0)}
+                label="Target Companies"
+                inputName="companyIds"
+                allowSpecific={selectedBatchIds.length === 1}
+                disabledMessage="Specific companies are available only when exactly one batch is selected."
+              />
             </>
           )}
           <div className="flex justify-end gap-3 pt-2">

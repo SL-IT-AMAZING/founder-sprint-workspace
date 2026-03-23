@@ -837,7 +837,6 @@ export async function getSubmissions(batchId?: string) {
             assignment: {
               include: {
                 batch: { select: { id: true, name: true } },
-                targetGroup: { select: { id: true, name: true } },
               },
             },
             feedbacks: {
@@ -864,7 +863,6 @@ export async function getSubmissions(batchId?: string) {
             assignment: {
               include: {
                 batch: { select: { id: true, name: true } },
-                targetGroup: { select: { id: true, name: true } },
               },
             },
             feedbacks: {
