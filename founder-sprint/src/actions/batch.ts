@@ -209,7 +209,7 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
 
   function shiftDate(original: Date | null): Date | null {
     if (!original) return null;
-    return new Date(new Date(original).getTime() + offsetMs);
+    return new Date(original.getTime() + offsetMs);
   }
 
   const [sourceAssignments, sourceSessions] = await Promise.all([
@@ -260,8 +260,8 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
           title: session.title,
           description: session.description,
           sessionDate: shiftDate(session.sessionDate) || session.sessionDate,
-          startTime: shiftDate(session.startTime) || session.startTime,
-          endTime: shiftDate(session.endTime) || session.endTime,
+          startTime: shiftDate(session.startTime),
+          endTime: shiftDate(session.endTime),
           timezone: session.timezone,
           slidesUrl: null,
           recordingUrl: null,
