@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { format, isThisYear } from "date-fns";
 import type { ConversationListItem } from "@/actions/messaging";
 import { Avatar } from "@/components/ui/Avatar";
+import { GroupAvatar } from "@/components/ui/GroupAvatar";
 
 interface ConversationListProps {
   conversations: ConversationListItem[];
@@ -12,6 +13,7 @@ interface ConversationListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onEditGroup: (conversationId: string) => void;
   onComposeClick: () => void;
   onBrowseGroupsClick: () => void;
   onSearchChange: (query: string) => void;
@@ -24,6 +26,7 @@ export default function ConversationList({
   selectedId,
   onSelect,
   onDeleteConversation,
+  onEditGroup,
   onComposeClick,
   onBrowseGroupsClick,
   onSearchChange,
@@ -263,20 +266,12 @@ export default function ConversationList({
                 {/* Avatar */}
                 <div style={{ flexShrink: 0 }}>
                   {conversation.isGroup ? (
-                    <div
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        backgroundColor: "#f1eadd",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "18px",
-                      }}
-                    >
-                      {conversation.groupEmoji || "👥"}
-                    </div>
+                    <GroupAvatar
+                      name={conversation.groupName || "Group"}
+                      image={conversation.groupImage}
+                      emoji={conversation.groupEmoji}
+                      size={40}
+                    />
                   ) : (
                     <Avatar src={avatar} name={displayName} size={40} />
                   )}
@@ -295,9 +290,6 @@ export default function ConversationList({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {conversation.isGroup && conversation.groupEmoji && (
-                        <span style={{ marginRight: "6px" }}>{conversation.groupEmoji}</span>
-                      )}
                       {displayName}
                     </div>
                     <div className="flex" style={{ alignItems: "center", gap: "6px", marginLeft: "8px", flexShrink: 0 }}>
@@ -378,6 +370,35 @@ export default function ConversationList({
               transformOrigin: "top right",
             }}
           >
+            {conversations.find((c) => c.id === contextMenu.conversationId)?.isGroup && (
+              <button
+                type="button"
+                onClick={() => {
+                  onEditGroup(contextMenu.conversationId);
+                  setContextMenu(null);
+                }}
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "none",
+                  textAlign: "left",
+                  fontSize: "13px",
+                  color: "#2F2C26",
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  transition: "background-color 0.16s",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.04)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                Edit group
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

@@ -1,48 +1,55 @@
 "use client";
 
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import { createGroupConversation } from "@/actions/messaging";
+import { updateGroupConversation } from "@/actions/messaging";
+import type { ConversationDetail } from "@/actions/messaging";
 import { GroupAvatar } from "@/components/ui/GroupAvatar";
 import { ImageCropModal } from "@/components/ui/ImageCropModal";
 
-interface CreateGroupModalProps {
+interface EditGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGroupCreated: (conversationId: string) => void;
-  users: { id: string; name: string | null; profileImage: string | null }[];
+  onGroupUpdated: () => void;
+  conversation: ConversationDetail;
+  allUsers: { id: string; name: string | null; profileImage: string | null }[];
+  currentUserId: string;
 }
 
-export default function CreateGroupModal({
+export default function EditGroupModal({
   isOpen,
   onClose,
-  onGroupCreated,
-  users,
-}: CreateGroupModalProps) {
-  const [groupName, setGroupName] = useState("");
-  const [groupEmoji, setGroupEmoji] = useState("");
-  const [groupImageUrl, setGroupImageUrl] = useState<string | null>(null);
+  onGroupUpdated,
+  conversation,
+  allUsers,
+  currentUserId,
+}: EditGroupModalProps) {
+  const [groupName, setGroupName] = useState(conversation.groupName || "");
+  const [groupEmoji, setGroupEmoji] = useState(conversation.groupEmoji || "");
+  const [groupImageUrl, setGroupImageUrl] = useState<string | null>(conversation.groupImage || null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [isPublic, setIsPublic] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [participantIds, setParticipantIds] = useState<string[]>(
+    conversation.participants.map((p) => p.id)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredUsers = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase();
-    if (!normalizedSearch) return users;
-    return users.filter((user) => (user.name || "").toLowerCase().includes(normalizedSearch));
-  }, [searchQuery, users]);
-
-  const selectedUsers = useMemo(
-    () => users.filter((user) => selectedUserIds.includes(user.id)),
-    [selectedUserIds, users]
+  const initialParticipantIds = useMemo(
+    () => new Set(conversation.participants.map((p) => p.id)),
+    [conversation.participants]
   );
 
+  const availableUsers = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const filtered = allUsers.filter((u) => u.id !== currentUserId);
+    if (!normalizedSearch) return filtered;
+    return filtered.filter((u) => (u.name || "").toLowerCase().includes(normalizedSearch));
+  }, [searchQuery, allUsers, currentUserId]);
+
   const handleToggleUser = (userId: string) => {
-    setSelectedUserIds((prev) =>
+    setParticipantIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
@@ -97,30 +104,29 @@ export default function CreateGroupModal({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!groupName.trim() || selectedUserIds.length < 1) return;
+    if (!groupName.trim()) return;
 
     setSubmitting(true);
     setError(null);
 
-    const result = await createGroupConversation(
-      groupName.trim(),
-      groupEmoji.trim() || null,
-      isPublic,
-      selectedUserIds,
-      groupImageUrl
+    const addParticipantIds = participantIds.filter((id) => !initialParticipantIds.has(id));
+    const removeParticipantIds = Array.from(initialParticipantIds).filter(
+      (id) => id !== currentUserId && !participantIds.includes(id)
     );
 
+    const result = await updateGroupConversation(conversation.id, {
+      name: groupName.trim(),
+      emoji: groupEmoji.trim() || null,
+      image: groupImageUrl,
+      addParticipantIds: addParticipantIds.length > 0 ? addParticipantIds : undefined,
+      removeParticipantIds: removeParticipantIds.length > 0 ? removeParticipantIds : undefined,
+    });
+
     if (result.success) {
-      onGroupCreated(result.data.conversationId);
-      setGroupName("");
-      setGroupEmoji("");
-      setGroupImageUrl(null);
-      setIsPublic(true);
-      setSearchQuery("");
-      setSelectedUserIds([]);
+      onGroupUpdated();
       onClose();
     } else {
-      setError(result.error || "Failed to create group");
+      setError(result.error || "Failed to update group");
     }
 
     setSubmitting(false);
@@ -164,7 +170,7 @@ export default function CreateGroupModal({
               justifyContent: "space-between",
             }}
           >
-            <h2 style={{ margin: 0, color: "#2F2C26", fontSize: "20px", fontWeight: 700 }}>Create Group</h2>
+            <h2 style={{ margin: 0, color: "#2F2C26", fontSize: "20px", fontWeight: 700 }}>Edit Group</h2>
             <button
               onClick={onClose}
               style={{
@@ -175,7 +181,7 @@ export default function CreateGroupModal({
                 cursor: "pointer",
                 lineHeight: 1,
               }}
-              aria-label="Close create group modal"
+              aria-label="Close edit group modal"
             >
               ×
             </button>
@@ -183,8 +189,7 @@ export default function CreateGroupModal({
 
           <form onSubmit={handleSubmit} style={{ padding: "16px", overflowY: "auto" }}>
             <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#2F2C26", fontWeight: 600 }}>
-              Group Image{" "}
-              <span style={{ fontWeight: 400, color: "#999999" }}>(optional)</span>
+              Group Image
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
               <div
@@ -194,22 +199,7 @@ export default function CreateGroupModal({
                 {groupImageUrl ? (
                   <GroupAvatar name={groupName || "G"} image={groupImageUrl} size={48} />
                 ) : (
-                  <div
-                    style={{
-                      width: "48px",
-                      height: "48px",
-                      borderRadius: "10px",
-                      border: "2px dashed #d0d0d0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#999999",
-                      fontSize: "18px",
-                      backgroundColor: "#fafafa",
-                    }}
-                  >
-                    +
-                  </div>
+                  <GroupAvatar name={groupName || "G"} emoji={groupEmoji || undefined} size={48} />
                 )}
                 {uploadingImage && (
                   <div
@@ -264,9 +254,6 @@ export default function CreateGroupModal({
                     Remove
                   </button>
                 )}
-                {!groupImageUrl && (
-                  <span style={{ fontSize: "12px", color: "#999999" }}>JPG, PNG, or WebP. Max 2MB.</span>
-                )}
               </div>
               <input
                 ref={fileInputRef}
@@ -282,7 +269,6 @@ export default function CreateGroupModal({
             </label>
             <input
               type="text"
-              placeholder="e.g., Robotics Founders"
               value={groupName}
               onChange={(event) => setGroupName(event.target.value)}
               required
@@ -301,7 +287,7 @@ export default function CreateGroupModal({
 
             <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#2F2C26", fontWeight: 600 }}>
               Custom Icon{" "}
-              <span style={{ fontWeight: 400, color: "#999999" }}>(optional, overrides image)</span>
+              <span style={{ fontWeight: 400, color: "#999999" }}>(optional)</span>
             </label>
             <input
               type="text"
@@ -323,71 +309,40 @@ export default function CreateGroupModal({
             />
 
             <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#2F2C26", fontWeight: 600 }}>
-              Visibility
-            </label>
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-              <button
-                type="button"
-                onClick={() => setIsPublic(true)}
-                style={{
-                  border: isPublic ? "none" : "1px solid #e0e0e0",
-                  backgroundColor: isPublic ? "#1A1A1A" : "transparent",
-                  color: isPublic ? "#FFFFFF" : "#2F2C26",
-                  borderRadius: "9px",
-                  padding: "6px 12px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                Public
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPublic(false)}
-                style={{
-                  border: !isPublic ? "none" : "1px solid #e0e0e0",
-                  backgroundColor: !isPublic ? "#1A1A1A" : "transparent",
-                  color: !isPublic ? "#FFFFFF" : "#2F2C26",
-                  borderRadius: "9px",
-                  padding: "6px 12px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                }}
-              >
-                Private
-              </button>
-            </div>
-
-            <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#2F2C26", fontWeight: 600 }}>
-              Add Members
+              Members
             </label>
 
-            {selectedUsers.length > 0 && (
+            {participantIds.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
-                {selectedUsers.map((user) => (
-                  <button
-                    key={`selected-${user.id}`}
-                    type="button"
-                    onClick={() => handleToggleUser(user.id)}
-                    style={{
-                      border: "1px solid #e0e0e0",
-                      backgroundColor: "#fefaf3",
-                      color: "#2F2C26",
-                      borderRadius: "999px",
-                      padding: "4px 10px",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {(user.name || "Unknown") + " ×"}
-                  </button>
-                ))}
+                {participantIds
+                  .filter((id) => id !== currentUserId)
+                  .map((id) => {
+                    const u = allUsers.find((user) => user.id === id);
+                    return (
+                      <button
+                        key={`member-${id}`}
+                        type="button"
+                        onClick={() => handleToggleUser(id)}
+                        style={{
+                          border: "1px solid #e0e0e0",
+                          backgroundColor: "#fefaf3",
+                          color: "#2F2C26",
+                          borderRadius: "999px",
+                          padding: "4px 10px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {(u?.name || "Unknown") + " ×"}
+                      </button>
+                    );
+                  })}
               </div>
             )}
 
             <input
               type="text"
-              placeholder="Search people..."
+              placeholder="Search people to add..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               style={{
@@ -411,13 +366,13 @@ export default function CreateGroupModal({
                 marginBottom: "12px",
               }}
             >
-              {filteredUsers.length === 0 ? (
+              {availableUsers.length === 0 ? (
                 <div style={{ padding: "12px", color: "#999999", fontSize: "13px", textAlign: "center" }}>
                   No users found.
                 </div>
               ) : (
-                filteredUsers.map((user) => {
-                  const isSelected = selectedUserIds.includes(user.id);
+                availableUsers.map((user) => {
+                  const isSelected = participantIds.includes(user.id);
 
                   return (
                     <button
@@ -453,7 +408,7 @@ export default function CreateGroupModal({
                         <span style={{ fontSize: "13px" }}>{user.name || "Unknown"}</span>
                       </span>
                       <span style={{ color: isSelected ? "#2E7D32" : "#999999", fontSize: "12px", fontWeight: 600 }}>
-                        {isSelected ? "Selected" : "Select"}
+                        {isSelected ? "Member" : "Add"}
                       </span>
                     </button>
                   );
@@ -465,7 +420,7 @@ export default function CreateGroupModal({
 
             <button
               type="submit"
-              disabled={submitting || !groupName.trim() || selectedUserIds.length < 1}
+              disabled={submitting || !groupName.trim()}
               style={{
                 width: "100%",
                 backgroundColor: "#1A1A1A",
@@ -475,11 +430,11 @@ export default function CreateGroupModal({
                 fontSize: "14px",
                 fontWeight: 600,
                 border: "none",
-                cursor: submitting || !groupName.trim() || selectedUserIds.length < 1 ? "not-allowed" : "pointer",
-                opacity: submitting || !groupName.trim() || selectedUserIds.length < 1 ? 0.6 : 1,
+                cursor: submitting || !groupName.trim() ? "not-allowed" : "pointer",
+                opacity: submitting || !groupName.trim() ? 0.6 : 1,
               }}
             >
-              {submitting ? "Creating..." : "Create Group"}
+              {submitting ? "Saving..." : "Save Changes"}
             </button>
           </form>
         </div>

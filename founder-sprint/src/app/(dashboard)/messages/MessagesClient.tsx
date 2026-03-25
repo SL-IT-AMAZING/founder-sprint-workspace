@@ -8,6 +8,7 @@ import ConversationList from "./ConversationList";
 import ConversationThread from "./ConversationThread";
 import BrowseGroupsModal from "./BrowseGroupsModal";
 import CreateGroupModal from "./CreateGroupModal";
+import EditGroupModal from "./EditGroupModal";
 
 interface MessagesClientProps {
   conversations: ConversationListItem[];
@@ -38,6 +39,7 @@ export default function MessagesClient({
   const [searchResults, setSearchResults] = useState<ConversationListItem[] | null>(null);
   const [browseGroupsOpen, setBrowseGroupsOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
   const [fetchedUsers, setFetchedUsers] = useState(allUsers);
 
   // Fetch all users for group creation on mount
@@ -179,6 +181,30 @@ export default function MessagesClient({
     await handleSelectConversation(conversationId);
   };
 
+  const handleEditGroup = async (conversationId: string) => {
+    const detailResult = await getConversation(conversationId);
+    if (detailResult.success) {
+      setConversationDetail(detailResult.data);
+    }
+    setEditGroupId(conversationId);
+  };
+
+  const handleGroupUpdated = async () => {
+    setEditGroupId(null);
+
+    const conversationsResult = await getUserConversations();
+    if (conversationsResult.success) {
+      setConversations(conversationsResult.data);
+    }
+
+    if (selectedConversationId) {
+      const detailResult = await getConversation(selectedConversationId);
+      if (detailResult.success) {
+        setConversationDetail(detailResult.data);
+      }
+    }
+  };
+
   const handleGroupCreated = async (conversationId: string) => {
     setCreateGroupOpen(false);
 
@@ -199,6 +225,7 @@ export default function MessagesClient({
           selectedId={selectedConversationId}
           onSelect={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
+          onEditGroup={handleEditGroup}
           onComposeClick={handleComposeClick}
           onBrowseGroupsClick={handleBrowseGroupsClick}
           onSearchChange={setSearchQuery}
@@ -227,6 +254,16 @@ export default function MessagesClient({
         onGroupCreated={handleGroupCreated}
         users={fetchedUsers}
       />
+      {editGroupId && conversationDetail && conversationDetail.isGroup && (
+        <EditGroupModal
+          isOpen={true}
+          onClose={() => setEditGroupId(null)}
+          onGroupUpdated={handleGroupUpdated}
+          conversation={conversationDetail}
+          allUsers={fetchedUsers}
+          currentUserId={currentUserId}
+        />
+      )}
     </div>
   );
 }
