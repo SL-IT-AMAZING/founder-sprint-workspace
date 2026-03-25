@@ -1,7 +1,6 @@
 import { getCurrentUser } from "@/lib/permissions";
 import { getScheduleItems } from "@/actions/schedule";
 import { getOfficeHourBatchContext } from "@/actions/office-hour";
-import { getGroups } from "@/actions/group";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleView } from "./ScheduleView";
@@ -37,30 +36,34 @@ export default async function SchedulePage({
   const rangeStart = startOfWeek(startOfMonth(monthDate));
   const rangeEnd = endOfWeek(endOfMonth(monthDate));
 
-  const [items, batchContextResult, totalBatchMembers, batchOptions, groups] = await Promise.all([
-    getScheduleItems({
-      batchId: user.batchId,
-      viewerId: user.id,
-      viewerRole: user.role,
-      rangeStart,
-      rangeEnd,
-    }),
-    getOfficeHourBatchContext(user.batchId),
-    prisma.userBatch.count({
-      where: { batchId: user.batchId, status: "active" },
-    }),
+  const [adminBatchOptions, batchContextResult, totalBatchMembers] = await Promise.all([
     user.role === "admin" || user.role === "super_admin"
       ? prisma.batch.findMany({
           orderBy: [{ status: "asc" }, { createdAt: "desc" }],
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
-    getGroups(user.batchId),
+    getOfficeHourBatchContext(user.batchId),
+    prisma.userBatch.count({
+      where: { batchId: user.batchId, status: "active" },
+    }),
   ]);
+
+  const adminBatchIds = adminBatchOptions.map((batch) => batch.id);
+
+  const items = await getScheduleItems({
+    batchId: user.batchId,
+    batchIds: user.role === "admin" || user.role === "super_admin" ? adminBatchIds : [user.batchId],
+    viewerId: user.id,
+    viewerRole: user.role,
+    rangeStart,
+    rangeEnd,
+  });
+
+  const batchOptions = adminBatchOptions;
   const batchContext = batchContextResult.success
     ? batchContextResult.data
     : { companies: [], founders: [], mentors: [] };
-  const groupOptions = groups.map((group) => ({ id: group.id, name: group.name }));
 
   return (
     <div className="space-y-6">
@@ -76,7 +79,6 @@ export default async function SchedulePage({
         founders={batchContext.founders}
         totalBatchMembers={totalBatchMembers}
         batchOptions={batchOptions}
-        groupOptions={groupOptions}
         currentBatchId={user.batchId}
       />
     </div>

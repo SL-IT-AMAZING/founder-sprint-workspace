@@ -50,6 +50,8 @@ export interface ScheduleItem {
   /** Events only: location string */
   location?: string;
 
+  batchNames?: string[];
+
   // --- Navigation ---
 
   /** Link to the management page for this item type */

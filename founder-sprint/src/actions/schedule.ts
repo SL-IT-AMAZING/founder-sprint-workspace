@@ -6,13 +6,15 @@ import type { ScheduleItem } from "@/types/schedule";
 
 export async function getScheduleItems(params: {
   batchId: string;
+  batchIds?: string[];
   viewerId: string;
   viewerRole: string;
   rangeStart: Date;
   rangeEnd: Date;
 }): Promise<ScheduleItem[]> {
-  const { batchId, viewerId, viewerRole, rangeStart, rangeEnd } = params;
+  const { batchId, batchIds, viewerId, viewerRole, rangeStart, rangeEnd } = params;
   const isAdminViewer = viewerRole === "admin" || viewerRole === "super_admin";
+  const effectiveBatchIds = batchIds && batchIds.length > 0 ? batchIds : [batchId];
 
   const fetchSchedule = async () => {
     const userCompanies = isAdminViewer
@@ -26,7 +28,7 @@ export async function getScheduleItems(params: {
     const [events, officeHourSlots, sessions] = await Promise.all([
       prisma.event.findMany({
         where: {
-          batches: { some: { batchId } },
+          batches: { some: { batchId: { in: effectiveBatchIds } } },
           startTime: { gte: rangeStart, lte: rangeEnd },
           ...(isAdminViewer
             ? {}
@@ -48,13 +50,18 @@ export async function getScheduleItems(params: {
           googleMeetLink: true,
           location: true,
           googleEventId: true,
+          batches: {
+            select: {
+              batch: { select: { name: true } },
+            },
+          },
         },
         orderBy: { startTime: "asc" },
       }),
 
       prisma.officeHourSlot.findMany({
         where: {
-          batchId,
+          batchId: { in: effectiveBatchIds },
           startTime: { gte: rangeStart, lte: rangeEnd },
         },
         select: {
@@ -72,13 +79,14 @@ export async function getScheduleItems(params: {
           host: { select: { name: true } },
           company: { select: { name: true } },
           group: { select: { name: true } },
+          batch: { select: { name: true } },
         },
         orderBy: { startTime: "asc" },
       }),
 
       prisma.session.findMany({
         where: {
-          batches: { some: { batchId } },
+          batches: { some: { batchId: { in: effectiveBatchIds } } },
           ...(isAdminViewer
             ? {}
             : {
@@ -104,6 +112,11 @@ export async function getScheduleItems(params: {
           timezone: true,
           targetCompanyIds: true,
           googleEventId: true,
+          batches: {
+            select: {
+              batch: { select: { name: true } },
+            },
+          },
         },
         orderBy: [{ startTime: "asc" }, { sessionDate: "asc" }],
       }),
@@ -146,6 +159,7 @@ export async function getScheduleItems(params: {
         eventType: e.eventType as ScheduleItem["eventType"],
         googleMeetLink: e.googleMeetLink || undefined,
         location: e.location || undefined,
+        batchNames: e.batches.map((batch) => batch.batch.name),
         deepLink: "/events",
       });
     }
@@ -163,6 +177,7 @@ export async function getScheduleItems(params: {
         hostName: oh.host.name || undefined,
         companyName: oh.company?.name || oh.group?.name || undefined,
         googleMeetLink: oh.googleMeetLink || undefined,
+        batchNames: [oh.batch.name],
         deepLink: "/office-hours",
       });
     }
@@ -182,6 +197,7 @@ export async function getScheduleItems(params: {
           : `${day}T23:59:59.000Z`,
         timezone: s.timezone,
         isAllDay: !hasTime,
+        batchNames: s.batches.map((batch) => batch.batch.name),
         deepLink: "/sessions",
       });
     }
@@ -199,7 +215,8 @@ export async function getScheduleItems(params: {
     fetchSchedule,
     [
       `schedule-${batchId}-${viewerId}-${viewerRole}-${rangeStart.toISOString()}-${rangeEnd.toISOString()}`,
+      effectiveBatchIds.join(","),
     ],
-    { revalidate: 60, tags: [`schedule-${batchId}`] }
+    { revalidate: 60, tags: effectiveBatchIds.map((id) => `schedule-${id}`) }
   )();
 }

@@ -186,18 +186,27 @@ export default function BookfaceTopNav({
       { href: "/schedule", label: "Schedule" },
       { href: "/assignments", label: "Assignments" },
       { href: "/office-hours", label: "Office Hours" },
-      { href: "---", label: "---" },
-      { href: "/founders", label: "Founders" },
-      { href: "/companies", label: "Companies" },
       { href: "/questions", label: "Questions" },
     ],
   };
 
-  const desktopMenus = [batchMenu];
+  const communityMenu = {
+    key: "community",
+    label: "Community",
+    href: "/founders",
+    items: [
+      { href: "/founders", label: "Founders" },
+      { href: "/companies", label: "Companies" },
+      { href: "/messages", label: "Messages" },
+    ],
+  };
+
+  const desktopMenus = [batchMenu, communityMenu];
 
   const allMobileLinks = [
     ...primaryLinks,
-    ...batchMenu.items.filter((item) => item.href !== "---"),
+    ...batchMenu.items,
+    ...communityMenu.items,
     ...(isAdmin ? [{ key: "admin", label: "Admin", href: "/admin" }] : []),
   ];
 
@@ -275,7 +284,7 @@ export default function BookfaceTopNav({
 
           {desktopMenus.map((menu) => {
             const menuHref = 'href' in menu ? (menu as { href: string }).href : undefined;
-            const isBatchActive = menu.items.some((item) => item.href !== '---' && isPathActive(item.href));
+            const isMenuActive = menu.items.some((item) => isPathActive(item.href));
             return (
               <div key={menu.key} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 {menuHref ? (
@@ -285,14 +294,14 @@ export default function BookfaceTopNav({
                       background: 'none',
                       color: 'white',
                       fontSize: '14px',
-                      fontWeight: isBatchActive ? 600 : 400,
+                      fontWeight: isMenuActive ? 600 : 400,
                       textDecoration: 'none',
                       padding: '4px 4px 4px 8px',
-                      opacity: isBatchActive ? 1.0 : 0.9,
+                      opacity: isMenuActive ? 1.0 : 0.9,
                       transition: 'opacity 0.2s',
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.opacity = '1.0'}
-                    onMouseLeave={(e) => e.currentTarget.style.opacity = isBatchActive ? '1.0' : '0.9'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = isMenuActive ? '1.0' : '0.9'}
                   >
                     {menu.label}
                   </Link>
@@ -351,35 +360,24 @@ export default function BookfaceTopNav({
                       marginTop: '8px',
                     }}
                   >
-                    {menu.items.map((item) =>
-                      item.href === '---' ? (
-                        <div
-                          key="separator"
-                          style={{
-                            height: '1px',
-                            backgroundColor: '#e0e0e0',
-                            margin: '4px 0',
-                          }}
-                        />
-                      ) : (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          style={{
-                            display: 'block',
-                            padding: '10px 14px',
-                            fontSize: '14px',
-                            color: '#2F2C26',
-                            textDecoration: 'none',
-                            transition: 'background-color 0.2s',
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                          {item.label}
-                        </Link>
-                      )
-                    )}
+                    {menu.items.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        style={{
+                          display: 'block',
+                          padding: '10px 14px',
+                          fontSize: '14px',
+                          color: '#2F2C26',
+                          textDecoration: 'none',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
                   </div>
                 )}
               </div>

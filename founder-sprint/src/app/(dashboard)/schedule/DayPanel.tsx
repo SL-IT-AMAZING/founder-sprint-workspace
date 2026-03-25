@@ -34,7 +34,6 @@ interface DayPanelProps {
   founders: FounderOption[];
   totalBatchMembers: number;
   batchOptions: Array<{ id: string; name: string }>;
-  groupOptions: Array<{ id: string; name: string }>;
   currentBatchId: string;
 }
 
@@ -81,7 +80,7 @@ type EventCreateKind = "in_person" | "virtual" | "general_session";
 
 const timezoneOptions = TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }));
 
-export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, groupOptions, currentBatchId }: DayPanelProps) {
+export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies, founders, totalBatchMembers, batchOptions, currentBatchId }: DayPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedEventType, setSelectedEventType] = useState<EventCreateKind | null>(null);
   const [officeHourModalOpen, setOfficeHourModalOpen] = useState(false);
@@ -322,6 +321,11 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                         >
                           {item.hostName}
                         </span>
+                      )}
+                      {(item.batchNames?.length || 0) > 0 && (
+                        <Badge variant="default">
+                          {item.batchNames!.length === 1 ? item.batchNames![0] : `${item.batchNames!.length} batches`}
+                        </Badge>
                       )}
                     </div>
                     {item.location && (
