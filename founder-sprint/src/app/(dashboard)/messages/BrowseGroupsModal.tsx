@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getPublicGroups, joinPublicGroup } from "@/actions/messaging";
 import type { PublicGroupItem } from "@/actions/messaging";
+import { GroupAvatar } from "@/components/ui/GroupAvatar";
 
 interface BrowseGroupsModalProps {
   isOpen: boolean;
@@ -215,9 +216,7 @@ export default function BrowseGroupsModal({
                   borderBottom: "1px solid #f1eadd",
                 }}
               >
-                <div style={{ fontSize: "24px", width: "28px", textAlign: "center", flexShrink: 0 }}>
-                  {group.groupEmoji || "💬"}
-                </div>
+                <GroupAvatar name={group.groupName} image={group.groupImage} emoji={group.groupEmoji} size={32} />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: "#2F2C26" }}>{group.groupName}</div>

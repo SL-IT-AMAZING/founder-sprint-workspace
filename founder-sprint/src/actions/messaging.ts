@@ -11,6 +11,7 @@ export interface ConversationListItem {
   isGroup: boolean;
   groupName: string | null;
   groupEmoji: string | null;
+  groupImage: string | null;
   lastMessage: string | null;
   lastMessageAt: Date | null;
   unreadCount: number;
@@ -29,6 +30,7 @@ export interface ConversationDetail {
   isGroup: boolean;
   groupName: string | null;
   groupEmoji: string | null;
+  groupImage: string | null;
   isPublic: boolean;
   participants: {
     id: string;
@@ -43,6 +45,7 @@ export interface PublicGroupItem {
   id: string;
   groupName: string;
   groupEmoji: string | null;
+  groupImage: string | null;
   createdBy: { name: string | null } | null;
   lastMessageAt: Date | null;
   memberCount: number;
@@ -58,6 +61,7 @@ type ParticipantConversation = {
     isGroup: boolean;
     groupName: string | null;
     groupEmoji: string | null;
+    groupImage: string | null;
     lastMessage: string | null;
     lastMessageAt: Date | null;
     participants: {
@@ -116,6 +120,7 @@ function mapConversationListItems(
     isGroup: record.conversation.isGroup,
     groupName: record.conversation.groupName,
     groupEmoji: record.conversation.groupEmoji,
+    groupImage: record.conversation.groupImage,
     lastMessage: record.conversation.lastMessage,
     lastMessageAt: record.conversation.lastMessageAt,
     unreadCount: unreadMap.get(record.conversation.id) ?? 0,
@@ -263,7 +268,8 @@ export async function createGroupConversation(
   name: string,
   emoji: string | null,
   isPublic: boolean,
-  participantIds: string[]
+  participantIds: string[],
+  image?: string | null
 ): Promise<ActionResult<{ conversationId: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -288,6 +294,7 @@ export async function createGroupConversation(
         isGroup: true,
         groupName: normalizedName,
         groupEmoji: emoji,
+        groupImage: image || null,
         isPublic,
         createdBy: user.id,
         participants: {
@@ -322,6 +329,7 @@ export async function getUserConversations(): Promise<ActionResult<ConversationL
             isGroup: true,
             groupName: true,
             groupEmoji: true,
+            groupImage: true,
             lastMessage: true,
             lastMessageAt: true,
             participants: {
@@ -377,6 +385,7 @@ export async function getConversation(
         isGroup: true,
         groupName: true,
         groupEmoji: true,
+        groupImage: true,
         isPublic: true,
         participants: {
           select: {
@@ -405,6 +414,7 @@ export async function getConversation(
         isGroup: conversation.isGroup,
         groupName: conversation.groupName,
         groupEmoji: conversation.groupEmoji,
+        groupImage: conversation.groupImage,
         isPublic: conversation.isPublic,
         participants: conversation.participants.map((participant) => participant.user),
       },
@@ -593,6 +603,102 @@ export async function deleteConversation(
   }
 }
 
+export async function updateGroupConversation(
+  conversationId: string,
+  data: {
+    name?: string;
+    emoji?: string | null;
+    image?: string | null;
+    addParticipantIds?: string[];
+    removeParticipantIds?: string[];
+  }
+): Promise<ActionResult<void>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  if (!conversationId) {
+    return { success: false, error: "Conversation ID is required" };
+  }
+
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { id: true, isGroup: true, createdBy: true },
+    });
+
+    if (!conversation) {
+      return { success: false, error: "Conversation not found" };
+    }
+
+    if (!conversation.isGroup) {
+      return { success: false, error: "Only group conversations can be edited" };
+    }
+
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!participant) {
+      return { success: false, error: "You are not a member of this group" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const updateData: Record<string, unknown> = {};
+      if (data.name !== undefined) {
+        const trimmed = data.name.trim();
+        if (trimmed.length < 1 || trimmed.length > 200) {
+          throw new Error("Group name must be between 1 and 200 characters");
+        }
+        updateData.groupName = trimmed;
+      }
+      if (data.emoji !== undefined) updateData.groupEmoji = data.emoji || null;
+      if (data.image !== undefined) updateData.groupImage = data.image || null;
+
+      if (Object.keys(updateData).length > 0) {
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: updateData,
+        });
+      }
+
+      if (data.addParticipantIds && data.addParticipantIds.length > 0) {
+        const existing = await tx.conversationParticipant.findMany({
+          where: { conversationId, userId: { in: data.addParticipantIds } },
+          select: { userId: true },
+        });
+        const existingIds = new Set(existing.map((p) => p.userId));
+        const newIds = data.addParticipantIds.filter((id) => !existingIds.has(id));
+
+        if (newIds.length > 0) {
+          await tx.conversationParticipant.createMany({
+            data: newIds.map((userId) => ({ conversationId, userId })),
+          });
+        }
+      }
+
+      if (data.removeParticipantIds && data.removeParticipantIds.length > 0) {
+        const safeToRemove = data.removeParticipantIds.filter((id) => id !== user.id);
+        if (safeToRemove.length > 0) {
+          await tx.conversationParticipant.deleteMany({
+            where: { conversationId, userId: { in: safeToRemove } },
+          });
+        }
+      }
+    });
+
+    revalidatePath("/messages");
+    return { success: true, data: undefined };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update group";
+    return { success: false, error: message };
+  }
+}
+
 export async function markConversationRead(
   conversationId: string
 ): Promise<ActionResult<void>> {
@@ -673,6 +779,7 @@ export async function getPublicGroups(
         id: true,
         groupName: true,
         groupEmoji: true,
+        groupImage: true,
         lastMessageAt: true,
         creator: {
           select: {
@@ -703,6 +810,7 @@ export async function getPublicGroups(
         id: group.id,
         groupName: group.groupName,
         groupEmoji: group.groupEmoji,
+        groupImage: group.groupImage,
         createdBy: group.creator,
         lastMessageAt: group.lastMessageAt,
         memberCount: group._count.participants,
@@ -846,6 +954,7 @@ export async function searchConversations(
             isGroup: true,
             groupName: true,
             groupEmoji: true,
+            groupImage: true,
             lastMessage: true,
             lastMessageAt: true,
             participants: {

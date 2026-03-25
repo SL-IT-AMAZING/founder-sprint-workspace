@@ -792,6 +792,7 @@ model Conversation {
   isGroup       Boolean   @default(false) @map("is_group")
   groupName     String?   @map("group_name") @db.VarChar(200)
   groupEmoji    String?   @map("group_emoji") @db.VarChar(10)
+  groupImage    String?   @map("group_image")
   isPublic      Boolean   @default(false) @map("is_public")
   createdBy     String?   @map("created_by") @db.Uuid
   dmKey         String?   @unique @map("dm_key") @db.VarChar(73)

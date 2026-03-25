@@ -6,6 +6,7 @@ import type { ConversationDetail, MessageItem } from "@/actions/messaging";
 import MessageBubble from "./MessageBubble";
 import MessageComposer from "./MessageComposer";
 import { Avatar } from "@/components/ui/Avatar";
+import { GroupAvatar } from "@/components/ui/GroupAvatar";
 
 interface ConversationThreadProps {
   conversationId: string | null;
@@ -140,21 +141,12 @@ export default function ConversationThread({
       >
         {/* Avatar */}
         {conversationDetail?.isGroup ? (
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              backgroundColor: "#f1eadd",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              flexShrink: 0,
-            }}
-          >
-            {conversationEmoji || "👥"}
-          </div>
+          <GroupAvatar
+            name={conversationName || "Group"}
+            image={conversationDetail?.groupImage}
+            emoji={conversationEmoji}
+            size={36}
+          />
         ) : (
           <Avatar src={conversationAvatar} name={conversationName} size={36} />
         )}
@@ -162,7 +154,6 @@ export default function ConversationThread({
         {/* Name and participant count */}
         <div className="flex" style={{ flexDirection: "column", gap: "2px" }}>
           <div style={{ fontSize: "16px", fontWeight: "600", color: "#2F2C26" }}>
-            {conversationEmoji && <span style={{ marginRight: "6px" }}>{conversationEmoji}</span>}
             {conversationName}
           </div>
           {participantCount && (
