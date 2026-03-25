@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/actions/auth";
 import { useState, useEffect, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import BatchSwitcher from "@/components/layout/BatchSwitcher";
 import { getDisplayName } from "@/lib/utils";
 import UnreadBadge from "@/components/layout/UnreadBadge";
@@ -344,42 +345,49 @@ export default function BookfaceTopNav({
                   ▼
                 </button>
 
-                {openDropdown === menu.key && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      padding: '4px 0',
-                      minWidth: '200px',
-                      zIndex: 200,
-                      marginTop: '8px',
-                    }}
-                  >
-                    {menu.items.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        style={{
-                          display: 'block',
-                          padding: '10px 14px',
-                          fontSize: '14px',
-                          color: '#2F2C26',
-                          textDecoration: 'none',
-                          transition: 'background-color 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {openDropdown === menu.key && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        padding: '4px 0',
+                        minWidth: '200px',
+                        zIndex: 200,
+                        marginTop: '8px',
+                        transformOrigin: 'top left',
+                      }}
+                    >
+                      {menu.items.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          style={{
+                            display: 'block',
+                            padding: '10px 14px',
+                            fontSize: '14px',
+                            color: '#2F2C26',
+                            textDecoration: 'none',
+                            transition: 'background-color 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}

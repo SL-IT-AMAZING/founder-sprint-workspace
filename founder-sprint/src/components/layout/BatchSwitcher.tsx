@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { switchBatch } from "@/actions/batch-switcher";
 import { getEffectiveBatchStatus } from "@/lib/batch-utils";
@@ -86,57 +87,64 @@ export default function BatchSwitcher({ batches, currentBatchId }: BatchSwitcher
         </svg>
       </button>
 
-      {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            backgroundColor: "var(--color-card-bg, #ffffff)",
-            border: "1px solid var(--color-card-border, #e0e0e0)",
-            borderRadius: "8px",
-            padding: "4px 0",
-            minWidth: "200px",
-            zIndex: 200,
-            boxShadow: "var(--shadow-lg, 0 4px 12px rgba(0, 0, 0, 0.15))",
-          }}
-        >
-          {batches.map((batch) => {
-            const isCurrent = batch.batchId === currentBatchId;
-            const effectiveStatus = batch.batchStatus && batch.endDate
-              ? getEffectiveBatchStatus({ status: batch.batchStatus as "active" | "archived", endDate: new Date(batch.endDate) })
-              : "active";
-            const isEnded = effectiveStatus !== "active";
-            return (
-              <button
-                key={batch.batchId}
-                onClick={() => handleSwitch(batch.batchId)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "none",
-                  background: "none",
-                  color: isCurrent ? "var(--color-accent, #1A1A1A)" : "var(--color-foreground, #2F2C26)",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontWeight: isCurrent ? 500 : 400,
-                  opacity: isEnded ? 0.6 : 1,
-                  transition: "background-color 0.2s ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.05)")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-              >
-                <span style={{ width: "16px", flexShrink: 0, color: "var(--color-accent, #1A1A1A)" }}>{isCurrent ? "✓" : ""}</span>
-                <span>{batch.batchName}{isEnded ? ` (${effectiveStatus === "expired" ? "Ended" : "Archived"})` : ""}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              backgroundColor: "var(--color-card-bg, #ffffff)",
+              border: "1px solid var(--color-card-border, #e0e0e0)",
+              borderRadius: "8px",
+              padding: "4px 0",
+              minWidth: "200px",
+              zIndex: 200,
+              boxShadow: "var(--shadow-lg, 0 4px 12px rgba(0, 0, 0, 0.15))",
+              transformOrigin: "top left",
+            }}
+          >
+            {batches.map((batch) => {
+              const isCurrent = batch.batchId === currentBatchId;
+              const effectiveStatus = batch.batchStatus && batch.endDate
+                ? getEffectiveBatchStatus({ status: batch.batchStatus as "active" | "archived", endDate: new Date(batch.endDate) })
+                : "active";
+              const isEnded = effectiveStatus !== "active";
+              return (
+                <button
+                  key={batch.batchId}
+                  onClick={() => handleSwitch(batch.batchId)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "none",
+                    background: "none",
+                    color: isCurrent ? "var(--color-accent, #1A1A1A)" : "var(--color-foreground, #2F2C26)",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontWeight: isCurrent ? 500 : 400,
+                    opacity: isEnded ? 0.6 : 1,
+                    transition: "background-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.05)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span style={{ width: "16px", flexShrink: 0, color: "var(--color-accent, #1A1A1A)" }}>{isCurrent ? "✓" : ""}</span>
+                  <span>{batch.batchName}{isEnded ? ` (${effectiveStatus === "expired" ? "Ended" : "Archived"})` : ""}</span>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
