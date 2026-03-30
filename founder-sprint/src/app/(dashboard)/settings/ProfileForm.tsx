@@ -684,10 +684,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
               <Button variant="ghost" size="sm" onClick={() => handleCancel("profileImage")} disabled={isPending}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSave} loading={isPending} disabled={isPending}>
-                Save
+                Done
               </Button>
             </div>
           )}
