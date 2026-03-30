@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { TIMEZONE_OPTIONS } from "@/lib/timezone";
+import { Avatar } from "@/components/ui/Avatar";
+import { ImageCropModal } from "@/components/ui/ImageCropModal";
 
 interface ProfileFormProps {
   initialData: {
@@ -26,6 +28,123 @@ interface ProfileFormProps {
 }
 
 type SectionKey = "identity" | "work" | "bio" | "location" | "profileImage";
+
+function ProfileImageUpload({
+  currentImage,
+  name,
+  isEditing,
+  onImageChange,
+}: {
+  currentImage: string;
+  name: string;
+  isEditing: boolean;
+  onImageChange: (url: string) => void;
+}) {
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setUploadError("Only JPEG, PNG, and WebP are allowed");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError("Image must be under 2MB");
+      return;
+    }
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleCropComplete = async (blob: Blob) => {
+    setUploading(true);
+    setUploadError(null);
+    setCropSrc(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "profile.jpg");
+      formData.append("bucket", "profile-images");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const result = await res.json();
+      if (result.success && result.url) {
+        onImageChange(result.url);
+      } else {
+        setUploadError(result.error || "Upload failed");
+      }
+    } catch {
+      setUploadError("Upload failed");
+    }
+    setUploading(false);
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div
+          style={{ cursor: isEditing ? "pointer" : "default", position: "relative" }}
+          onClick={() => isEditing && !uploading && fileRef.current?.click()}
+        >
+          <Avatar src={currentImage || undefined} name={name} size={64} />
+          {uploading && (
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: "50%",
+              backgroundColor: "rgba(255,255,255,0.7)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, color: "#666",
+            }}>
+              ...
+            </div>
+          )}
+        </div>
+        {isEditing && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              style={{
+                background: "none", border: "none", color: "#1A1A1A",
+                fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, textAlign: "left",
+              }}
+            >
+              {currentImage ? "Change photo" : "Upload photo"}
+            </button>
+            {currentImage && (
+              <button
+                type="button"
+                onClick={() => onImageChange("")}
+                style={{
+                  background: "none", border: "none", color: "#999",
+                  fontSize: 12, cursor: "pointer", padding: 0, textAlign: "left",
+                }}
+              >
+                Remove
+              </button>
+            )}
+            <span style={{ fontSize: 12, color: "#999" }}>JPG, PNG, or WebP. Max 2MB.</span>
+          </div>
+        )}
+        {!isEditing && !currentImage && (
+          <span style={{ fontSize: 14, color: "#999" }}>No profile photo</span>
+        )}
+      </div>
+      {uploadError && (
+        <p style={{ color: "#C62828", fontSize: 13, marginTop: 8 }}>{uploadError}</p>
+      )}
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} style={{ display: "none" }} />
+      {cropSrc && (
+        <ImageCropModal imageSrc={cropSrc} isOpen={true} onClose={() => setCropSrc(null)} onCropComplete={handleCropComplete} />
+      )}
+    </>
+  );
+}
 
 export function ProfileForm({ initialData }: ProfileFormProps) {
   const [isPending, startTransition] = useTransition();
@@ -576,27 +695,12 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           )}
         </div>
 
-        {editingSection === "profileImage" ? (
-          <div>
-            <Input
-              label="Profile Image URL"
-              value={fields.profileImage}
-              onChange={(e) => updateField("profileImage", e.target.value)}
-              type="url"
-              placeholder="https://example.com/image.jpg"
-            />
-            <p className="text-xs" style={{ color: "#666666", marginTop: 8 }}>
-              Enter a URL to your profile image, or leave blank to use default avatar.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 32 }}>
-            <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Profile Image URL:</span>
-            <span style={{ fontSize: 14, color: "#2F2C26", wordBreak: "break-all" }}>
-              {fields.profileImage || <span style={{ color: "#999999" }}>Not set</span>}
-            </span>
-          </div>
-        )}
+        <ProfileImageUpload
+          currentImage={fields.profileImage}
+          name={fields.name}
+          isEditing={editingSection === "profileImage"}
+          onImageChange={(url) => updateField("profileImage", url)}
+        />
       </div>
     </div>
   );

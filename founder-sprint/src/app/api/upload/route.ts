@@ -27,6 +27,12 @@ const BUCKET_CONFIG = {
     allowedTypes: ["image/jpeg", "image/png", "image/webp"],
     adminOnly: false,
   },
+  "profile-images": {
+    maxSize: 2 * 1024 * 1024,
+    maxFiles: 1,
+    allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+    adminOnly: false,
+  },
 } as const;
 
 type BucketName = keyof typeof BUCKET_CONFIG;
