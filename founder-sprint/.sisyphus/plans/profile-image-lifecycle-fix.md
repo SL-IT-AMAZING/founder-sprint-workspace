@@ -6,7 +6,7 @@
 >
 > **Deliverables**:
 > - Reliable profile-image upload and persistence flow
-> - Auth callback guard that stops overwriting custom images
+> - Auth/current-user guard that stops overwriting custom images while allowing LinkedIn-only refresh
 > - Safe cleanup logic for old Supabase-hosted profile images
 > - Verification coverage for upload, replace, remove, reload, and login behavior
 >
@@ -31,6 +31,7 @@ Fix the profile-image behavior so LinkedIn only provides the initial profile pic
 - Storage upload works, but DB state remains on the old LinkedIn URL.
 - Auth callback currently risks overwriting custom images on later logins.
 - Current profile-image save path is fragile because upload and DB persistence are separated.
+- Current-user hydration logic can also overwrite custom images with stale LinkedIn avatar URLs.
 
 ### Metis Review
 **Identified Gaps** (addressed):
@@ -48,7 +49,7 @@ Make profile images deterministic and trustworthy: a user-uploaded image must pe
 
 ### Concrete Deliverables
 - A reliable server-controlled profile-image persistence path
-- Auth callback logic that never overwrites a non-empty profile image
+- Auth/current-user logic that refreshes LinkedIn-sourced images safely while never overwriting custom uploaded images
 - Replace/remove logic that safely cleans up old Supabase-hosted profile image files
 - Verified behavior across settings, feed/avatar render points, and subsequent logins
 
@@ -56,13 +57,14 @@ Make profile images deterministic and trustworthy: a user-uploaded image must pe
 - [ ] Uploading a profile image changes `users.profileImage` to a Supabase-hosted URL
 - [ ] Reloading `/settings` keeps the uploaded image visible
 - [ ] Re-login does not overwrite the uploaded image with LinkedIn data
+- [ ] Re-login may refresh LinkedIn-sourced images only when the current image is still LinkedIn-based
 - [ ] Removing the image clears DB state and returns to default avatar behavior
 - [ ] Replacing/removing a Supabase-hosted profile image attempts safe cleanup of the old file
 
 ### Must Have
 - One authoritative persistence path for profile-image updates
 - Safe distinction between external URLs and Supabase-hosted image URLs
-- No silent overwrite of custom images from OAuth callback
+- No silent overwrite of custom images from OAuth callback or current-user hydration
 
 ### Must NOT Have (Guardrails)
 - No deletion attempt for LinkedIn/external URLs
@@ -131,11 +133,11 @@ Wave FINAL
 
 ## TODOs
 
-- [x] 1. Auth callback seeding guard
+- [x] 1. Auth/cached-user LinkedIn seeding and refresh guard
 
   **What to do**:
-  - Change the OAuth callback profile-image update logic so LinkedIn avatar seeding happens only when the user has no current profile image.
-  - Preserve existing LinkedIn-first-login behavior, but stop all later overwrites of custom images.
+  - Change the OAuth callback and current-user hydration profile-image logic so LinkedIn avatar seeding/refresh happens only when the user has no current profile image or the current image is still LinkedIn-sourced.
+  - Preserve existing LinkedIn-first-login behavior, allow login-time refresh for LinkedIn-based images, and stop all later overwrites of custom uploaded images.
 
   **Must NOT do**:
   - Do not overwrite any non-empty `profileImage` with LinkedIn data.
@@ -156,11 +158,13 @@ Wave FINAL
 
   **References**:
   - `src/app/(auth)/auth/callback/route.ts` - current LinkedIn avatar seeding logic that must stop overwriting custom images.
+  - `src/lib/permissions.ts` - current-user hydration path that can also overwrite profile images.
   - `src/actions/profile.ts:updateProfileImage` - target state this callback must respect.
 
   **Acceptance Criteria**:
   - [ ] First login with empty `profileImage` seeds from LinkedIn metadata.
-  - [ ] Subsequent login with a custom image leaves `profileImage` unchanged.
+  - [ ] Subsequent login with a custom uploaded image leaves `profileImage` unchanged.
+  - [ ] Subsequent login with a LinkedIn-sourced image may refresh it to the latest LinkedIn URL.
 
   **QA Scenarios**:
   ```
@@ -183,6 +187,16 @@ Wave FINAL
       3. Assert profileImage remains the existing Supabase URL.
     Expected Result: no overwrite occurs.
     Evidence: .sisyphus/evidence/task-1-preserve-custom.txt
+
+  Scenario: LinkedIn image auto-refreshes on login
+    Tool: Bash (app verification + DB check)
+    Preconditions: Test user has LinkedIn-sourced profileImage and a newer LinkedIn avatar URL is available.
+    Steps:
+      1. Complete login/current-user hydration flow.
+      2. Query resulting user row.
+      3. Assert profileImage updates to the newer LinkedIn URL.
+    Expected Result: LinkedIn-origin images refresh, custom images do not.
+    Evidence: .sisyphus/evidence/task-1-linkedin-refresh.txt
   ```
 
 - [x] 2. Profile-image persistence path hardening
@@ -480,6 +494,7 @@ Wave FINAL
 
 ### Final Checklist
 - [ ] LinkedIn seeding only happens when profile image is empty
+- [ ] LinkedIn-origin images can refresh on login without touching custom uploaded images
 - [ ] Uploaded profile images persist across hard reload
 - [ ] Replace/remove handles old Supabase files safely
 - [ ] Third-party URLs are never deleted

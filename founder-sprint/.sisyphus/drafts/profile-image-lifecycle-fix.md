@@ -6,11 +6,14 @@
 - Replacing or removing a custom image should support cleanup of old Supabase-hosted files.
 - LinkedIn/external URLs must never be deleted from storage cleanup logic.
 - Upload + persistence behavior should be reliable and not depend on fragile client-side multi-step flows.
+- LinkedIn-based profile images should auto-refresh on login when the stored image is still LinkedIn-sourced.
+- Custom uploaded profile images must never be auto-refreshed from LinkedIn.
 
 ## Technical Decisions
 - Move toward a single server-controlled persistence path for profile-image state.
 - Prevent auth callback from overwriting custom images on later logins.
 - Treat Supabase-hosted `profile-images` URLs as deletable assets; treat non-Supabase URLs as non-deletable.
+- Allow login-time refresh only for LinkedIn-origin profile images; keep custom uploaded images untouched.
 
 ## Research Findings
 - Current DB still stores LinkedIn URL, proving uploaded image persistence is disconnected from DB state.
