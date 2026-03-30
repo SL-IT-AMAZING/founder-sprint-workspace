@@ -34,11 +34,13 @@ function ProfileImageUpload({
   name,
   isEditing,
   onImageChange,
+  onSaveAll,
 }: {
   currentImage: string;
   name: string;
   isEditing: boolean;
   onImageChange: (url: string) => void;
+  onSaveAll: (imageUrl: string) => void;
 }) {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -75,6 +77,7 @@ function ProfileImageUpload({
       const result = await res.json();
       if (result.success && result.url) {
         onImageChange(result.url);
+        onSaveAll(result.url);
       } else {
         setUploadError(result.error || "Upload failed");
       }
@@ -700,6 +703,22 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           name={fields.name}
           isEditing={editingSection === "profileImage"}
           onImageChange={(url) => updateField("profileImage", url)}
+          onSaveAll={(imageUrl) => {
+            const fd = new FormData();
+            fd.append("name", fields.name);
+            fd.append("jobTitle", fields.jobTitle);
+            fd.append("bio", fields.bio);
+            fd.append("profileImage", imageUrl);
+            fd.append("headline", fields.headline);
+            fd.append("location", fields.location);
+            fd.append("linkedinUrl", fields.linkedinUrl);
+            fd.append("twitterUrl", fields.twitterUrl);
+            fd.append("websiteUrl", fields.websiteUrl);
+            fd.append("timezone", fields.timezone);
+            startTransition(async () => {
+              await updateExtendedProfile(fd);
+            });
+          }}
         />
       </div>
     </div>
