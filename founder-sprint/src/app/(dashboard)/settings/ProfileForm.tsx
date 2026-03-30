@@ -40,7 +40,7 @@ function ProfileImageUpload({
   name: string;
   isEditing: boolean;
   onImageChange: (url: string) => void;
-  onSaveImage: (imageUrl: string | null) => void;
+  onSaveImage: (imageUrl: string | null) => Promise<unknown>;
 }) {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +77,7 @@ function ProfileImageUpload({
       const result = await res.json();
       if (result.success && result.url) {
         onImageChange(result.url);
-        onSaveImage(result.url);
+        await onSaveImage(result.url).catch(() => {});
       } else {
         setUploadError(result.error || "Upload failed");
       }
@@ -122,7 +122,7 @@ function ProfileImageUpload({
             {currentImage && (
               <button
                 type="button"
-                onClick={() => { onImageChange(""); onSaveImage(null); }}
+                onClick={async () => { onImageChange(""); await onSaveImage(null); }}
                 style={{
                   background: "none", border: "none", color: "#999",
                   fontSize: 12, cursor: "pointer", padding: 0, textAlign: "left",
