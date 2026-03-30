@@ -1,7 +1,11 @@
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { getProfileImageStoragePath } from "@/lib/storage-utils";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 function createStorageClient() {
   return createClient(
@@ -182,6 +186,43 @@ export async function POST(
     const { data: urlData } = storage.storage
       .from(bucket)
       .getPublicUrl(data.path);
+
+    if (bucket === "profile-images") {
+      const currentProfile = await prisma.user.findUnique({
+        where: { id: dbUser.id },
+        select: { profileImage: true },
+      });
+
+      try {
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { profileImage: urlData.publicUrl },
+        });
+      } catch (dbError) {
+        await storage.storage.from(bucket).remove([data.path]).catch(() => {});
+        console.error("[Upload] Failed to persist profile image URL:", dbError);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Upload saved file but failed to persist profile image.",
+            code: "PROFILE_PERSIST_FAILED",
+          },
+          { status: 500 }
+        );
+      }
+
+      const oldPath = getProfileImageStoragePath(currentProfile?.profileImage);
+      if (oldPath && oldPath !== data.path) {
+        await storage.storage.from(bucket).remove([oldPath]).catch((cleanupError) => {
+          console.error("[Upload] Failed to delete old profile image:", cleanupError);
+        });
+      }
+
+      revalidatePath("/settings");
+      revalidatePath(`/profile/${dbUser.id}`);
+      revalidatePath("/feed");
+      revalidateTag("current-user");
+    }
 
     return NextResponse.json({
       success: true,
