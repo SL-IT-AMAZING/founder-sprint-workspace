@@ -139,7 +139,7 @@ function getStyles(variant: PostCardVariant) {
       wordBreak: 'break-word' as const,
     },
     showMoreBtn: {
-      background: 'none',
+      backgroundColor: 'transparent',
       border: 'none',
       color: '#2F2C26',
       cursor: 'pointer',
@@ -221,7 +221,7 @@ function getStyles(variant: PostCardVariant) {
     actionBtn: {
       display: 'flex',
       alignItems: 'center',
-      background: 'none',
+      backgroundColor: 'transparent',
       border: 'none',
       cursor: 'pointer',
       padding: isFeed ? '2px 4px' : '4px 6px',
@@ -267,7 +267,7 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: 'none',
+          backgroundColor: 'transparent',
           border: 'none',
           color: '#999',
           fontSize: '18px',
@@ -307,7 +307,7 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
                 width: '100%',
                 padding: '10px 14px',
                 textAlign: 'left',
-                background: 'none',
+                backgroundColor: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
