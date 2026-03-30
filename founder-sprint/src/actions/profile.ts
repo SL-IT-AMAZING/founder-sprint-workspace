@@ -14,7 +14,7 @@ const UpdateProfileSchema = z.object({
   jobTitle: z.string().max(100, "Job title must be 100 characters or less").optional(),
   company: z.string().max(100, "Company must be 100 characters or less").optional(),
   bio: z.string().max(500, "Bio must be 500 characters or less").optional(),
-  profileImage: z.string().url("Must be a valid URL").optional().nullable(),
+  profileImage: z.string().optional().nullable(),
   headline: z.string().max(200, "Headline must be 200 characters or less").optional(),
   location: z.string().max(200, "Location must be 200 characters or less").optional(),
   linkedinUrl: z

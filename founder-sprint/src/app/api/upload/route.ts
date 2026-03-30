@@ -1,6 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+
+function createStorageClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 const BUCKET_CONFIG = {
   "question-attachments": {
@@ -98,11 +106,11 @@ export async function POST(
       );
     }
 
-    const supabase = await createClient();
+    const authClient = await createServerClient();
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (!user) {
       return NextResponse.json(
@@ -151,7 +159,8 @@ export async function POST(
     const fileName = `${dbUser.id}/${Date.now()}-${sanitizedName}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const { data, error } = await supabase.storage
+    const storage = createStorageClient();
+    const { data, error } = await storage.storage
       .from(bucket)
       .upload(fileName, buffer, {
         contentType: file.type,
@@ -170,7 +179,7 @@ export async function POST(
       );
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = storage.storage
       .from(bucket)
       .getPublicUrl(data.path);
 

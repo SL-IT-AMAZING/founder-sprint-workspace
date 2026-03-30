@@ -18,7 +18,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
     mentor: "Mentor",
     founder: "Founder",
     co_founder: "Co-founder",
-    super_admin: "Super Admin",
+    super_admin: "Admin",
   };
 
   // Token not found

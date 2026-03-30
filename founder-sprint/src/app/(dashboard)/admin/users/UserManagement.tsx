@@ -27,7 +27,11 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmailChipInput } from "@/components/ui/EmailChipInput";
 import { getRolesBelow } from "@/lib/role-hierarchy";
-import { getRoleDisplayName, formatDate, getDisplayName } from "@/lib/utils";
+import { getRoleDisplayName as _getRoleDisplayName, formatDate, getDisplayName } from "@/lib/utils";
+
+function getRoleDisplayName(role: string): string {
+  return role === "super_admin" ? "Super Admin" : _getRoleDisplayName(role);
+}
 import { getBatchStatusLabel } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
 import type { UserRole, BatchStatus } from "@/types";

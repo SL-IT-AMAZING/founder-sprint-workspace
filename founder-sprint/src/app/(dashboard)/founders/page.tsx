@@ -23,7 +23,7 @@ function getRoleBadgeText(role: UserRole): string {
     co_founder: "Co-Founder",
     mentor: "Mentor",
     admin: "Admin",
-    super_admin: "Super Admin",
+    super_admin: "Admin",
   };
   return roleMap[role] || role;
 }

@@ -29,7 +29,7 @@ interface BatchMembersSidebarProps {
 }
 
 const roleLabels: Record<string, string> = {
-  super_admin: "Super Admin",
+  super_admin: "Admin",
   admin: "Admin",
   mentor: "Mentor",
   founder: "Founder",
