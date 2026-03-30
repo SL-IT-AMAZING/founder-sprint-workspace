@@ -2,7 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getProfileImageStoragePath } from "@/lib/storage-utils";
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 import { z } from "zod";
@@ -508,9 +510,32 @@ export async function updateProfileImage(imageUrl: string | null): Promise<Actio
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
+  const currentProfile = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { profileImage: true },
+  });
+
+  const nextImage = imageUrl || null;
+  const currentImage = currentProfile?.profileImage || null;
+
+  if (currentImage && currentImage !== nextImage) {
+    const storagePath = getProfileImageStoragePath(currentImage);
+    if (storagePath) {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        await supabase.storage.from("profile-images").remove([storagePath]);
+      } catch (error) {
+        console.error("[ProfileImage] Failed to delete old storage object:", error);
+      }
+    }
+  }
+
   await prisma.user.update({
     where: { id: user.id },
-    data: { profileImage: imageUrl || null },
+    data: { profileImage: nextImage },
   });
 
   revalidatePath("/settings");

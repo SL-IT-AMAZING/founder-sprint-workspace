@@ -212,11 +212,6 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
         websiteUrl: initialData.websiteUrl,
       }));
       setLocationCharCount(initialData.location.length);
-    } else if (section === "profileImage") {
-      setFields((prev) => ({
-        ...prev,
-        profileImage: initialData.profileImage,
-      }));
     }
     setEditingSection(null);
   };
@@ -703,9 +698,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           name={fields.name}
           isEditing={editingSection === "profileImage"}
           onImageChange={(url) => updateField("profileImage", url)}
-          onSaveImage={(imageUrl) => {
-            updateProfileImage(imageUrl);
-          }}
+          onSaveImage={(imageUrl) => updateProfileImage(imageUrl)}
         />
       </div>
     </div>
