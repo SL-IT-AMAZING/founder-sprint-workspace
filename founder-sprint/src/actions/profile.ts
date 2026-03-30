@@ -14,7 +14,7 @@ const UpdateProfileSchema = z.object({
   jobTitle: z.string().max(100, "Job title must be 100 characters or less").optional(),
   company: z.string().max(100, "Company must be 100 characters or less").optional(),
   bio: z.string().max(500, "Bio must be 500 characters or less").optional(),
-  profileImage: z.string().url("Must be a valid URL").optional().nullable(),
+  profileImage: z.string().optional().nullable(),
   headline: z.string().max(200, "Headline must be 200 characters or less").optional(),
   location: z.string().max(200, "Location must be 200 characters or less").optional(),
   linkedinUrl: z
@@ -494,6 +494,23 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
       websiteUrl: parsed.data.websiteUrl || null,
       timezone: parsed.data.timezone ? toIanaTimezone(parsed.data.timezone) : null,
     },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath(`/profile/${user.id}`);
+  revalidatePath("/feed");
+  revalidateTag("current-user");
+
+  return { success: true, data: undefined };
+}
+
+export async function updateProfileImage(imageUrl: string | null): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { profileImage: imageUrl || null },
   });
 
   revalidatePath("/settings");

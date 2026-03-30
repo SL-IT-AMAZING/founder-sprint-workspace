@@ -51,7 +51,7 @@ export function formatRelativeTime(date: Date | string | null | undefined): stri
 // Role display name
 export function getRoleDisplayName(role: string): string {
   const names: Record<string, string> = {
-    super_admin: "Super Admin",
+    super_admin: "Admin",
     admin: "Admin",
     mentor: "Mentor",
     founder: "Founder",

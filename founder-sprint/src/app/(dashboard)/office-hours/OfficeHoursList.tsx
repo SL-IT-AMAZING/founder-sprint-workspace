@@ -834,33 +834,30 @@ export function OfficeHoursList({ user, slots, companies, founders, mentors, req
               {user.batchName}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Mentor</label>
-            <select
-              name="mentorId"
-              value={selectedMentorId}
-              onChange={(e) => setSelectedMentorId(e.target.value)}
-              required={mentors.length > 0}
-              className="w-full px-3 py-2 rounded-md border text-sm"
-              style={{
-                backgroundColor: "var(--color-background)",
-                borderColor: "var(--color-border)",
-                color: "var(--color-foreground)",
-              }}
-            >
-              <option value="">Select mentor</option>
-              {mentors.map((mentor) => (
-                <option key={mentor.id} value={mentor.id}>
-                  {(mentor.name || mentor.email)} ({mentor.email})
-                </option>
-              ))}
-            </select>
-            {mentors.length === 0 && (
-              <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
-                No mentors are currently listed in this batch. Request will use default office hour recipient.
-              </p>
-            )}
-          </div>
+          {mentors.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Mentor</label>
+              <select
+                name="mentorId"
+                value={selectedMentorId}
+                onChange={(e) => setSelectedMentorId(e.target.value)}
+                required
+                className="w-full px-3 py-2 rounded-md border text-sm"
+                style={{
+                  backgroundColor: "var(--color-background)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-foreground)",
+                }}
+              >
+                <option value="">Select mentor</option>
+                {mentors.map((mentor) => (
+                  <option key={mentor.id} value={mentor.id}>
+                    {(mentor.name || mentor.email)} ({mentor.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Company</label>
             <select

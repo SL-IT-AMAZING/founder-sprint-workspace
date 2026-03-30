@@ -851,16 +851,13 @@ export default function BookfaceTopNav({
         </form>
 
         <button
-          className="lg:hidden"
+          className="lg:hidden flex items-center justify-center"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           style={{
             background: 'none',
             border: 'none',
             padding: '4px',
             cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             color: 'white'
           }}
         >

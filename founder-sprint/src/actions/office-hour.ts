@@ -670,7 +670,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
     } else if (OFFICE_HOUR_TARGET_EMAIL) {
       targetHost = await prisma.user.findFirst({
         where: {
-          email: OFFICE_HOUR_TARGET_EMAIL,
+          email: { equals: OFFICE_HOUR_TARGET_EMAIL, mode: "insensitive" },
         },
         select: {
           id: true,
@@ -681,7 +681,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
     }
 
     if (!targetHost) {
-      return { success: false, error: "No office hour mentor is available for this request" };
+      return { success: false, error: `No office hour mentor is available. ${OFFICE_HOUR_TARGET_EMAIL ? `Default recipient (${OFFICE_HOUR_TARGET_EMAIL}) not found in database.` : "OFFICE_HOUR_TARGET_EMAIL is not configured."}` };
     }
     if (!agenda) {
       return { success: false, error: "Agenda is required" };
