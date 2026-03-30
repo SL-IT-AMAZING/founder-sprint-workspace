@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { isLinkedInProfileImageUrl } from "@/lib/linkedin-profile-image";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { revalidateTag as revalidateTagBase } from "next/cache";
@@ -217,7 +218,7 @@ export async function GET(request: Request) {
     if (fullName && (!user.name || user.name === email.split("@")[0])) {
       updateData.name = fullName;
     }
-    if (avatarUrl && user.profileImage !== avatarUrl) {
+    if (avatarUrl && (!user.profileImage || isLinkedInProfileImageUrl(user.profileImage))) {
       updateData.profileImage = avatarUrl;
     }
 

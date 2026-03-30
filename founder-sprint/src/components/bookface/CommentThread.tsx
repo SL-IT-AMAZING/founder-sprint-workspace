@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrCreateDMConversation } from '@/actions/messaging';
+import { formatCompactBatchName } from '@/lib/utils';
 
 export interface Comment {
   id: string;
@@ -174,7 +175,7 @@ const CommentItem: React.FC<{
           <div style={styles.header}>
             <span style={styles.authorName}>{comment.author.name}</span>
             {comment.author.batch && (
-              <span style={styles.batchBadge}>{comment.author.batch}</span>
+              <span style={styles.batchBadge}>{formatCompactBatchName(comment.author.batch)}</span>
             )}
             <span style={styles.timestamp}>{comment.postedAt}</span>
           </div>

@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { isLinkedInProfileImageUrl } from "@/lib/linkedin-profile-image";
 import type { UserRole, UserStatus, UserWithBatch } from "@/types";
 
 type PermissionSubject =
@@ -99,7 +100,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   let user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
-  if (authAvatarUrl && user.profileImage !== authAvatarUrl) {
+  if (authAvatarUrl && (!user.profileImage || isLinkedInProfileImageUrl(user.profileImage))) {
     await prisma.user.update({
       where: { id: user.id },
       data: { profileImage: authAvatarUrl },

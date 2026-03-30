@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { FollowButton } from "@/components/feed/FollowButton";
+import { formatCompactBatchName } from "@/lib/utils";
 
 interface SuggestedUser {
   id: string;
@@ -169,7 +170,7 @@ export function PeopleToFollow({ suggestions, currentUserId }: PeopleToFollowPro
                       lineHeight: 1.4,
                     }}
                   >
-                    {user.batchName}
+                    {formatCompactBatchName(user.batchName)}
                   </span>
                 )}
                 {subtitle && (
