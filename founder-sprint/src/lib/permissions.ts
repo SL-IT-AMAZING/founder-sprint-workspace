@@ -99,7 +99,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   let user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
-  if (authAvatarUrl && user.profileImage !== authAvatarUrl) {
+  if (authAvatarUrl && !user.profileImage) {
     await prisma.user.update({
       where: { id: user.id },
       data: { profileImage: authAvatarUrl },
