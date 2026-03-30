@@ -131,7 +131,7 @@ Wave FINAL
 
 ## TODOs
 
-- [ ] 1. Auth callback seeding guard
+- [x] 1. Auth callback seeding guard
 
   **What to do**:
   - Change the OAuth callback profile-image update logic so LinkedIn avatar seeding happens only when the user has no current profile image.
@@ -185,7 +185,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-1-preserve-custom.txt
   ```
 
-- [ ] 2. Profile-image persistence path hardening
+- [x] 2. Profile-image persistence path hardening
 
   **What to do**:
   - Replace the fragile multi-step client persistence behavior with one authoritative server-side persistence path for profile-image updates.
@@ -240,7 +240,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-2-save-failure.txt
   ```
 
-- [ ] 3. Supabase URL classification and path extraction helper
+- [x] 3. Supabase URL classification and path extraction helper
 
   **What to do**:
   - Add a dedicated helper that detects whether a profile image belongs to the `profile-images` bucket and extracts the storage path safely.
@@ -290,7 +290,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-3-external-url.txt
   ```
 
-- [ ] 4. Replace/remove cleanup logic
+- [x] 4. Replace/remove cleanup logic
 
   **What to do**:
   - Implement safe cleanup of the old Supabase-hosted profile image when a new custom image replaces it or when the image is removed.
@@ -344,7 +344,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-4-remove-external.txt
   ```
 
-- [ ] 5. Settings UI integration and state consistency
+- [x] 5. Settings UI integration and state consistency
 
   **What to do**:
   - Make the settings UI reflect the authoritative server result after upload/remove.
@@ -400,7 +400,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-5-cancel-state.txt
   ```
 
-- [ ] 6. Cross-surface avatar verification points
+- [x] 6. Cross-surface avatar verification points
 
   **What to do**:
   - Verify all key avatar consumers read the updated DB-backed profile image correctly.
@@ -458,10 +458,10 @@ Wave FINAL
 
 > Run after all implementation tasks complete.
 
-- [ ] F1. **Plan Compliance Audit** — verify the implementation follows the intended lifecycle: initial LinkedIn seed only, persistent upload, safe cleanup, and no unrelated changes.
-- [ ] F2. **Code Quality Review** — verify no broken promise handling, no unsafe delete logic for third-party URLs, and no regressions in settings/auth/upload code.
-- [ ] F3. **Real QA** — upload image, reload, remove image, replace image, and validate subsequent login behavior.
-- [ ] F4. **Scope Fidelity Check** — ensure only profile-image lifecycle concerns were changed.
+- [x] F1. **Plan Compliance Audit** — verify the implementation follows the intended lifecycle: initial LinkedIn seed only, persistent upload, safe cleanup, and no unrelated changes.
+- [x] F2. **Code Quality Review** — verify no broken promise handling, no unsafe delete logic for third-party URLs, and no regressions in settings/auth/upload code.
+- [x] F3. **Real QA** — upload image, reload, remove image, replace image, and validate subsequent login behavior.
+- [x] F4. **Scope Fidelity Check** — ensure only profile-image lifecycle concerns were changed.
 
 ---
 

@@ -90,3 +90,13 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
+
+export function formatCompactBatchName(batchName: string | null | undefined): string {
+  if (!batchName) return "";
+
+  const match = batchName.match(/^Founder\s+Sprint\s+Batch(?:\s+(.*))?$/i);
+  if (!match) return batchName;
+
+  const suffix = match[1]?.trim();
+  return suffix ? `FSB ${suffix}` : "FSB";
+}

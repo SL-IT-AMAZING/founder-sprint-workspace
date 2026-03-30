@@ -94,24 +94,45 @@ export default async function CompaniesPage({
           </p>
         </div>
         {userIsAdmin && (
-          <Link
-            href="/admin/companies/new"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 500,
-              borderRadius: "9px",
-              backgroundColor: "#1A1A1A",
-              color: "#FFFFFF",
-              textDecoration: "none",
-              transition: "background-color 0.2s",
-            }}
-          >
-            + Create Company
-          </Link>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Link
+              href="/admin/companies"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                borderRadius: "9px",
+                backgroundColor: "transparent",
+                color: "#1A1A1A",
+                border: "1px solid #e0e0e0",
+                textDecoration: "none",
+                transition: "background-color 0.2s",
+              }}
+            >
+              Manage Companies
+            </Link>
+            <Link
+              href="/admin/companies/new"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                borderRadius: "9px",
+                backgroundColor: "#1A1A1A",
+                color: "#FFFFFF",
+                textDecoration: "none",
+                transition: "background-color 0.2s",
+              }}
+            >
+              + Create Company
+            </Link>
+          </div>
         )}
       </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { formatCompactBatchName } from '@/lib/utils';
 
 export interface LinkPreview {
   url: string;
@@ -381,7 +382,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               {author.name}
             </span>
             {author.batch && (
-              <span style={styles.batchBadge}>{author.batch}</span>
+              <span style={styles.batchBadge}>{formatCompactBatchName(author.batch)}</span>
             )}
             {author.company && (
               <span style={styles.companyName}>• {author.company}</span>
