@@ -504,6 +504,23 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
   return { success: true, data: undefined };
 }
 
+export async function updateProfileImage(imageUrl: string | null): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { profileImage: imageUrl || null },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath(`/profile/${user.id}`);
+  revalidatePath("/feed");
+  revalidateTag("current-user");
+
+  return { success: true, data: undefined };
+}
+
 export async function addExperience(data: {
   company: string;
   title: string;

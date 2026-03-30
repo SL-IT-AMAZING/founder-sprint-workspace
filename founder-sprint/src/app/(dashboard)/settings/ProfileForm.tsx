@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { updateExtendedProfile } from "@/actions/profile";
+import { updateExtendedProfile, updateProfileImage } from "@/actions/profile";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
@@ -34,13 +34,13 @@ function ProfileImageUpload({
   name,
   isEditing,
   onImageChange,
-  onSaveAll,
+  onSaveImage,
 }: {
   currentImage: string;
   name: string;
   isEditing: boolean;
   onImageChange: (url: string) => void;
-  onSaveAll: (imageUrl: string) => void;
+  onSaveImage: (imageUrl: string | null) => void;
 }) {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +77,7 @@ function ProfileImageUpload({
       const result = await res.json();
       if (result.success && result.url) {
         onImageChange(result.url);
-        onSaveAll(result.url);
+        onSaveImage(result.url);
       } else {
         setUploadError(result.error || "Upload failed");
       }
@@ -122,7 +122,7 @@ function ProfileImageUpload({
             {currentImage && (
               <button
                 type="button"
-                onClick={() => onImageChange("")}
+                onClick={() => { onImageChange(""); onSaveImage(null); }}
                 style={{
                   background: "none", border: "none", color: "#999",
                   fontSize: 12, cursor: "pointer", padding: 0, textAlign: "left",
@@ -703,21 +703,8 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           name={fields.name}
           isEditing={editingSection === "profileImage"}
           onImageChange={(url) => updateField("profileImage", url)}
-          onSaveAll={(imageUrl) => {
-            const fd = new FormData();
-            fd.append("name", fields.name);
-            fd.append("jobTitle", fields.jobTitle);
-            fd.append("bio", fields.bio);
-            fd.append("profileImage", imageUrl);
-            fd.append("headline", fields.headline);
-            fd.append("location", fields.location);
-            fd.append("linkedinUrl", fields.linkedinUrl);
-            fd.append("twitterUrl", fields.twitterUrl);
-            fd.append("websiteUrl", fields.websiteUrl);
-            fd.append("timezone", fields.timezone);
-            startTransition(async () => {
-              await updateExtendedProfile(fd);
-            });
+          onSaveImage={(imageUrl) => {
+            updateProfileImage(imageUrl);
           }}
         />
       </div>
