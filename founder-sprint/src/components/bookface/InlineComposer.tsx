@@ -7,7 +7,7 @@ export interface InlineComposerProps {
     name: string | null;
     profileImage: string | null;
   };
-  onSubmit: (data: { content: string; category?: string; linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null }) => Promise<void>;
+  onSubmit: (data: { content: string; category?: string; linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null; imageUrls?: string[] }) => Promise<void>;
   isPending?: boolean;
 }
 
@@ -48,7 +48,11 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>('general');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState('');
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasUrl = URL_REGEX.test(content);
 
@@ -66,17 +70,70 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
       content,
       category: selectedCategory,
       linkPreview: null,
+      imageUrls,
     });
 
     setContent('');
     setSelectedCategory('general');
+    setImageUrls([]);
+    setUploadError('');
     setIsExpanded(false);
-  }, [content, selectedCategory, isPending, onSubmit]);
+  }, [content, selectedCategory, imageUrls, isPending, onSubmit]);
 
   const handleCancel = useCallback(() => {
     setContent('');
     setSelectedCategory('general');
+    setImageUrls([]);
+    setUploadError('');
     setIsExpanded(false);
+  }, []);
+
+  const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const availableSlots = Math.max(0, 5 - imageUrls.length);
+    const filesToUpload = files.slice(0, availableSlots);
+    if (filesToUpload.length === 0) {
+      setUploadError('You can attach up to 5 images per post.');
+      event.target.value = '';
+      return;
+    }
+
+    setIsUploadingImages(true);
+    setUploadError('');
+
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of filesToUpload) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'post-images');
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result.success || !result.url) {
+          throw new Error(result.error || 'Image upload failed');
+        }
+
+        uploadedUrls.push(result.url);
+      }
+
+      setImageUrls((prev) => [...prev, ...uploadedUrls]);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Image upload failed');
+    } finally {
+      setIsUploadingImages(false);
+      event.target.value = '';
+    }
+  }, [imageUrls.length]);
+
+  const handleRemoveImage = useCallback((imageUrl: string) => {
+    setImageUrls((prev) => prev.filter((url) => url !== imageUrl));
   }, []);
 
   const renderAvatar = () => (
@@ -178,6 +235,69 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
             </div>
           )}
 
+          {imageUrls.length > 0 && (
+            <div
+              style={{
+                marginTop: '12px',
+                display: 'grid',
+                gridTemplateColumns: imageUrls.length === 1 ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                gap: '10px',
+              }}
+            >
+              {imageUrls.map((imageUrl) => (
+                <div
+                  key={imageUrl}
+                  style={{
+                    position: 'relative',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '1px solid #E8E1D4',
+                    backgroundColor: '#F8F5EE',
+                    aspectRatio: '4 / 3',
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt="Post upload preview"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(imageUrl)}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      backgroundColor: 'rgba(26,26,26,0.75)',
+                      color: '#FFFFFF',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {uploadError && (
+            <div
+              style={{
+                marginTop: '10px',
+                color: '#C62828',
+                fontSize: '13px',
+              }}
+            >
+              {uploadError}
+            </div>
+          )}
+
           <div
             style={{
               marginTop: '12px',
@@ -188,7 +308,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {CATEGORIES.map((category) => {
                 const isActive = selectedCategory === category.id;
                 return (
@@ -212,6 +332,32 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingImages || imageUrls.length >= 5}
+                style={{
+                  padding: '5px 11px',
+                  borderRadius: '999px',
+                  border: '1px solid #DDD4C4',
+                  cursor: isUploadingImages || imageUrls.length >= 5 ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  backgroundColor: '#FFFFFF',
+                  color: '#6E675B',
+                  opacity: isUploadingImages || imageUrls.length >= 5 ? 0.6 : 1,
+                }}
+              >
+                {isUploadingImages ? 'Uploading…' : imageUrls.length > 0 ? 'Add photos' : 'Add photo'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                multiple
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+              />
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button

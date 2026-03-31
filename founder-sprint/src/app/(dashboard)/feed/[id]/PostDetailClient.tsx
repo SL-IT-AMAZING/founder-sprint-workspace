@@ -441,6 +441,7 @@ export function PostDetailClient({
             company: post.author.headline || undefined,
           }}
           content={post.content}
+          images={post.images}
           linkPreview={post.linkPreview as { url: string; title: string; description?: string; imageUrl?: string; domain: string } | undefined}
           postedAt={formatRelativeTime(post.createdAt)}
           likes={likeCount}

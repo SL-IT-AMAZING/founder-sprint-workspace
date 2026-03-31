@@ -326,6 +326,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
             formData.append("content", data.content);
             if (data.category) formData.append("category", data.category);
             if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+            if (data.imageUrls && data.imageUrls.length > 0) formData.append("imageUrls", JSON.stringify(data.imageUrls));
             const result = await createPost(formData);
             if (!result.success) {
               toast.error(result.error);
@@ -374,6 +375,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   company: undefined,
                 }}
                 content={post.content}
+                images={post.images}
                 postedAt={formatRelativeTime(post.createdAt)}
                 likes={post._count.likes + (likedIds.has(post.id) ? 1 : 0) - (serverLikedIds.has(post.id) ? 1 : 0)}
                 comments={post._count.comments}

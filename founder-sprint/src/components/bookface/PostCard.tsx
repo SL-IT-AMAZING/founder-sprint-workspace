@@ -20,6 +20,7 @@ export interface PostCardProps {
     company?: string;
   };
   content: string;
+  images?: Array<{ id: string; imageUrl: string }>;
   linkPreview?: LinkPreview;
   tags?: string[];
   postedAt: string;
@@ -137,6 +138,31 @@ function getStyles(variant: PostCardVariant) {
       marginBottom: isFeed ? '12px' : '16px',
       whiteSpace: 'pre-wrap' as const,
       wordBreak: 'break-word' as const,
+    },
+    imageGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '10px',
+      marginBottom: isFeed ? '12px' : '16px',
+    },
+    imageGridSingle: {
+      display: 'grid',
+      gridTemplateColumns: '1fr',
+      gap: '10px',
+      marginBottom: isFeed ? '12px' : '16px',
+    },
+    imageFrame: {
+      borderRadius: isFeed ? '12px' : '10px',
+      overflow: 'hidden',
+      border: isFeed ? '1px solid #E8E1D4' : '1px solid #e0e0e0',
+      backgroundColor: isFeed ? '#F8F5EE' : '#f8f8f8',
+      aspectRatio: '4 / 3',
+    },
+    image: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover' as const,
+      display: 'block',
     },
     showMoreBtn: {
       backgroundColor: 'transparent',
@@ -335,6 +361,7 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
 export const PostCard: React.FC<PostCardProps> = ({
   author,
   content,
+  images,
   linkPreview,
   tags,
   postedAt,
@@ -410,6 +437,16 @@ export const PostCard: React.FC<PostCardProps> = ({
           </button>
         )}
       </div>
+
+      {images && images.length > 0 && (
+        <div style={images.length === 1 ? styles.imageGridSingle : styles.imageGrid}>
+          {images.map((image) => (
+            <div key={image.id} style={styles.imageFrame}>
+              <img src={image.imageUrl} alt="Post attachment" style={styles.image} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {linkPreview && (
         <a href={linkPreview.url} target="_blank" rel="noopener noreferrer" style={styles.linkPreview}>
