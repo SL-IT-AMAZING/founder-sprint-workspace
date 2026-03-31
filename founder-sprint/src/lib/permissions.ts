@@ -3,7 +3,8 @@ import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { isLinkedInProfileImageUrl } from "@/lib/linkedin-profile-image";
+import { classifyAvatarSource } from "@/lib/avatar-source";
+import { ingestLinkedInAvatar } from "@/lib/linkedin-avatar-ingest";
 import type { UserRole, UserStatus, UserWithBatch } from "@/types";
 
 type PermissionSubject =
@@ -100,15 +101,20 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   let user = await getCachedUserByEmail(authEmail, batchId);
 
   if (!user) return null;
-  if (authAvatarUrl && (!user.profileImage || isLinkedInProfileImageUrl(user.profileImage))) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { profileImage: authAvatarUrl },
-    });
-    user = {
-      ...user,
-      profileImage: authAvatarUrl,
-    };
+  if (authAvatarUrl) {
+    const avatarSource = classifyAvatarSource(user.profileImage);
+    if (avatarSource === "empty" || avatarSource === "linkedin") {
+      const ingestedAvatarUrl = await ingestLinkedInAvatar(user.id, authAvatarUrl);
+      const profileImage = ingestedAvatarUrl ?? authAvatarUrl;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { profileImage },
+      });
+      user = {
+        ...user,
+        profileImage,
+      };
+    }
   }
   const userStatus = (user as { status?: string }).status ?? "active";
   if (userStatus !== "active") return null;

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { isLinkedInProfileImageUrl } from "@/lib/linkedin-profile-image";
+import { classifyAvatarSource } from "@/lib/avatar-source";
+import { ingestLinkedInAvatar } from "@/lib/linkedin-avatar-ingest";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { revalidateTag as revalidateTagBase } from "next/cache";
@@ -218,8 +219,12 @@ export async function GET(request: Request) {
     if (fullName && (!user.name || user.name === email.split("@")[0])) {
       updateData.name = fullName;
     }
-    if (avatarUrl && (!user.profileImage || isLinkedInProfileImageUrl(user.profileImage))) {
-      updateData.profileImage = avatarUrl;
+    if (avatarUrl) {
+      const avatarSource = classifyAvatarSource(user.profileImage);
+      if (avatarSource === "empty" || avatarSource === "linkedin") {
+        const ingestedAvatarUrl = await ingestLinkedInAvatar(user.id, avatarUrl);
+        updateData.profileImage = ingestedAvatarUrl ?? avatarUrl;
+      }
     }
 
     if (Object.keys(updateData).length > 0) {
