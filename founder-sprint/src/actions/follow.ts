@@ -10,9 +10,6 @@ export async function followUser(followingId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
-  const batchCheck = await requireActiveBatch(user.batchId, user.role);
-  if (batchCheck) return batchCheck;
-
   if (user.id === followingId) {
     return { success: false, error: "Cannot follow yourself" };
   }
@@ -54,9 +51,6 @@ export async function followUser(followingId: string): Promise<ActionResult> {
 export async function unfollowUser(followingId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
-
-  const batchCheck = await requireActiveBatch(user.batchId, user.role);
-  if (batchCheck) return batchCheck;
 
   try {
     const existing = await prisma.userFollow.findUnique({
