@@ -384,9 +384,6 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
   });
 
   if (!profile) return { success: false, error: "User not found" };
-  if (!isAdmin(viewer.role) && profile.userBatches.length === 0) {
-    return { success: false, error: "Not authorized" };
-  }
 
   return {
     success: true,
