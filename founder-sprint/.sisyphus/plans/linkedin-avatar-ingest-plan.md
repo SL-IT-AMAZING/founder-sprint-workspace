@@ -141,7 +141,7 @@ Wave FINAL
 
 ## TODOs
 
-- [ ] 1. Avatar source classification helper
+- [x] 1. Avatar source classification helper
 
   **What to do**:
   - Introduce a focused helper that classifies `profileImage` values into at least these logical buckets:
@@ -187,7 +187,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-1-source-classification.txt
   ```
 
-- [ ] 2. LinkedIn avatar ingest service
+- [x] 2. LinkedIn avatar ingest service
 
   **What to do**:
   - Build a server-side helper/service that:
@@ -234,7 +234,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-2-ingest-success.txt
   ```
 
-- [ ] 3. Internal URL cleanup/delete helper alignment
+- [x] 3. Internal URL cleanup/delete helper alignment
 
   **What to do**:
   - Ensure cleanup logic understands provider-ingested internal images the same way it understands user-uploaded internal images.
@@ -274,7 +274,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-3-cleanup-path.txt
   ```
 
-- [ ] 4. Auth callback ingest integration
+- [x] 4. Auth callback ingest integration
 
   **What to do**:
   - Update the auth callback flow so eligible users do not store raw LinkedIn URLs as canonical display state.
@@ -315,7 +315,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-4-auth-ingest.txt
   ```
 
-- [ ] 5. Current-user hydration ingest integration
+- [x] 5. Current-user hydration ingest integration
 
   **What to do**:
   - Update `getCurrentUser()` hydration behavior so LinkedIn-origin refresh, when needed, produces/uses an internal Supabase-hosted image rather than a raw external URL.
@@ -357,7 +357,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-5-hydration-refresh.txt
   ```
 
-- [ ] 6. Existing LinkedIn-origin migration strategy
+- [x] 6. Existing LinkedIn-origin migration strategy
 
   **What to do**:
   - Define and implement the least risky path for users who already have LinkedIn-origin `profileImage` values in DB.
@@ -398,7 +398,7 @@ Wave FINAL
     Evidence: .sisyphus/evidence/task-6-existing-user-repair.txt
   ```
 
-- [ ] 7. UI/render consistency verification points
+- [x] 7. UI/render consistency verification points
 
   **What to do**:
   - Verify key surfaces now render internal URLs consistently and do not depend on raw LinkedIn URLs.
@@ -445,10 +445,10 @@ Wave FINAL
 
 ## Final Verification Wave
 
-- [ ] F1. **Plan Compliance Audit** — verify internal-copy architecture is the implemented source-of-truth model.
-- [ ] F2. **Code Quality Review** — verify no custom-upload overwrite regressions, no unsafe delete behavior, and no accidental broad refactors.
-- [ ] F3. **Real QA** — verify first login seed, existing LinkedIn-origin repair, custom upload protection, reload stability, and fallback behavior.
-- [ ] F4. **Scope Fidelity Check** — ensure only LinkedIn-avatar-ingest concerns were changed.
+- [x] F1. **Plan Compliance Audit** — verify internal-copy architecture is the implemented source-of-truth model.
+- [x] F2. **Code Quality Review** — verify no custom-upload overwrite regressions, no unsafe delete behavior, and no accidental broad refactors.
+- [x] F3. **Real QA** — verify first login seed, existing LinkedIn-origin repair, custom upload protection, reload stability, and fallback behavior.
+- [x] F4. **Scope Fidelity Check** — ensure only LinkedIn-avatar-ingest concerns were changed.
 
 ---
 
