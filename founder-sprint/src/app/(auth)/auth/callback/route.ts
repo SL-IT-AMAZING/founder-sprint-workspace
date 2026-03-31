@@ -223,7 +223,9 @@ export async function GET(request: Request) {
       const avatarSource = classifyAvatarSource(user.profileImage);
       if (avatarSource === "empty" || avatarSource === "linkedin") {
         const ingestedAvatarUrl = await ingestLinkedInAvatar(user.id, avatarUrl);
-        updateData.profileImage = ingestedAvatarUrl ?? avatarUrl;
+        if (ingestedAvatarUrl) {
+          updateData.profileImage = ingestedAvatarUrl;
+        }
       }
     }
 

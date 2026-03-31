@@ -105,15 +105,16 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
     const avatarSource = classifyAvatarSource(user.profileImage);
     if (avatarSource === "empty" || avatarSource === "linkedin") {
       const ingestedAvatarUrl = await ingestLinkedInAvatar(user.id, authAvatarUrl);
-      const profileImage = ingestedAvatarUrl ?? authAvatarUrl;
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { profileImage },
-      });
-      user = {
-        ...user,
-        profileImage,
-      };
+      if (ingestedAvatarUrl) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { profileImage: ingestedAvatarUrl },
+        });
+        user = {
+          ...user,
+          profileImage: ingestedAvatarUrl,
+        };
+      }
     }
   }
   const userStatus = (user as { status?: string }).status ?? "active";
