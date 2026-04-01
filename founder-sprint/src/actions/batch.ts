@@ -176,7 +176,7 @@ export async function deleteBatch(batchId: string): Promise<ActionResult> {
   return { success: true, data: undefined };
 }
 
-export async function cloneBatchStructure(formData: FormData): Promise<ActionResult<{ id: string }>> {
+export async function cloneBatchStructure(formData: FormData): Promise<ActionResult<{ id: string; name: string; sourceBatchId: string; assignmentCount: number; sessionCount: number }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -282,7 +282,13 @@ export async function cloneBatchStructure(formData: FormData): Promise<ActionRes
 
   return {
     success: true,
-    data: { id: clonedBatch.id },
+    data: {
+      id: clonedBatch.id,
+      name: clonedBatch.name,
+      sourceBatchId: parsed.data.sourceBatchId,
+      assignmentCount: sourceAssignments.length,
+      sessionCount: sourceSessions.length,
+    },
     warning:
       sourceAssignments.length || sourceSessions.length
         ? `Cloned ${sourceAssignments.length} assignment(s) and ${sourceSessions.length} session(s).`
