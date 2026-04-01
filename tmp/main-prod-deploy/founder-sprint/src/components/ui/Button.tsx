@@ -1,0 +1,98 @@
+"use client";
+
+import { type ButtonHTMLAttributes, forwardRef } from "react";
+
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "linkedin";
+type ButtonSize = "sm" | "md" | "lg";
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  loading?: boolean;
+}
+
+const variantStyles: Record<ButtonVariant, string> = {
+  primary: "btn btn-primary",
+  secondary: "btn btn-secondary",
+  danger: "btn",
+  ghost: "btn",
+  linkedin: "btn btn-linkedin",
+};
+
+const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
+  sm: { height: 42, fontSize: 13, padding: "0 18px" },
+  md: { height: 48, fontSize: 14, padding: "0 24px" },
+  lg: { height: 56, fontSize: 16, padding: "0 32px" },
+};
+
+const variantInlineStyles: Record<ButtonVariant, React.CSSProperties> = {
+  primary: {
+    backgroundColor: "#1A1A1A",
+    color: "white",
+    borderRadius: 9,
+  },
+  secondary: {
+    borderRadius: 9,
+  },
+  danger: {
+    backgroundColor: "var(--color-error)",
+    color: "#fff",
+    borderRadius: 9,
+  },
+  ghost: {
+    background: "none",
+    color: "var(--color-foreground-secondary)",
+    borderRadius: 9,
+  },
+  linkedin: {
+    backgroundColor: "#0077B5",
+    color: "#fff",
+    borderRadius: 9,
+  },
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = "primary", size = "md", loading, disabled, children, style, className, ...props }, ref) => {
+    const isDisabled = disabled || loading;
+    const shouldAnimateText = !isDisabled && variant === "primary";
+
+    return (
+      <button
+        ref={ref}
+        className={`${variantStyles[variant]} ${className || ""}`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          border: "none",
+          cursor: isDisabled ? "not-allowed" : "pointer",
+          fontWeight: 500,
+          overflow: "hidden",
+          ...sizeStyles[size],
+          ...variantInlineStyles[variant],
+          opacity: isDisabled ? 0.5 : 1,
+          ...style,
+        }}
+        disabled={isDisabled}
+        {...props}
+      >
+        {loading && (
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        )}
+        {shouldAnimateText ? (
+          <span className="btn-text-wrap">
+            <span className="btn-text-initial">{children}</span>
+            <span className="btn-text-reveal" aria-hidden="true">{children}</span>
+          </span>
+        ) : (
+          children
+        )}
+      </button>
+    );
+  }
+);
+Button.displayName = "Button";
