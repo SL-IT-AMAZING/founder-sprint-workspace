@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendAssignmentDeadlineReminderEmail } from "@/lib/email";
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function getKstDayStartUtc(base: Date, daysFromTodayKst: number) {
+  const shifted = new Date(base.getTime() + KST_OFFSET_MS);
+  return new Date(
+    Date.UTC(
+      shifted.getUTCFullYear(),
+      shifted.getUTCMonth(),
+      shifted.getUTCDate() + daysFromTodayKst,
+      -9,
+      0,
+      0,
+      0
+    )
+  );
+}
+
 function isAuthorized(request: NextRequest) {
   if (process.env.NODE_ENV !== "production") return true;
 
@@ -25,8 +42,8 @@ export async function GET(request: NextRequest) {
   const testAssignmentId = isDev ? searchParams.get("assignmentId") : null;
   const overrideEmail = isDev ? searchParams.get("overrideEmail") : null;
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const windowStart = getKstDayStartUtc(now, 1);
+  const windowEnd = getKstDayStartUtc(now, 2);
 
   const assignments = await prisma.assignment.findMany({
     where: {
@@ -136,7 +153,7 @@ export async function GET(request: NextRequest) {
             userId: recipient.id,
             entityId: assignment.id,
             title: `Reminder: ${assignment.title} is due soon`,
-            message: "Automatic 24-hour reminder sent.",
+            message: "Automatic due-tomorrow reminder sent.",
           })),
         });
       }
