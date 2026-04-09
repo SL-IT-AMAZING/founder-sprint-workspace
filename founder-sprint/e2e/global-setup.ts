@@ -154,10 +154,11 @@ export default async function globalSetup() {
     }
 
     for (const [, { email, role }] of Object.entries(TEST_USERS)) {
+      const globalRole = role === "admin" || role === "mentor" ? role : "founder";
       const user = await prisma.user.upsert({
         where: { email },
-        create: { email, name: `Test ${role}` },
-        update: {},
+        create: { email, name: `Test ${role}`, status: "active", role: globalRole },
+        update: { status: "active", name: `Test ${role}`, role: globalRole },
       });
 
       await prisma.userBatch.upsert({

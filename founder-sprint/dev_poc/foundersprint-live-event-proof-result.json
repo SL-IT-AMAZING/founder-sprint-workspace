@@ -1,0 +1,48 @@
+{
+  "createdAt": "2026-04-09T18:38:16.458Z",
+  "recipient": "slit.amazing@gmail.com",
+  "kstStart": "2026-04-10 04:00",
+  "kstEnd": "2026-04-10 04:30",
+  "batch": {
+    "id": "8aa02e62-1705-4a59-971e-9af8bd6cff5d",
+    "name": "FS RETEST KST 0410 BATCH 1775759890373"
+  },
+  "company": {
+    "id": "9d1bf881-124f-471a-9d00-c5c2e551d3bb",
+    "name": "FS RETEST KST 0410 CO 1775759890373"
+  },
+  "app": {
+    "eventId": "ab43381b-2308-450c-8cbb-5bb7aeac4f1e",
+    "googleEventId": "4r3c36e857usihfb8nev4bbvc0",
+    "googleMeetLink": "https://meet.google.com/pdg-nhpo-oew",
+    "timezone": "Asia/Seoul",
+    "targetCompanyIds": [
+      "9d1bf881-124f-471a-9d00-c5c2e551d3bb"
+    ],
+    "startTimeIso": "2026-04-09T19:00:00.000Z",
+    "endTimeIso": "2026-04-09T19:30:00.000Z"
+  },
+  "organizerCalendar": {
+    "summary": "FS RETEST KST 0410 VIRTUAL EVENT 1775759890373",
+    "organizerSelf": true,
+    "hangoutLink": "https://meet.google.com/pdg-nhpo-oew",
+    "conferenceStatus": "success",
+    "attendeeEmails": [
+      "slit.amazing@gmail.com",
+      "test-admin@example.com"
+    ],
+    "start": {
+      "dateTime": "2026-04-10T04:00:00+09:00",
+      "timeZone": "Asia/Seoul"
+    },
+    "end": {
+      "dateTime": "2026-04-10T04:30:00+09:00",
+      "timeZone": "Asia/Seoul"
+    }
+  },
+  "cleanup": {
+    "deleteGoogleEvent": false,
+    "deleteDbRecords": false,
+    "note": "Event intentionally left alive for recipient-side verification. Clean up manually after confirmation."
+  }
+}
