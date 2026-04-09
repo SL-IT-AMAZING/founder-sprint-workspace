@@ -1,0 +1,52 @@
+{
+  "createdAt": "2026-04-09T19:07:21.068Z",
+  "recipients": [
+    "slit.amazing@gmail.com",
+    "jgamer0914@gmail.com"
+  ],
+  "kstStart": "2026-04-10 04:00",
+  "kstEnd": "2026-04-10 04:30",
+  "batch": {
+    "id": "219c4a9d-64bb-4de1-8541-01878c91d0e1",
+    "name": "FS FINAL KST 0410 BATCH 1775761635921"
+  },
+  "company": {
+    "id": "4b1672a2-0e21-4957-8dab-d6a2bd44b32e",
+    "name": "FS FINAL KST 0410 CO 1775761635921"
+  },
+  "app": {
+    "eventId": "68281582-04da-4128-b1c5-06f7eec541e4",
+    "googleEventId": "00aat8goh98bpohq96hf1pndnc",
+    "googleMeetLink": "https://meet.google.com/bem-xwut-smv",
+    "timezone": "Asia/Seoul",
+    "targetCompanyIds": [
+      "4b1672a2-0e21-4957-8dab-d6a2bd44b32e"
+    ],
+    "startTimeIso": "2026-04-09T19:00:00.000Z",
+    "endTimeIso": "2026-04-09T19:30:00.000Z"
+  },
+  "organizerCalendar": {
+    "summary": "FS FINAL KST 0410 VIRTUAL EVENT 1775761635921",
+    "organizerSelf": true,
+    "hangoutLink": "https://meet.google.com/bem-xwut-smv",
+    "conferenceStatus": "success",
+    "attendeeEmails": [
+      "jgamer0914@gmail.com",
+      "slit.amazing@gmail.com",
+      "test-admin@example.com"
+    ],
+    "start": {
+      "dateTime": "2026-04-10T04:00:00+09:00",
+      "timeZone": "Asia/Seoul"
+    },
+    "end": {
+      "dateTime": "2026-04-10T04:30:00+09:00",
+      "timeZone": "Asia/Seoul"
+    }
+  },
+  "cleanup": {
+    "deleteGoogleEvent": false,
+    "deleteDbRecords": false,
+    "note": "Event intentionally left alive for two-recipient recipient-side verification. Clean up manually after confirmation."
+  }
+}

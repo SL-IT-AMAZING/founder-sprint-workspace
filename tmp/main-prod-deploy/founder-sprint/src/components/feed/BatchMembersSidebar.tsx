@@ -1,0 +1,191 @@
+"use client";
+
+import Link from "next/link";
+import { FollowButton } from "@/components/feed/FollowButton";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
+import { getBatchStatusLabel, getBatchStatusVariant } from "@/lib/batch-utils";
+import { formatDate, getDisplayName, toValidDate } from "@/lib/utils";
+import type { BatchStatus } from "@/types";
+
+interface BatchMember {
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    profileImage: string | null;
+  };
+  role: string;
+  status: string;
+}
+
+interface BatchMembersSidebarProps {
+  members: BatchMember[];
+  batchName?: string;
+  batchStatus?: BatchStatus;
+  batchEndDate?: Date;
+  currentUserId?: string;
+  followingIds?: string[];
+}
+
+const roleLabels: Record<string, string> = {
+  super_admin: "Admin",
+  admin: "Admin",
+  mentor: "Mentor",
+  founder: "Founder",
+  co_founder: "Co-Founder",
+};
+
+const rolePriority: Record<string, number> = {
+  super_admin: 0,
+  admin: 1,
+  mentor: 2,
+  founder: 3,
+  co_founder: 4,
+};
+
+export function BatchMembersSidebar({ members, batchName, batchStatus, batchEndDate, currentUserId, followingIds = [] }: BatchMembersSidebarProps) {
+  const parsedBatchEndDate = toValidDate(batchEndDate);
+  const activeMembers = members
+    .filter((m) => m.status === "active")
+    .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
+
+  const groupedMembers: Record<string, BatchMember[]> = {};
+  activeMembers.forEach((member) => {
+    const role = member.role;
+    if (!groupedMembers[role]) {
+      groupedMembers[role] = [];
+    }
+    groupedMembers[role].push(member);
+  });
+
+  const roleOrder = ["super_admin", "admin", "mentor", "founder", "co_founder"];
+
+  return (
+    <div
+      className="card sticky top-4"
+      style={{
+        backgroundColor: "white",
+        borderRadius: "8px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+        border: "1px solid #e0e0e0",
+        padding: "16px",
+      }}
+    >
+      {/* Batch Info Card */}
+      {batchName && (
+        <div style={{
+          marginBottom: "16px",
+          paddingBottom: "16px",
+          borderBottom: "1px solid var(--color-card-border, #e0e0e0)",
+        }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+          }}>
+            <h3 style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "var(--color-foreground, #2F2C26)",
+              margin: 0,
+              fontFamily: "var(--font-serif, Georgia, serif)",
+            }}>
+              {batchName}
+            </h3>
+            {batchStatus && parsedBatchEndDate && (
+              <Badge variant={getBatchStatusVariant({ status: batchStatus, endDate: parsedBatchEndDate })}>
+                {getBatchStatusLabel({ status: batchStatus, endDate: parsedBatchEndDate })}
+              </Badge>
+            )}
+          </div>
+          {parsedBatchEndDate && (
+            <p style={{
+              fontSize: "12px",
+              color: "var(--color-foreground-muted, #999)",
+              margin: "6px 0 0 0",
+            }}>
+              {parsedBatchEndDate > new Date()
+                ? `Ends ${formatDate(parsedBatchEndDate)}`
+                : `Ended ${formatDate(parsedBatchEndDate)}`
+              }
+            </p>
+          )}
+          <p style={{
+            fontSize: "12px",
+            color: "var(--color-foreground-muted, #999)",
+            margin: "2px 0 0 0",
+          }}>
+            {activeMembers.length} active members
+          </p>
+        </div>
+      )}
+
+      <h3 className="font-medium mb-4" style={{ color: "var(--color-foreground)" }}>
+        Members ({activeMembers.length})
+      </h3>
+
+      <div className="space-y-4">
+        {roleOrder.map((role) => {
+          const roleMembers = groupedMembers[role];
+          if (!roleMembers || roleMembers.length === 0) return null;
+
+          return (
+            <div key={role}>
+              <p
+                className="text-xs font-medium uppercase mb-2"
+                style={{ color: "var(--color-foreground-muted)" }}
+              >
+                {roleLabels[role] || role} ({roleMembers.length})
+              </p>
+               <div className="space-y-1">
+                 {roleMembers.slice(0, 10).map((member) => {
+                   const isCurrentUser = member.user.id === currentUserId;
+                   return (
+                     <div key={member.user.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 4px", borderRadius: "6px" }} className="hover:bg-gray-50 -mx-1">
+                       <Link href={`/profile/${member.user.id}`} style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+                         <Avatar
+                           src={member.user.profileImage}
+                           name={getDisplayName(member.user)}
+                           size={28}
+                         />
+                         <div className="text-sm truncate" style={{ maxWidth: "100px" }}>
+                           {getDisplayName(member.user)}
+                           {isCurrentUser && <span style={{ color: "var(--color-foreground-muted)" }}> (You)</span>}
+                         </div>
+                       </Link>
+                       {!isCurrentUser && (
+                         <div style={{ marginLeft: "auto", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                           <FollowButton
+                             targetUserId={member.user.id}
+                             isFollowing={followingIds.includes(member.user.id)}
+                             size="sm"
+                           />
+                         </div>
+                       )}
+                     </div>
+                   );
+                 })}
+                {roleMembers.length > 10 && (
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--color-foreground-muted)" }}
+                  >
+                    +{roleMembers.length - 10} more
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {activeMembers.length === 0 && (
+        <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+          No active members yet
+        </p>
+      )}
+    </div>
+  );
+}

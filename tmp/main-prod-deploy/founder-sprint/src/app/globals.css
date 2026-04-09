@@ -1,0 +1,358 @@
+@font-face {
+  font-family: "BDO Grotesk";
+  src: url("/fonts/BDOGrotesk-VF.ttf") format("truetype");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Libre Caslon Condensed";
+  src: url("/fonts/LibreCaslonCondensed-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Libre Caslon Condensed";
+  src: url("/fonts/LibreCaslonCondensed-Italic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  src: url("/fonts/RobotoMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@import "tailwindcss";
+
+@theme inline {
+  /* Bookface Design System Colors */
+  --color-background: #fefaf3;
+  --color-background-secondary: #f1eadd;
+  --color-foreground: #2F2C26;
+  --color-foreground-secondary: #666666;
+  --color-foreground-muted: #999999;
+  --color-white: #FFFFFF;
+  --color-accent: #1A1A1A;
+  --color-accent-hover: #333333;
+  --color-card-bg: #FFFFFF;
+  --color-card-border: #e0e0e0;
+  --color-card-hover: #f5f5f5;
+  --color-input-bg: #2f2c250f;
+  --color-input-border: #2f2c251f;
+  --color-glass-surface: #FAF8F599;
+  --color-glass-border: #fff6;
+  --color-success: #2E7D32;
+  --color-success-bg: #E8F5E9;
+  --color-warning: #F57C00;
+  --color-warning-bg: #FFF3E0;
+  --color-error: #C62828;
+  --color-error-bg: #FFEBEE;
+  --color-linkedin: #0077B5;
+  --color-sidebar-bg: #FFFFFF;
+  --color-topbar-bg: #FFFFFF;
+  --color-badge-closed: #9CA3AF;
+  --color-primary: #1A1A1A;
+  --color-primary-hover: #333333;
+  --color-primary-light: #4A4A4A;
+  --color-header-bg: #2F2C26;
+  --color-header-text: #ffffff;
+  --color-link-blue: #1A1A1A;
+  --color-border-light: #f1eadd;
+  --color-tag-gray: #f0f2f5;
+  --color-tag-text: #555555;
+  --color-tag-border: #e1e4e8;
+
+  /* Typography */
+  --font-sans: "BDO Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Libre Caslon Condensed", "Times New Roman", serif;
+  --font-mono: "Roboto Mono", monospace;
+  --font-h1: 24px;
+  --font-h2: 18px;
+  --font-h3: 16px;
+  --font-h4: 14px;
+  --font-body: 14px;
+  --font-small: 12px;
+  --font-xs: 11px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  /* Layout */
+  --navbar-height: 48px;
+  --button-height: 48px;
+  --input-height: 48px;
+
+  /* Bookface Component Library CSS Variables */
+  --bf-primary: #555AB9;
+  --bf-primary-light: #6b70c7;
+  --bf-primary-dark: #454a9a;
+  --bf-header-bg: #2F2C26;
+  --bf-header-text: #ffffff;
+  --bf-page-bg: #fefaf3;
+  --bf-card-bg: #ffffff;
+  --bf-text-primary: #2F2C26;
+  --bf-text-secondary: #666666;
+  --bf-text-muted: #999999;
+  --bf-link-blue: #555AB9;
+  --bf-link-hover: #454a9a;
+  --bf-border-color: #e0e0e0;
+  --bf-border-light: #f1eadd;
+  --bf-tag-gray: #f1eadd;
+  --bf-tag-text: #555555;
+  --bf-success: #a9ee81;
+  --bf-error: #f5aaaa;
+
+  --bf-font-family: "BDO Grotesk", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bf-font-family-headings: "Libre Caslon Condensed", "Times New Roman", serif;
+  --bf-font-family-mono: "Roboto Mono", monospace;
+  --bf-font-size-xs: 11px;
+  --bf-font-size-sm: 12px;
+  --bf-font-size-base: 14px;
+  --bf-font-size-lg: 16px;
+  --bf-font-size-xl: 18px;
+  --bf-font-size-2xl: 24px;
+  --bf-font-weight-normal: 400;
+  --bf-font-weight-medium: 500;
+  --bf-font-weight-semibold: 600;
+  --bf-font-weight-bold: 700;
+
+  --bf-spacing-xs: 4px;
+  --bf-spacing-sm: 8px;
+  --bf-spacing-md: 12px;
+  --bf-spacing-lg: 16px;
+  --bf-spacing-xl: 24px;
+  --bf-spacing-2xl: 32px;
+
+  --bf-radius-sm: 4px;
+  --bf-radius-md: 6px;
+  --bf-radius-lg: 9px;
+  --bf-radius-full: 9999px;
+
+  --bf-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --bf-shadow-md: 0 2px 4px rgba(0,0,0,0.1);
+  --bf-shadow-lg: 0 4px 12px rgba(0,0,0,0.15);
+
+  --bf-button-height: 48px;
+  --bf-button-height-small: 42px;
+  --bf-button-padding: 24px;
+  --bf-button-padding-small: 18px;
+}
+
+body {
+  background-color: var(--color-background);
+  font-family: var(--font-sans);
+  color: var(--color-foreground);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.main-container {
+  max-width: 1440px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+}
+
+.btn {
+  height: var(--button-height);
+  padding-left: 24px;
+  padding-right: 24px;
+  border-radius: 9px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background-color: #1A1A1A;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #333333;
+}
+
+.btn-secondary {
+  background-color: var(--color-background-secondary);
+  color: var(--color-foreground);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-card-hover);
+}
+
+.btn-linkedin {
+  background-color: var(--color-linkedin);
+  color: #FFFFFF;
+}
+
+.btn-linkedin:hover {
+  opacity: 0.9;
+}
+
+/* Button text slide hover animation (ported from outsome.co) */
+.btn-text-wrap {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-text-initial,
+.btn-text-reveal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: transform 0.35s cubic-bezier(0.65, 0, 0.35, 1),
+              opacity 0.35s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.btn-text-initial {
+  transform: translateY(0);
+}
+
+.btn-text-reveal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(80%);
+  opacity: 0;
+}
+
+.btn:hover:not(:disabled) .btn-text-initial,
+.hover-slide:hover:not(:disabled) .btn-text-initial {
+  transform: translateY(-170%) scale(0.9);
+}
+
+.btn:hover:not(:disabled) .btn-text-reveal,
+.hover-slide:hover:not(:disabled) .btn-text-reveal {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.form-input {
+  height: var(--input-height);
+  padding-left: 18px;
+  padding-right: 18px;
+  background-color: var(--color-input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #1A1A1A;
+}
+
+.form-error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.card {
+  background: var(--color-card-bg);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+
+}
+
+
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background-color: #1A1A1A;
+  color: white;
+}
+
+.badge-success {
+  background-color: #E8F5E9;
+  color: var(--color-success);
+  border-radius: 3px;
+}
+
+.badge-error {
+  background-color: #FFEBEE;
+  color: var(--color-error);
+  border-radius: 3px;
+}
+
+.badge-warning {
+  background-color: #FFF3E0;
+  color: var(--color-warning);
+  border-radius: 3px;
+}
+
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+.form-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  transition: opacity 0.2s ease;
+}
+
+.navbar {
+  height: 48px;
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--color-card-border);
+}

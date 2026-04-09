@@ -28,6 +28,12 @@ const BulkInviteSchema = z.object({
   batchId: z.string().uuid(),
 });
 
+const InviteBatchMembersSchema = z.object({
+  sourceBatchId: z.string().uuid(),
+  targetBatchId: z.string().uuid(),
+  userIds: z.array(z.string().uuid()).min(1),
+});
+
 interface InviteUserParams {
   email: string;
   name?: string;
@@ -446,6 +452,110 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
+
+  if (successCount === 0) {
+    return {
+      success: false,
+      error: `All ${failCount} invitations failed. ${results[0]?.error || "Unknown error"}`,
+    };
+  }
+
+  return {
+    success: true,
+    data: { results },
+    ...(failCount > 0 ? { warning: `${successCount} invited, ${failCount} failed` } : {}),
+  };
+}
+
+export async function inviteBatchMembersFromSource(input: {
+  sourceBatchId: string;
+  targetBatchId: string;
+  userIds: string[];
+}): Promise<ActionResult<{
+  results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }>;
+}>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+  const canAssignSuperAdmin = await isCurrentUserSuperAdmin();
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = InviteBatchMembersSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  if (parsed.data.sourceBatchId === parsed.data.targetBatchId) {
+    return { success: false, error: "Source and target batch must be different" };
+  }
+
+  const sourceMembers = await prisma.userBatch.findMany({
+    where: {
+      batchId: parsed.data.sourceBatchId,
+      userId: { in: parsed.data.userIds },
+      status: "active",
+    },
+    include: {
+      user: {
+        include: {
+          companyMemberships: {
+            where: { isCurrent: true },
+            select: { companyId: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (sourceMembers.length === 0) {
+    return { success: false, error: "No valid source members selected" };
+  }
+
+  const roleOrder = { founder: 0, co_founder: 1, mentor: 2, admin: 3, super_admin: 4 } as const;
+  sourceMembers.sort((a, b) => {
+    const aRole = (a.user.role === "super_admin" ? "super_admin" : a.role) as keyof typeof roleOrder;
+    const bRole = (b.user.role === "super_admin" ? "super_admin" : b.role) as keyof typeof roleOrder;
+    return roleOrder[aRole] - roleOrder[bRole];
+  });
+
+  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }> = [];
+
+  for (const member of sourceMembers) {
+    const role = (member.user.role === "super_admin" ? "super_admin" : member.role) as InviteUserParams["role"];
+    const companyId = member.user.companyMemberships[0]?.companyId;
+    const result = await inviteUserCore({
+      email: member.user.email.toLowerCase(),
+      name: member.user.name || undefined,
+      role,
+      batchId: parsed.data.targetBatchId,
+      founderId: role === "co_founder" ? member.founderId || undefined : undefined,
+      companyId,
+      callerRole: canAssignSuperAdmin ? "super_admin" : user.role,
+    });
+
+    if (result.success) {
+      results.push({
+        email: member.user.email,
+        success: true,
+        inviteLink: result.data.inviteLink,
+        membershipStatus: result.data.membershipStatus,
+      });
+    } else {
+      results.push({ email: member.user.email, success: false, error: result.error });
+    }
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/batches");
+  revalidateTag(`batch-users-${parsed.data.targetBatchId}`);
+  revalidateTag("current-user");
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.length - successCount;
 
   if (successCount === 0) {
     return {

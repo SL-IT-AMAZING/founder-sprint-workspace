@@ -1,0 +1,130 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getEvent } from "@/actions/event";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { getDisplayName } from "@/lib/utils";
+import { displayRangeInUserTimezone } from "@/lib/timezone";
+
+export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) redirect("/auth/login");
+
+  const event = await getEvent(id, user.batchId);
+  const assignedBatchIds = event?.batches?.map((b: { batchId: string }) => b.batchId) ?? [];
+  if (!event || !assignedBatchIds.includes(user.batchId)) redirect("/events");
+
+  const isUserAdmin = isAdmin(user.role);
+  const isPastEvent = new Date(event.endTime) < new Date();
+
+  return (
+    <div className="space-y-6">
+      <Link href="/events" className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+        <span>←</span>
+        <span>Back to Events</span>
+      </Link>
+
+      <div className="card">
+        <div className="space-y-4">
+          {/* Event Header */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl mb-2">{event.title}</h1>
+              <div className="flex items-center gap-2 mb-3">
+                <Badge variant={isPastEvent ? "default" : "success"}>
+                  {event.eventType.replace("_", " ").toUpperCase()}
+                </Badge>
+                {isPastEvent && <Badge variant="default">Past Event</Badge>}
+              </div>
+            </div>
+            {isUserAdmin && (
+              <Link href={`/events/${id}/edit`}>
+                <Button variant="secondary" size="sm">
+                  Edit Event
+                </Button>
+              </Link>
+            )}
+          </div>
+
+          {/* Event Details */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                Date & Time
+              </p>
+              <p className="text-base">
+                {displayRangeInUserTimezone(event.startTime, event.endTime, user.timezone, event.timezone)}
+              </p>
+              <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                {event.timezone}
+              </p>
+            </div>
+
+            {event.location && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Location
+                </p>
+                <p className="text-base">{event.location}</p>
+              </div>
+            )}
+
+            {event.googleMeetLink && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Meeting Link
+                </p>
+                <a href={event.googleMeetLink} target="_blank" rel="noreferrer" className="text-base underline" style={{ color: "var(--color-primary)" }}>
+                  {event.googleMeetLink}
+                </a>
+              </div>
+            )}
+
+            {event.description && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Description
+                </p>
+                <p className="text-base" style={{ whiteSpace: "pre-wrap" }}>
+                  {event.description}
+                </p>
+              </div>
+            )}
+
+            {(event.targetCompanyIds?.length || 0) > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--color-foreground-muted)" }}>
+                  Audience
+                </p>
+                <p className="text-base">Specific companies ({event.targetCompanyIds.length})</p>
+              </div>
+            )}
+
+            {/* Organizer */}
+            <div className="pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
+              <p className="text-sm font-medium mb-2" style={{ color: "var(--color-foreground-muted)" }}>
+                Organized by
+              </p>
+              <div className="flex items-center gap-3">
+                <Avatar
+                  src={event.creator.profileImage}
+                  name={getDisplayName(event.creator)}
+                  size={40}
+                />
+                <div>
+                  <p className="font-medium">{getDisplayName(event.creator)}</p>
+                  <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+                    {event.creator.email}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

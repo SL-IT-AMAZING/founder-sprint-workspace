@@ -4,8 +4,10 @@ test.describe("Batch Management", () => {
   test.describe.configure({ mode: "serial" });
 
   test("admin can view batches page", async ({ adminPage }) => {
-    await adminPage.goto("/admin/batches");
+    await adminPage.goto("/admin/batches", { waitUntil: "networkidle" });
     await expect(adminPage.locator("h1")).toContainText(/batch/i);
+    await expect(adminPage.getByText(/Not Part of Any Batch/i)).toHaveCount(0);
+    await expect(adminPage.locator("main .card").first()).toBeVisible();
   });
 
   test("admin can create a new batch when no active batch exists", async ({ adminPage }) => {

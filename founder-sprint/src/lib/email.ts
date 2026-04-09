@@ -105,6 +105,73 @@ export async function sendInvitationEmail({
   }
 }
 
+
+interface BatchOnboardingDigestEmailParams {
+  to: string;
+  recipientName?: string | null;
+  batchName: string;
+  assignmentsUrl: string;
+  sessionsUrl: string;
+  eventsUrl: string;
+}
+
+export async function sendBatchOnboardingDigestEmail({
+  to,
+  recipientName,
+  batchName,
+  assignmentsUrl,
+  sessionsUrl,
+  eventsUrl,
+}: BatchOnboardingDigestEmailParams): Promise<{ success: boolean; error?: string }> {
+  if (!transporter) {
+    console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
+    return { success: false, error: "Email service not configured" };
+  }
+  if (hasUndeliverableRecipient(to)) return { success: true };
+
+  try {
+    await transporter.sendMail({
+      from: `Founder Sprint <${process.env.GMAIL_USER}>`,
+      to,
+      subject: `Welcome to ${batchName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: 'BDO Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #fefaf3; color: #2F2C26;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <div style="background: #2F2C26; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700;">Founder Sprint</h1>
+            </div>
+            <div style="background: #ffffff; padding: 32px; border: 1px solid #e0d6c8; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="font-size: 20px; color: #2F2C26; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Welcome${recipientName ? ` ${recipientName}` : ""}!</h2>
+              <p style="font-size: 15px; line-height: 1.6; margin-bottom: 12px;">
+                You now have access to <strong>${batchName}</strong>.
+              </p>
+              <p style="font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+                Here are the most important places to start:
+              </p>
+              <div style="display: grid; gap: 12px; margin: 24px 0;">
+                <a href="${assignmentsUrl}" style="background: #1A1A1A; color: white; padding: 14px 18px; text-decoration: none; border-radius: 8px; font-weight: 600; display: block; text-align: center;">Open Assignments</a>
+                <a href="${sessionsUrl}" style="background: #F6EFE4; color: #2F2C26; padding: 14px 18px; text-decoration: none; border-radius: 8px; font-weight: 600; display: block; text-align: center; border: 1px solid #e0d6c8;">View Sessions</a>
+                <a href="${eventsUrl}" style="background: #F6EFE4; color: #2F2C26; padding: 14px 18px; text-decoration: none; border-radius: 8px; font-weight: 600; display: block; text-align: center; border: 1px solid #e0d6c8;">See Events</a>
+              </div>
+              <p style="font-size: 13px; color: #666666; margin-bottom: 0;">
+                If you were just added to multiple batches, use the batch switcher after logging in to move between them.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error sending onboarding digest email:", err);
+    return { success: false, error: "Failed to send email" };
+  }
+}
+
 interface OfficeHourRequestEmailParams {
   to: string;
   hostName: string;

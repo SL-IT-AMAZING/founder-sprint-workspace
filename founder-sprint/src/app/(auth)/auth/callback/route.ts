@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { classifyAvatarSource } from "@/lib/avatar-source";
 import { ingestLinkedInAvatar } from "@/lib/linkedin-avatar-ingest";
+import { sendBatchOnboardingDigestEmail } from "@/lib/email";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { revalidateTag as revalidateTagBase } from "next/cache";
@@ -134,21 +135,39 @@ export async function GET(request: Request) {
     // Super admin/admin can bypass batch requirement
     const isGlobalAdmin = user.role === "super_admin" || user.role === "admin";
 
-    // Check for pending invitations to activate (7-day expiry)
+    const cookieStore = await cookies();
+    const inviteToken = cookieStore.get("invite_token")?.value;
+    const tokenInvitation = inviteToken
+      ? await prisma.invitationToken.findUnique({
+          where: { token: inviteToken },
+          select: { token: true, batchId: true, expiresAt: true, usedAt: true },
+        })
+      : null;
+
+    // Check for pending invitations to activate
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const pendingInvitations = user.userBatches.filter(
       (ub: { status: string; invitedAt: Date }) => ub.status === "invited"
     );
-    const validInvitations = pendingInvitations.filter(
-      (ub: { invitedAt: Date }) => new Date(ub.invitedAt) > sevenDaysAgo
-    );
+
+    const tokenMatchedInvitations = tokenInvitation && !tokenInvitation.usedAt && tokenInvitation.expiresAt > new Date()
+      ? pendingInvitations.filter((ub: { batchId: string }) => ub.batchId === tokenInvitation.batchId)
+      : [];
+
+    const validInvitations = tokenMatchedInvitations.length > 0
+      ? tokenMatchedInvitations
+      : pendingInvitations.filter(
+          (ub: { invitedAt: Date }) => new Date(ub.invitedAt) > sevenDaysAgo
+        );
+
+    let onboardingCandidateBatchId: string | null = null;
 
     if (validInvitations.length > 0) {
-      // Activate only valid (non-expired) invitations
       const validIds = validInvitations.map((ub: { id: string }) => ub.id);
       await prisma.userBatch.updateMany({
         where: {
           id: { in: validIds },
+          status: "invited",
         },
         data: {
           status: "active",
@@ -156,7 +175,6 @@ export async function GET(request: Request) {
         },
       });
 
-      // Invalidate caches so the user appears in feed sidebar immediately
       const activatedBatchIds = new Set(
         validInvitations.map((ub: { batchId: string }) => ub.batchId)
       );
@@ -165,14 +183,26 @@ export async function GET(request: Request) {
       }
       revalidateTag("current-user");
 
-      // Mark invitation token as used (if present in cookie)
-      const cookieStore = await cookies();
-      const inviteToken = cookieStore.get("invite_token")?.value;
-      if (inviteToken) {
-        await prisma.invitationToken.updateMany({
+      if (tokenInvitation && inviteToken) {
+        const tokenClaim = await prisma.invitationToken.updateMany({
           where: { token: inviteToken, usedAt: null },
           data: { usedAt: new Date() },
         });
+
+        if (
+          tokenClaim.count === 1 &&
+          validInvitations.some((ub: { batchId: string }) => ub.batchId === tokenInvitation.batchId)
+        ) {
+          onboardingCandidateBatchId = tokenInvitation.batchId;
+          cookieStore.set("selected_batch_id", tokenInvitation.batchId, {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 30 * 24 * 60 * 60,
+            secure: process.env.NODE_ENV === "production",
+          });
+        }
+
         cookieStore.delete("invite_token");
       }
     }
@@ -236,6 +266,51 @@ export async function GET(request: Request) {
       });
     }
 
+    if (onboardingCandidateBatchId) {
+      const existingDigest = await prisma.notification.findFirst({
+        where: {
+          type: "batch_onboarding_digest",
+          userId: user.id,
+          entityId: onboardingCandidateBatchId,
+        },
+        select: { id: true },
+      });
+
+      if (!existingDigest) {
+        const batchForDigest = await prisma.batch.findUnique({
+          where: { id: onboardingCandidateBatchId },
+          select: { id: true, name: true },
+        });
+
+        if (batchForDigest) {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+          const linkBase = `${appUrl}/api/batch/select?batchId=${batchForDigest.id}&next=`;
+          const emailResult = await sendBatchOnboardingDigestEmail({
+            to: user.email,
+            recipientName: user.name,
+            batchName: batchForDigest.name,
+            assignmentsUrl: `${linkBase}${encodeURIComponent("/assignments")}`,
+            sessionsUrl: `${linkBase}${encodeURIComponent("/sessions")}`,
+            eventsUrl: `${linkBase}${encodeURIComponent("/events")}`,
+          });
+
+          if (emailResult.success) {
+            await prisma.notification.create({
+              data: {
+                type: "batch_onboarding_digest",
+                userId: user.id,
+                entityId: batchForDigest.id,
+                title: `Welcome to ${batchForDigest.name}`,
+                message: "Onboarding digest sent after invitation acceptance.",
+              },
+            });
+          } else {
+            console.warn("Failed to send onboarding digest:", emailResult.error);
+          }
+        }
+      }
+    }
+
     // Refresh user data after updates
     user = await prisma.user.findFirst({
       where: { id: user.id },
@@ -277,7 +352,6 @@ export async function GET(request: Request) {
     const needsOnboarding = !user.jobTitle || !user.company;
 
     // Read cookies set by exchangeCodeForSession to propagate on redirect
-    const cookieStore = await cookies();
 
     if (needsOnboarding) {
       const redirectResponse = NextResponse.redirect(`${origin}/settings?onboarding=true`);
