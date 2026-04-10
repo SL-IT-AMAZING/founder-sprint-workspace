@@ -229,7 +229,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
             status: membership.status,
           }));
         setSourceInviteCandidates(candidates);
-        setSelectedSourceUserIds(candidates.map((candidate) => candidate.userId));
+        setSelectedSourceUserIds([]);
       })
       .catch(() => {
         setSourceInviteCandidates([]);
