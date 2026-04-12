@@ -224,9 +224,13 @@ export function AssignmentsList({
 
       <Modal open={createOpen} onClose={() => { setCreateOpen(false); setError(null); }} title="Create Assignment">
         <form key={selectedTemplateId || "new"} onSubmit={handleCreate} className="space-y-4">
-          {localTemplates.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Start from template (optional)</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Start from template (optional)</label>
+            <p className="text-xs" style={{ color: "var(--color-foreground-muted)", marginTop: -2 }}>
+              Choose a template to automatically fill in the title, description, template link, and review criteria.
+            </p>
+
+            {localTemplates.length > 0 ? (
               <div className="flex gap-2">
                 <select
                   value={selectedTemplateId}
@@ -246,7 +250,7 @@ export function AssignmentsList({
                     size="sm"
                     disabled={isPending}
                     onClick={() => {
-                      if (confirm("Delete this template?")) {
+                      if (confirm("Delete this template? This removes only the saved template. Existing assignments will not be deleted.")) {
                         handleDeleteTemplate(selectedTemplateId);
                       }
                     }}
@@ -256,8 +260,48 @@ export function AssignmentsList({
                   </Button>
                 )}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs" style={{ color: "var(--color-foreground-muted)", fontStyle: "italic" }}>
+                No saved templates yet. Create an assignment first, then use &quot;Save as template&quot; to reuse it later.
+              </p>
+            )}
+
+            {selectedTemplate && (
+              <div
+                className="space-y-2"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 8,
+                  border: "1px solid var(--color-card-border)",
+                  backgroundColor: "var(--color-background-secondary)",
+                }}
+              >
+                <p className="text-xs font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
+                  Template preview
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{selectedTemplate.title}</p>
+                  {selectedTemplate.description && (
+                    <p className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                      {selectedTemplate.description.length > 120
+                        ? `${selectedTemplate.description.slice(0, 120)}...`
+                        : selectedTemplate.description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {selectedTemplate.templateUrl && (
+                    <span className="text-xs" style={{ color: "var(--color-primary)" }}>📎 Template link included</span>
+                  )}
+                  {selectedTemplate.reviewCriteria.length > 0 && (
+                    <span className="text-xs" style={{ color: "var(--color-foreground-muted)" }}>
+                      {selectedTemplate.reviewCriteria.length} review {selectedTemplate.reviewCriteria.length === 1 ? "criterion" : "criteria"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <Input name="title" label="Title" required disabled={isPending} defaultValue={selectedTemplate?.title || ""} />
           <Textarea name="description" label="Description" required rows={5} disabled={isPending} defaultValue={selectedTemplate?.description || ""} />
