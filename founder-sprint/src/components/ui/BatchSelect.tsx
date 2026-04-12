@@ -72,7 +72,9 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
   const totalMembers = batches.reduce((sum, b) => sum + b.memberCount, 0);
 
   useEffect(() => {
-    const batchIds = Array.from(selectedIds);
+    const batchIds = mode === "all"
+      ? activeBatches.map((batch) => batch.id)
+      : Array.from(selectedIds);
     const signature = JSON.stringify({ mode, batchIds });
 
     if (lastSelectionSignatureRef.current === signature) {
@@ -81,7 +83,7 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
 
     lastSelectionSignatureRef.current = signature;
     onSelectionChangeRef.current?.({ mode, batchIds });
-  }, [mode, selectedIds]);
+  }, [mode, selectedIds, activeBatches]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

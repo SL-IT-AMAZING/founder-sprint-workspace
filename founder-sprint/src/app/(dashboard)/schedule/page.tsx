@@ -40,7 +40,7 @@ export default async function SchedulePage({
     user.role === "admin" || user.role === "super_admin"
       ? prisma.batch.findMany({
           orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-          select: { id: true, name: true },
+          select: { id: true, name: true, status: true, _count: { select: { userBatches: true } } },
         })
       : Promise.resolve([]),
     getOfficeHourBatchContext(user.batchId),
@@ -60,7 +60,12 @@ export default async function SchedulePage({
     rangeEnd,
   });
 
-  const batchOptions = adminBatchOptions;
+  const batchOptions = adminBatchOptions.map((batch) => ({
+    id: batch.id,
+    name: batch.name,
+    status: batch.status,
+    memberCount: batch._count.userBatches,
+  }));
   const batchContext = batchContextResult.success
     ? batchContextResult.data
     : { companies: [], founders: [], mentors: [] };
