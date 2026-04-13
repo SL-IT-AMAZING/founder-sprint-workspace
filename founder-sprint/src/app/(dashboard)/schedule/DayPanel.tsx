@@ -524,7 +524,7 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                 onChange={handleCreateEndTimeChange}
                 defaultValue={defaultEndDateTime}
               />
-              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+              <Select label="Timezone" name="timezone" options={timezoneOptions} defaultValue={userTimezone || "UTC"} required />
               <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
               <CompanySelect companies={availableCompanies} totalBatchMembers={selectedBatchMemberCount} label="Target Companies" inputName="companyIds" allowSpecific={selectedBatchIds.length === 1} disabledMessage="Specific companies are available only when exactly one batch is selected." />
             </>

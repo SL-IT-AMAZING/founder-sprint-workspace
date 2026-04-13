@@ -48,9 +48,10 @@ interface SessionsListProps {
     defaultStartTime: string | null;
     defaultEndTime: string | null;
   }>;
+  userTimezone: string | null;
 }
 
-export function SessionsList({ sessions, isAdmin, batchOptions, companyOptions, templates }: SessionsListProps) {
+export function SessionsList({ sessions, isAdmin, batchOptions, companyOptions, templates, userTimezone }: SessionsListProps) {
    const searchParams = useSearchParams();
    const prefillDate = searchParams.get("date");
    const [isModalOpen, setIsModalOpen] = useState(Boolean(prefillDate && isAdmin));
