@@ -146,30 +146,44 @@ export async function deleteBatch(batchId: string): Promise<ActionResult> {
     return { success: false, error: "Unauthorized: only Super Admin can delete batches" };
   }
 
-  // Safety check: prevent deletion if this is the ONLY batch for any session or event
-  const [exclusiveSessions, exclusiveEvents] = await Promise.all([
-    prisma.session.findMany({
-      where: { batches: { some: { batchId } } },
-      include: { batches: true },
-    }),
-    prisma.event.findMany({
-      where: { batches: { some: { batchId } } },
-      include: { batches: true },
-    }),
-  ]);
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const batch = await tx.batch.findUnique({ where: { id: batchId }, select: { id: true } });
+      if (!batch) {
+        return { success: false as const, error: "Batch not found" };
+      }
 
-  const sessionBlockers = exclusiveSessions.filter(s => s.batches.length === 1);
-  const eventBlockers = exclusiveEvents.filter(e => e.batches.length === 1);
-  const totalBlockers = sessionBlockers.length + eventBlockers.length;
+      const [sessionCount, eventCount] = await Promise.all([
+        tx.session.count({ where: { batchId } }),
+        tx.event.count({ where: { batchId } }),
+      ]);
 
-  if (totalBlockers > 0) {
-    return {
-      success: false,
-      error: `Cannot delete: ${totalBlockers} session(s)/event(s) are only assigned to this batch. Reassign them first.`,
-    };
+      if (sessionCount > 0 || eventCount > 0) {
+        const parts = [];
+        if (sessionCount > 0) parts.push(`${sessionCount} session(s)`);
+        if (eventCount > 0) parts.push(`${eventCount} event(s)`);
+        return {
+          success: false as const,
+          error: `Cannot delete: ${parts.join(" and ")} still belong to this batch. Reassign or delete them first.`,
+        };
+      }
+
+      await tx.batch.delete({ where: { id: batchId } });
+      return { success: true as const };
+    });
+
+    if (!result.success) {
+      return result;
+    }
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error) {
+      return {
+        success: false,
+        error: "Cannot delete this batch because related records still depend on it. Remove or reassign them first.",
+      };
+    }
+    throw error;
   }
-
-  await prisma.batch.delete({ where: { id: batchId } });
 
   revalidatePath("/admin/batches");
   revalidateTag("batches");
