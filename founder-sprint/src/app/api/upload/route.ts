@@ -24,7 +24,7 @@ const BUCKET_CONFIG = {
   "post-images": {
     maxSize: 5 * 1024 * 1024,
     maxFiles: 5,
-    allowedTypes: ["image/jpeg", "image/png", "image/gif"],
+    allowedTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
     adminOnly: false,
   },
   "company-logos": {

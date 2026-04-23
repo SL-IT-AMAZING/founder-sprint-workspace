@@ -265,6 +265,14 @@ interface SubmissionCompletedEmailParams {
   submissionUrl: string;
 }
 
+interface FeedReplyNotificationEmailParams {
+  to: string;
+  recipientName?: string | null;
+  replierName: string;
+  replyContent: string;
+  postUrl: string;
+}
+
 interface AssignmentPublishedEmailParams {
   to: string;
   recipientName?: string | null;
@@ -520,6 +528,50 @@ export async function sendSubmissionCompletedEmail({
     return { success: true };
   } catch (err) {
     console.error("Error sending submission completed email:", err);
+    return { success: false, error: "Failed to send email" };
+  }
+}
+
+export async function sendFeedReplyNotificationEmail({
+  to,
+  recipientName,
+  replierName,
+  replyContent,
+  postUrl,
+}: FeedReplyNotificationEmailParams): Promise<{ success: boolean; error?: string }> {
+  if (!transporter) {
+    console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
+    return { success: false, error: "Email service not configured" };
+  }
+  if (hasUndeliverableRecipient(to)) return { success: true };
+
+  try {
+    await transporter.sendMail({
+      from: `Founder Sprint <${process.env.GMAIL_USER}>`,
+      to,
+      subject: `${replierName} replied to your comment`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fefaf3; padding: 24px; color: #2F2C26;">
+          <div style="max-width: 600px; margin: 0 auto; background: white; border: 1px solid #e0d6c8; border-radius: 12px; overflow: hidden;">
+            <div style="background: #2F2C26; color: white; padding: 20px 24px; font-size: 20px; font-weight: 700;">Founder Sprint</div>
+            <div style="padding: 24px;">
+              <p>Hello${recipientName ? ` ${recipientName}` : ""},</p>
+              <p><strong>${replierName}</strong> replied to your comment on the feed.</p>
+              <blockquote style="margin: 16px 0; padding: 12px 16px; background: #f5f5f5; border-left: 4px solid #2F2C26; white-space: pre-wrap;">${replyContent}</blockquote>
+              <p style="margin: 24px 0;">
+                <a href="${postUrl}" style="background: #1A1A1A; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; display: inline-block;">View Reply</a>
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+    return { success: true };
+  } catch (err) {
+    console.error("Error sending feed reply notification email:", err);
     return { success: false, error: "Failed to send email" };
   }
 }

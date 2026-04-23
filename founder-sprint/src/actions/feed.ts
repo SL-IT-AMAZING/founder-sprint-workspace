@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { sendFeedReplyNotificationEmail } from "@/lib/email";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -21,6 +22,7 @@ const CreatePostSchema = z.object({
   category: z.string().optional().or(z.literal("")),
   linkPreview: z.string().optional(),
   imagePaths: z.string().optional(),
+  imageUrls: z.string().optional(),
 });
 
 const CreatePostImagePathsSchema = z
@@ -93,6 +95,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     category: formData.get("category") || undefined,
     linkPreview: formData.get("linkPreview") || undefined,
     imagePaths: formData.get("imagePaths") || undefined,
+    imageUrls: formData.get("imageUrls") || undefined,
   });
 
   if (!parsed.success) {
@@ -124,14 +127,34 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
+  let parsedImageUrls: string[] = [];
+  if (parsed.data.imageUrls) {
+    try {
+      const candidate = JSON.parse(parsed.data.imageUrls) as unknown;
+      const validated = z.array(z.string().url()).max(POST_IMAGE_MAX_FILES).safeParse(candidate);
+      if (!validated.success) {
+        return { success: false, error: "Invalid post images payload" };
+      }
+      parsedImageUrls = validated.data;
+    } catch {
+      return { success: false, error: "Invalid post images payload" };
+    }
+  }
+
   try {
-    const imageUrls = imagePaths
+    const convertedImageUrls = imagePaths
       .map((path) => getPublicPostImageUrl(path))
       .filter((url): url is string => Boolean(url));
 
-    if (imagePaths.length > 0 && imageUrls.length !== imagePaths.length) {
+    if (imagePaths.length > 0 && convertedImageUrls.length !== imagePaths.length) {
       await deletePostImageStoragePaths(imagePaths);
       return { success: false, error: "Image storage is not configured correctly" };
+    }
+
+    const imageUrls = [...new Set([...parsedImageUrls, ...convertedImageUrls])];
+    if (imageUrls.length > POST_IMAGE_MAX_FILES) {
+      await deletePostImageStoragePaths(imagePaths);
+      return { success: false, error: "Too many images in post payload" };
     }
 
     const post = await prisma.post.create({
@@ -346,6 +369,13 @@ export async function createComment(
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
+  let parentCommentData:
+    | {
+        parentId: string | null;
+        author: { id: string; email: string; name: string | null };
+      }
+    | null = null;
+
   if (!content.trim()) {
     return { success: false, error: "Comment content is required" };
   }
@@ -356,12 +386,21 @@ export async function createComment(
 
   // Enforce 2-level depth limit: if parentId is provided, check if parent has a parent
   if (parentId) {
-    const parentComment = await prisma.comment.findUnique({
+    parentCommentData = await prisma.comment.findUnique({
       where: { id: parentId },
-      select: { parentId: true },
+      select: {
+        parentId: true,
+        author: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
     });
 
-    if (parentComment && parentComment.parentId) {
+    if (parentCommentData && parentCommentData.parentId) {
       return { success: false, error: "Comments can only be nested 2 levels deep (comment → reply)" };
     }
   }
@@ -374,6 +413,31 @@ export async function createComment(
       parentId: parentId || null,
     },
   });
+
+  if (parentCommentData?.author && parentCommentData.author.id !== user.id) {
+    await prisma.notification.create({
+      data: {
+        type: "feed_comment_reply",
+        userId: parentCommentData.author.id,
+        entityId: comment.id,
+        title: `${user.name || "Someone"} replied to your comment`,
+        message: content.trim().slice(0, 220),
+      },
+    });
+
+    const postUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/feed/${postId}`;
+    const emailResult = await sendFeedReplyNotificationEmail({
+      to: parentCommentData.author.email,
+      recipientName: parentCommentData.author.name,
+      replierName: user.name || user.email,
+      replyContent: content.trim().slice(0, 220),
+      postUrl,
+    });
+
+    if (!emailResult.success) {
+      console.warn("Failed to send feed reply notification email:", emailResult.error);
+    }
+  }
 
   revalidatePath("/feed");
   revalidatePath(`/feed/${postId}`);

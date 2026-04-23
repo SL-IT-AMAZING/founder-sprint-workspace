@@ -392,6 +392,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   company: undefined,
                 }}
                 content={post.content}
+                images={post.images}
                 postedAt={formatRelativeTime(post.createdAt)}
                 likes={post._count.likes + (likedIds.has(post.id) ? 1 : 0) - (serverLikedIds.has(post.id) ? 1 : 0)}
                 comments={post._count.comments}
@@ -404,7 +405,6 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 onShare={() => handleShare(post.id)}
                 onAuthorClick={() => router.push(`/profile/${post.author.id}`)}
                 menuItems={(post.author.id === currentUser.id || isAdmin) ? getPostMenuItems(post) : undefined}
-                images={post.images}
                 variant="feed"
               />
             </div>
