@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
+import { getAccessibleActiveUserIds } from "@/lib/user-access";
 
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 import type { ActionResult } from "@/types";
@@ -74,6 +75,9 @@ export async function getUserBookmarks(page: number = 1, limit: number = 20) {
             include: {
               author: true,
               images: true,
+              mentions: {
+                orderBy: { startIndex: "asc" },
+              },
               _count: {
                 select: {
                   comments: true,
@@ -96,8 +100,23 @@ export async function getUserBookmarks(page: number = 1, limit: number = 20) {
       }),
     ]);
 
+    const mentionedUserIds = [
+      ...new Set(
+        bookmarks.flatMap((bookmark) =>
+          bookmark.post.mentions.map((mention) => mention.mentionedUserId)
+        )
+      ),
+    ];
+    const accessibleUserIds = await getAccessibleActiveUserIds(user, mentionedUserIds);
+
     return {
-      items: bookmarks.map((b) => b.post),
+      items: bookmarks.map((b) => ({
+        ...b.post,
+        mentions: b.post.mentions.map((mention) => ({
+          ...mention,
+          isAccessible: accessibleUserIds.has(mention.mentionedUserId),
+        })),
+      })),
       total,
       page,
       limit,

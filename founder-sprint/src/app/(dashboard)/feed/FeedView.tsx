@@ -41,6 +41,14 @@ interface Post {
   createdAt: Date;
   author: User;
   images: PostImage[];
+  mentions?: Array<{
+    id: string;
+    mentionedUserId: string;
+    displayText: string;
+    startIndex: number;
+    endIndex: number;
+    isAccessible: boolean;
+  }>;
   batch?: { name: string } | null;
   _count: {
     comments: number;
@@ -253,13 +261,15 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
     const isOwner = post.author.id === currentUser.id;
 
     if (isOwner || isAdmin) {
-      items.push({
-        label: "Edit",
-        onClick: () => {
-          setEditingPost(post);
-          setEditContent(post.content);
-        },
-      });
+      if ((post.mentions?.length || 0) === 0) {
+        items.push({
+          label: "Edit",
+          onClick: () => {
+            setEditingPost(post);
+            setEditContent(post.content);
+          },
+        });
+      }
       items.push({
         label: "Delete",
         onClick: () => handleDeletePost(post.id),
@@ -330,6 +340,9 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
               const formData = new FormData();
               formData.append("content", data.content);
               if (data.category) formData.append("category", data.category);
+              if (data.mentions.length > 0) {
+                formData.append("mentions", JSON.stringify(data.mentions));
+              }
               if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
               if (data.files.length > 0) {
                 const uploadResult = await uploadPostImages(data.files);
@@ -405,6 +418,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 onShare={() => handleShare(post.id)}
                 onAuthorClick={() => router.push(`/profile/${post.author.id}`)}
                 menuItems={(post.author.id === currentUser.id || isAdmin) ? getPostMenuItems(post) : undefined}
+                mentions={post.mentions}
                 variant="feed"
               />
             </div>
