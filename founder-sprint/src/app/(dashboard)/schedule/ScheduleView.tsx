@@ -24,7 +24,7 @@ interface ScheduleViewProps {
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
-  batchOptions: Array<{ id: string; name: string }>;
+  batchOptions: Array<{ id: string; name: string; status: string; memberCount: number }>;
   currentBatchId: string;
 }
 

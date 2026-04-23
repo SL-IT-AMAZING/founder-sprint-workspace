@@ -36,6 +36,7 @@ export default async function SessionsPage() {
       batchOptions={batchOptions}
       companyOptions={companyOptions}
       templates={templates}
+      userTimezone={user.timezone}
     />
   );
 }

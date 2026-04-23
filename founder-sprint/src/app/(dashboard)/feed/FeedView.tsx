@@ -15,6 +15,8 @@ import { PostCard, InlineComposer, FeedTabs, defaultTabs } from "@/components/bo
 import { useViewTracking } from "@/hooks/useViewTracking";
 import { bookmarkPost, unbookmarkPost } from "@/actions/bookmark";
 import { Avatar } from "@/components/ui/Avatar";
+import { PostImageGrid } from "@/components/feed/PostImageGrid";
+import { uploadPostImages } from "@/lib/post-image-upload";
 
 interface User {
   id: string;
@@ -61,6 +63,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   const [showArchived, setShowArchived] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab || 'top');
   const [isPending, startTransition] = useTransition();
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
   const toast = useToast();
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -322,17 +325,31 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
         <InlineComposer
           currentUser={currentUser}
           onSubmit={async (data) => {
-            const formData = new FormData();
-            formData.append("content", data.content);
-            if (data.category) formData.append("category", data.category);
-            if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
-            if (data.imageUrls && data.imageUrls.length > 0) formData.append("imageUrls", JSON.stringify(data.imageUrls));
-            const result = await createPost(formData);
-            if (!result.success) {
-              toast.error(result.error);
+            try {
+              setIsCreatingPost(true);
+              const formData = new FormData();
+              formData.append("content", data.content);
+              if (data.category) formData.append("category", data.category);
+              if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+              if (data.files.length > 0) {
+                const uploadResult = await uploadPostImages(data.files);
+                if (!uploadResult.success) {
+                  toast.error(uploadResult.error);
+                  return { success: false, error: uploadResult.error };
+                }
+                formData.append("imagePaths", JSON.stringify(uploadResult.data));
+              }
+              const result = await createPost(formData);
+              if (!result.success) {
+                toast.error(result.error);
+                return { success: false, error: result.error };
+              }
+              return { success: true };
+            } finally {
+              setIsCreatingPost(false);
             }
           }}
-          isPending={isPending}
+          isPending={isPending || isCreatingPost}
         />
 
         <FeedTabs
@@ -438,6 +455,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   </div>
                 </div>
                 <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
+                <PostImageGrid images={post.images} />
                 <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                   {post._count.likes} likes · {post._count.comments} comments
                 </div>
