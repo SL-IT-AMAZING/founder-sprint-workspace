@@ -2,10 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+import {
+  POST_IMAGE_BUCKET,
+  POST_IMAGE_MAX_FILES,
+} from "@/lib/post-images";
+import { getPostImageStoragePath } from "@/lib/storage-utils";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -14,7 +20,67 @@ const CreatePostSchema = z.object({
   groupId: z.string().optional().or(z.literal("")),
   category: z.string().optional().or(z.literal("")),
   linkPreview: z.string().optional(),
+  imagePaths: z.string().optional(),
 });
+
+const CreatePostImagePathsSchema = z
+  .array(z.string().min(1).max(500))
+  .max(POST_IMAGE_MAX_FILES);
+
+function createStorageClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+function getPublicPostImageUrl(path: string): string | null {
+  const storage = createStorageClient();
+  if (!storage) return null;
+
+  const { data } = storage.storage.from(POST_IMAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl || null;
+}
+
+async function deletePostImageStoragePaths(paths: string[]) {
+  const uniquePaths = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
+  if (uniquePaths.length === 0) return;
+
+  const storage = createStorageClient();
+  if (!storage) {
+    console.error("[Feed] Storage cleanup skipped: service role client not configured.");
+    return;
+  }
+
+  const { error } = await storage.storage.from(POST_IMAGE_BUCKET).remove(uniquePaths);
+  if (error) {
+    console.error("[Feed] Failed to clean up post images from storage:", error);
+  }
+}
+
+export async function cleanupUploadedPostImages(
+  paths: string[]
+): Promise<ActionResult<{ removed: number }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const parsed = CreatePostImagePathsSchema.safeParse(paths);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid image cleanup request" };
+  }
+
+  const invalidPath = parsed.data.find((path) => !path.startsWith(`${user.id}/`));
+  if (invalidPath) {
+    return { success: false, error: "Invalid image cleanup request" };
+  }
+
+  await deletePostImageStoragePaths(parsed.data);
+  return { success: true, data: { removed: parsed.data.length } };
+}
 
 export async function createPost(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
@@ -26,6 +92,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     groupId: formData.get("groupId") || undefined,
     category: formData.get("category") || undefined,
     linkPreview: formData.get("linkPreview") || undefined,
+    imagePaths: formData.get("imagePaths") || undefined,
   });
 
   if (!parsed.success) {
@@ -42,24 +109,65 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  const post = await prisma.post.create({
-    data: {
-      batchId: user.batchId,
-      authorId: user.id,
-      content: parsed.data.content,
-      groupId: parsed.data.groupId || null,
-      category: parsed.data.category || null,
-      linkPreview: parsedLinkPreview,
-    },
-  });
-
-  revalidatePath("/feed");
-  if (parsed.data.groupId) {
-    revalidatePath(`/groups/${parsed.data.groupId}`);
+  let imagePaths: string[] = [];
+  if (parsed.data.imagePaths) {
+    try {
+      const parsedImagePaths = JSON.parse(parsed.data.imagePaths) as unknown;
+      const validatedImagePaths = CreatePostImagePathsSchema.parse(parsedImagePaths);
+      const invalidPath = validatedImagePaths.find((path) => !path.startsWith(`${user.id}/`));
+      if (invalidPath) {
+        return { success: false, error: "Invalid uploaded image path" };
+      }
+      imagePaths = validatedImagePaths;
+    } catch {
+      return { success: false, error: "Invalid image payload" };
+    }
   }
-  revalidateTag("posts-global");
 
-  return { success: true, data: { id: post.id } };
+  try {
+    const imageUrls = imagePaths
+      .map((path) => getPublicPostImageUrl(path))
+      .filter((url): url is string => Boolean(url));
+
+    if (imagePaths.length > 0 && imageUrls.length !== imagePaths.length) {
+      await deletePostImageStoragePaths(imagePaths);
+      return { success: false, error: "Image storage is not configured correctly" };
+    }
+
+    const post = await prisma.post.create({
+      data: {
+        batchId: user.batchId,
+        authorId: user.id,
+        content: parsed.data.content,
+        groupId: parsed.data.groupId || null,
+        category: parsed.data.category || null,
+        linkPreview: parsedLinkPreview,
+        ...(imageUrls.length > 0
+          ? {
+              images: {
+                create: imageUrls.map((imageUrl) => ({ imageUrl })),
+              },
+            }
+          : {}),
+      },
+    });
+
+    revalidatePath("/feed");
+    revalidatePath("/bookmarks");
+    revalidatePath(`/profile/${user.id}`);
+    if (parsed.data.groupId) {
+      revalidatePath(`/groups/${parsed.data.groupId}`);
+    }
+    revalidateTag("posts-global");
+
+    return { success: true, data: { id: post.id } };
+  } catch (error) {
+    if (imagePaths.length > 0) {
+      await deletePostImageStoragePaths(imagePaths);
+    }
+    console.error("[Feed] Failed to create post:", error);
+    return { success: false, error: "Failed to create post" };
+  }
 }
 
 export async function getPostsForBatches(batchIds: string[]) {
@@ -506,7 +614,13 @@ export async function deletePost(postId: string): Promise<ActionResult> {
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { authorId: true, groupId: true },
+    select: {
+      authorId: true,
+      groupId: true,
+      images: {
+        select: { imageUrl: true },
+      },
+    },
   });
 
   if (!post) {
@@ -520,11 +634,22 @@ export async function deletePost(postId: string): Promise<ActionResult> {
     return { success: false, error: "Unauthorized: only post owner or admin can delete" };
   }
 
+  const imagePaths = post.images
+    .map((image) => getPostImageStoragePath(image.imageUrl))
+    .filter((path): path is string => Boolean(path));
+
   await prisma.post.delete({
     where: { id: postId },
   });
 
+  if (imagePaths.length > 0) {
+    await deletePostImageStoragePaths(imagePaths);
+  }
+
   revalidatePath("/feed");
+  revalidatePath("/bookmarks");
+  revalidatePath(`/feed/${postId}`);
+  revalidatePath(`/profile/${post.authorId}`);
   if (post.groupId) {
     revalidatePath(`/groups/${post.groupId}`);
   }

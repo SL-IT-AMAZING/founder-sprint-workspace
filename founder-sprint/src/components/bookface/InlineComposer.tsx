@@ -1,13 +1,19 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from 'react';
+import { PostImagePicker } from '@/components/feed/PostImagePicker';
 
 export interface InlineComposerProps {
   currentUser: {
     name: string | null;
     profileImage: string | null;
   };
-  onSubmit: (data: { content: string; category?: string; linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null }) => Promise<void>;
+  onSubmit: (data: {
+    content: string;
+    category?: string;
+    files: File[];
+    linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null;
+  }) => Promise<{ success: boolean; error?: string }>;
   isPending?: boolean;
 }
 
@@ -47,6 +53,8 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>('general');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -54,6 +62,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
 
   const handleExpand = useCallback(() => {
     setIsExpanded(true);
+    setSubmitError(null);
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
@@ -62,20 +71,32 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
   const handleSubmit = useCallback(async () => {
     if (!content.trim() || isPending) return;
 
-    await onSubmit({
+    setSubmitError(null);
+
+    const result = await onSubmit({
       content,
       category: selectedCategory,
+      files: selectedFiles,
       linkPreview: null,
     });
 
+    if (!result.success) {
+      setSubmitError(result.error || 'Failed to create post.');
+      return;
+    }
+
     setContent('');
+    setSelectedFiles([]);
     setSelectedCategory('general');
     setIsExpanded(false);
-  }, [content, selectedCategory, isPending, onSubmit]);
+    setSubmitError(null);
+  }, [content, selectedCategory, selectedFiles, isPending, onSubmit]);
 
   const handleCancel = useCallback(() => {
     setContent('');
+    setSelectedFiles([]);
     setSelectedCategory('general');
+    setSubmitError(null);
     setIsExpanded(false);
   }, []);
 
@@ -175,6 +196,28 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
               }}
             >
               Link detected — preview support stays enabled after posting.
+            </div>
+          )}
+
+          <PostImagePicker
+            files={selectedFiles}
+            onChange={setSelectedFiles}
+            disabled={isPending}
+          />
+
+          {submitError && (
+            <div
+              style={{
+                marginTop: '10px',
+                padding: '8px 12px',
+                backgroundColor: 'rgba(198, 40, 40, 0.06)',
+                borderRadius: '8px',
+                border: '1px solid rgba(198, 40, 40, 0.2)',
+                fontSize: '12px',
+                color: '#a33a32',
+              }}
+            >
+              {submitError}
             </div>
           )}
 

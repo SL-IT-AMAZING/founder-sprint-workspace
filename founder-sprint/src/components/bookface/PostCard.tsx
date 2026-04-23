@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { formatCompactBatchName } from '@/lib/utils';
+import { PostImageGrid } from '@/components/feed/PostImageGrid';
 
 export interface LinkPreview {
   url: string;
@@ -20,6 +21,7 @@ export interface PostCardProps {
     company?: string;
   };
   content: string;
+  images?: Array<{ id?: string; imageUrl: string }>;
   linkPreview?: LinkPreview;
   tags?: string[];
   postedAt: string;
@@ -335,6 +337,7 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
 export const PostCard: React.FC<PostCardProps> = ({
   author,
   content,
+  images = [],
   linkPreview,
   tags,
   postedAt,
@@ -410,6 +413,8 @@ export const PostCard: React.FC<PostCardProps> = ({
           </button>
         )}
       </div>
+
+      <PostImageGrid images={images} />
 
       {linkPreview && (
         <a href={linkPreview.url} target="_blank" rel="noopener noreferrer" style={styles.linkPreview}>
