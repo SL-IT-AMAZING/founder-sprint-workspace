@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import BatchSwitcher from "@/components/layout/BatchSwitcher";
 import { getDisplayName } from "@/lib/utils";
 import UnreadBadge from "@/components/layout/UnreadBadge";
+import NotificationUnreadBadge from "@/components/layout/NotificationUnreadBadge";
 
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
@@ -208,6 +209,7 @@ export default function BookfaceTopNav({
     ...primaryLinks,
     ...batchMenu.items,
     ...communityMenu.items,
+    { key: "notifications", label: "Notifications", href: "/notifications" },
     ...(isAdmin ? [{ key: "admin", label: "Admin", href: "/admin" }] : []),
   ];
 
@@ -765,6 +767,30 @@ export default function BookfaceTopNav({
         gap: '12px',
         flexShrink: 0,
       }}>
+        <Link
+          href="/notifications"
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            textDecoration: 'none',
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <NotificationUnreadBadge />
+        </Link>
         <Link
           href="/messages"
           style={{

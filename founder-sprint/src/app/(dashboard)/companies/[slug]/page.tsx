@@ -94,13 +94,7 @@ export default async function CompanyProfilePage({
         color: "#2F2C26",
       }}
     >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 300px",
-          gap: "24px",
-        }}
-      >
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* Main Content */}
         <div>
           {/* Company Header */}
@@ -113,7 +107,7 @@ export default async function CompanyProfilePage({
               marginBottom: "24px",
             }}
           >
-            <div style={{ display: "flex", gap: "20px", alignItems: "start" }}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               {/* Logo */}
               <div
                 style={{

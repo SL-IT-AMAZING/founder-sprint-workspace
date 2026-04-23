@@ -14,7 +14,7 @@ export function Pagination({ currentPage, totalPages, basePath }: PaginationProp
   const separator = basePath.includes("?") ? "&" : "?";
 
   return (
-    <div className="flex items-center justify-center gap-2 pt-4">
+    <div className="flex flex-wrap items-center justify-center gap-2 pt-4">
       {currentPage > 1 ? (
         <Link
           href={currentPage === 2 ? basePath : `${basePath}${separator}page=${currentPage - 1}`}

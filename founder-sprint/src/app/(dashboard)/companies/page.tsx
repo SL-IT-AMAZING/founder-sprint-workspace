@@ -76,7 +76,7 @@ export default async function CompaniesPage({
 
   return (
     <div>
-      <div style={{ marginBottom: "32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div style={{ marginBottom: "32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
         <div>
           <h1
             style={{
@@ -94,7 +94,7 @@ export default async function CompaniesPage({
           </p>
         </div>
         {userIsAdmin && (
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <Link
               href="/admin/companies"
               style={{
@@ -282,6 +282,8 @@ export default async function CompaniesPage({
                   justifyContent: "space-between",
                   alignItems: "center",
                   marginTop: "auto",
+                  gap: "12px",
+                  flexWrap: "wrap",
                 }}
               >
                 {company.hqLocation && (
@@ -291,13 +293,14 @@ export default async function CompaniesPage({
                 )}
 
                 {company.memberCount > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                     <div style={{ display: "flex", marginLeft: "auto" }}>
                       {company.memberAvatars.slice(0, 3).map((avatar, idx) => (
                         <div
@@ -354,6 +357,7 @@ export default async function CompaniesPage({
             justifyContent: "center",
             gap: "16px",
             marginTop: "32px",
+            flexWrap: "wrap",
           }}
         >
           {page > 1 ? (

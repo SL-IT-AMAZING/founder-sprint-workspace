@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from 'react';
+import { MentionTextarea, type ComposerMention } from '@/components/feed/MentionTextarea';
 import { PostImagePicker } from '@/components/feed/PostImagePicker';
 
 export interface InlineComposerProps {
@@ -11,6 +12,7 @@ export interface InlineComposerProps {
   onSubmit: (data: {
     content: string;
     category?: string;
+    mentions: ComposerMention[];
     files: File[];
     linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null;
   }) => Promise<{ success: boolean; error?: string }>;
@@ -53,10 +55,11 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState('');
+  const [mentions, setMentions] = useState<ComposerMention[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>('general');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
 
   const hasUrl = URL_REGEX.test(content);
 
@@ -64,7 +67,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
     setIsExpanded(true);
     setSubmitError(null);
     setTimeout(() => {
-      textareaRef.current?.focus();
+      composerRef.current?.querySelector("textarea")?.focus();
     }, 0);
   }, []);
 
@@ -76,6 +79,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
     const result = await onSubmit({
       content,
       category: selectedCategory,
+      mentions,
       files: selectedFiles,
       linkPreview: null,
     });
@@ -86,14 +90,16 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
     }
 
     setContent('');
+    setMentions([]);
     setSelectedFiles([]);
     setSelectedCategory('general');
     setIsExpanded(false);
     setSubmitError(null);
-  }, [content, selectedCategory, selectedFiles, isPending, onSubmit]);
+  }, [content, selectedCategory, mentions, selectedFiles, isPending, onSubmit]);
 
   const handleCancel = useCallback(() => {
     setContent('');
+    setMentions([]);
     setSelectedFiles([]);
     setSelectedCategory('general');
     setSubmitError(null);
@@ -163,25 +169,17 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
         {renderAvatar()}
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder="Write a post..."
-            style={{
-              width: '100%',
-              border: '1px solid #ECE3D5',
-              outline: 'none',
-              resize: 'vertical',
-              borderRadius: '10px',
-              padding: '12px 14px',
-              backgroundColor: '#F8F5EE',
-              fontSize: '15px',
-              lineHeight: 1.55,
-              minHeight: '110px',
-              color: '#2F2C26',
-            }}
-          />
+          <div ref={composerRef}>
+            <MentionTextarea
+              value={content}
+              mentions={mentions}
+              onChange={setContent}
+              onMentionsChange={setMentions}
+              placeholder="Write a post..."
+              disabled={isPending}
+              rows={5}
+            />
+          </div>
 
           {hasUrl && (
             <div
