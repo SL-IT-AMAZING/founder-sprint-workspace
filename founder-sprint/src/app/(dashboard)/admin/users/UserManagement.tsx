@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getBatchUsers,
   inviteUser,
   bulkInviteUsers,
+  inviteBatchMembersFromSource,
   updateUserRole,
   updateAdditionalRoles,
   removeUserFromBatch,
@@ -53,6 +55,7 @@ interface BatchUser {
   userId: string;
   batchId: string;
   role: UserRole;
+  founderId?: string | null;
   additionalRoles: string[];
   status: "invited" | "active" | "dropped_out";
   invitedAt: Date;
@@ -68,6 +71,16 @@ interface BatchUser {
     name: string;
     status: string;
   };
+}
+
+interface SourceBatchInviteCandidate {
+  id: string;
+  userId: string;
+  role: UserRole;
+  founderId?: string | null;
+  email: string;
+  name: string | null;
+  status: "invited" | "active" | "dropped_out";
 }
 
 interface AuditEntry {
@@ -103,6 +116,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const toast = useToast();
+  const searchParams = useSearchParams();
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [formError, setFormError] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -117,6 +131,10 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [sourceInviteBatchId, setSourceInviteBatchId] = useState<string>("");
+  const [sourceInviteCandidates, setSourceInviteCandidates] = useState<SourceBatchInviteCandidate[]>([]);
+  const [selectedSourceUserIds, setSelectedSourceUserIds] = useState<string[]>([]);
+  const [isLoadingSourceCandidates, setIsLoadingSourceCandidates] = useState(false);
   const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roleOptions = canAssignSuperAdmin
     ? [{ value: "super_admin", label: "Super Admin" }, ...baseRoleOptions]
@@ -171,6 +189,54 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       if (c) setCompanies(c);
     });
   }, []);
+  useEffect(() => {
+    const batchIdFromQuery = searchParams.get("batchId") || "";
+    const sourceBatchIdFromQuery = searchParams.get("sourceBatchId") || "";
+    const shouldOpenInvite = searchParams.get("openInvite") === "1";
+
+    if (batchIdFromQuery && batchIdFromQuery !== selectedBatchId) {
+      handleBatchChange(batchIdFromQuery);
+    }
+
+    if (sourceBatchIdFromQuery !== sourceInviteBatchId) {
+      setSourceInviteBatchId(sourceBatchIdFromQuery);
+    }
+
+    if (shouldOpenInvite) {
+      setIsInviteModalOpen(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!sourceInviteBatchId || !selectedBatchId) {
+      setSourceInviteCandidates([]);
+      setSelectedSourceUserIds([]);
+      return;
+    }
+
+    setIsLoadingSourceCandidates(true);
+    getBatchUsers(sourceInviteBatchId)
+      .then((data) => {
+        const candidates = (data as BatchUser[])
+          .filter((membership) => membership.status === "active")
+          .map((membership) => ({
+            id: membership.id,
+            userId: membership.userId,
+            role: membership.role,
+            founderId: membership.role === "co_founder" ? membership.founderId : undefined,
+            email: membership.user.email,
+            name: membership.user.name,
+            status: membership.status,
+          }));
+        setSourceInviteCandidates(candidates);
+        setSelectedSourceUserIds([]);
+      })
+      .catch(() => {
+        setSourceInviteCandidates([]);
+        setSelectedSourceUserIds([]);
+      })
+      .finally(() => setIsLoadingSourceCandidates(false));
+  }, [sourceInviteBatchId, selectedBatchId]);
 
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -217,6 +283,41 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         setBulkResults(result.data.results);
         setBulkEmails([]);
         loadUsers(selectedBatchId);
+      } else {
+        setFormError(result.error);
+      }
+    });
+  };
+
+  const toggleSourceCandidate = (userId: string) => {
+    setSelectedSourceUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    );
+  };
+
+  const handleInviteSourceMembers = async () => {
+    if (!selectedBatchId || !sourceInviteBatchId || selectedSourceUserIds.length === 0) {
+      setFormError("Select at least one source member to invite");
+      return;
+    }
+
+    setFormError("");
+
+    startTransition(async () => {
+      const result = await inviteBatchMembersFromSource({
+        sourceBatchId: sourceInviteBatchId,
+        targetBatchId: selectedBatchId,
+        userIds: selectedSourceUserIds,
+      });
+
+      if (result.success) {
+        setBulkResults(result.data.results);
+        loadUsers(selectedBatchId);
+        if (result.warning) {
+          toast.warning(result.warning);
+        }
       } else {
         setFormError(result.error);
       }
@@ -464,6 +565,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   }));
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+  const sourceInviteBatch = batches.find((b) => b.id === sourceInviteBatchId);
   const founderChoices = users.filter((userBatch) => getVisibleRoles(userBatch).includes("founder"));
 
   return (
@@ -875,6 +977,78 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         }}
         title={bulkResults ? "Invitation Results" : "Add Users"}
       >
+        {!bulkResults && sourceInviteBatchId && selectedBatchId && (
+          <div
+            className="space-y-3"
+            style={{
+              padding: "16px",
+              borderRadius: "10px",
+              backgroundColor: "var(--color-background-secondary)",
+              border: "1px solid var(--color-card-border)",
+              marginBottom: "16px",
+            }}
+          >
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Invite from source batch</p>
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                Preload active members from <strong>{sourceInviteBatch?.name || "the source batch"}</strong> into <strong>{selectedBatch?.name || "this batch"}</strong>.
+              </p>
+            </div>
+
+            {isLoadingSourceCandidates ? (
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>Loading source members...</p>
+            ) : sourceInviteCandidates.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>No active source members available to preload.</p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    maxHeight: "180px",
+                    overflowY: "auto",
+                    borderRadius: "8px",
+                    border: "1px solid var(--color-card-border)",
+                    backgroundColor: "white",
+                  }}
+                >
+                  {sourceInviteCandidates.map((candidate, index) => (
+                    <label
+                      key={candidate.userId}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "10px 12px",
+                        borderBottom: index < sourceInviteCandidates.length - 1 ? "1px solid var(--color-card-border)" : "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSourceUserIds.includes(candidate.userId)}
+                        onChange={() => toggleSourceCandidate(candidate.userId)}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="text-sm font-medium">{candidate.name || candidate.email}</div>
+                        <div className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>{candidate.email}</div>
+                      </div>
+                      <Badge variant="role">{getRoleDisplayName(candidate.role)}</Badge>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex justify-between gap-2">
+                  <p className="text-xs" style={{ color: "var(--color-foreground-secondary)" }}>
+                    {selectedSourceUserIds.length} selected
+                  </p>
+                  <Button type="button" variant="ghost" size="sm" onClick={handleInviteSourceMembers} loading={isPending}>
+                    Invite Selected Members
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Mode toggle — hidden when showing results */}
         {!bulkResults && (
           <div
@@ -946,7 +1120,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   }}
                 >
                   <div style={{ fontSize: "24px", fontWeight: 600, color: "#16a34a" }}>{successCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Succeeded</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Invited</div>
                 </div>
                 <div
                   style={{
@@ -958,7 +1132,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   }}
                 >
                   <div style={{ fontSize: "24px", fontWeight: 600, color: failCount > 0 ? "#dc2626" : "var(--color-foreground-secondary)" }}>{failCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Failed</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Skipped</div>
                 </div>
               </div>
 

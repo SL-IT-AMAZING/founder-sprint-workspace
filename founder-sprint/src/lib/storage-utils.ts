@@ -1,4 +1,7 @@
-export function getProfileImageStoragePath(url: string | null | undefined): string | null {
+export function getPublicBucketStoragePath(
+  url: string | null | undefined,
+  bucket: string
+): string | null {
   const value = url?.trim();
   if (!value) return null;
 
@@ -17,9 +20,17 @@ export function getProfileImageStoragePath(url: string | null | undefined): stri
 
   if (parsed.origin !== base.origin) return null;
 
-  const prefix = "/storage/v1/object/public/profile-images/";
+  const prefix = `/storage/v1/object/public/${bucket}/`;
   if (!parsed.pathname.startsWith(prefix)) return null;
 
   const storagePath = parsed.pathname.slice(prefix.length);
   return storagePath || null;
+}
+
+export function getProfileImageStoragePath(url: string | null | undefined): string | null {
+  return getPublicBucketStoragePath(url, "profile-images");
+}
+
+export function getPostImageStoragePath(url: string | null | undefined): string | null {
+  return getPublicBucketStoragePath(url, "post-images");
 }

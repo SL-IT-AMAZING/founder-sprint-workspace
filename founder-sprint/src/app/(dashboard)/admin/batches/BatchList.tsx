@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -34,9 +35,18 @@ export function BatchList({ batches }: BatchListProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const [cloneSourceBatch, setCloneSourceBatch] = useState<Batch | null>(null);
+  const [cloneSuccess, setCloneSuccess] = useState<{
+    id: string;
+    name: string;
+    sourceBatchId: string;
+    sourceBatchName: string;
+    assignmentCount: number;
+    sessionCount: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const toast = useToast();
+  const router = useRouter();
 
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -110,9 +120,18 @@ export function BatchList({ batches }: BatchListProps) {
     startTransition(async () => {
       const result = await cloneBatchStructure(formData);
       if (result.success) {
+        setCloneSuccess({
+          id: result.data.id,
+          name: result.data.name,
+          sourceBatchId: result.data.sourceBatchId,
+          sourceBatchName: cloneSourceBatch.name,
+          assignmentCount: result.data.assignmentCount,
+          sessionCount: result.data.sessionCount,
+        });
         if (result.warning) {
           toast.success(result.warning);
         }
+        form.reset();
         setCloneSourceBatch(null);
       } else {
         setError(result.error);
@@ -347,6 +366,70 @@ export function BatchList({ batches }: BatchListProps) {
               </Button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!cloneSuccess}
+        onClose={() => setCloneSuccess(null)}
+        title="Batch cloned successfully"
+      >
+        {cloneSuccess && (
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+              <strong>{cloneSuccess.name}</strong> is ready.
+            </p>
+
+            <div
+              className="space-y-2 rounded-lg p-4"
+              style={{ backgroundColor: "var(--color-background-secondary)", border: "1px solid var(--color-card-border)" }}
+            >
+              <p className="text-sm font-medium">Cloned</p>
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                {cloneSuccess.assignmentCount} assignment{cloneSuccess.assignmentCount === 1 ? "" : "s"} · {cloneSuccess.sessionCount} session{cloneSuccess.sessionCount === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            <div
+              className="space-y-2 rounded-lg p-4"
+              style={{ backgroundColor: "rgba(26, 26, 26, 0.03)", border: "1px solid var(--color-card-border)" }}
+            >
+              <p className="text-sm font-medium">Not yet done</p>
+              <ul className="list-disc pl-5 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                <li>Members have not been invited yet</li>
+                <li>Assignment communications have not been published</li>
+                <li>Session/event communications have not been published</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setCloneSuccess(null)}>
+                Close
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  router.push(`/admin/users?batchId=${cloneSuccess.id}`);
+                  setCloneSuccess(null);
+                }}
+              >
+                Review Batch First
+              </Button>
+              <Button
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    batchId: cloneSuccess.id,
+                    sourceBatchId: cloneSuccess.sourceBatchId,
+                    openInvite: "1",
+                  });
+                  router.push(`/admin/users?${params.toString()}`);
+                  setCloneSuccess(null);
+                }}
+              >
+                Invite Members Now
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
 

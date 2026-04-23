@@ -1,0 +1,73 @@
+{
+  "name": "Founder Sprint - Beige & Black",
+  "description": "Warm beige background with black accents, YC-style information density",
+  "colors": {
+    "pageBackground": "#FAF8F5",
+    "containerBackground": "#FFFFFF",
+    "containerBorder": "#E8E4DE",
+    "cardBackground": "#FFFFFF",
+    "cardBorder": "#E8E4DE",
+    "cardHover": "#F5F1EB",
+    "textPrimary": "#1A1A1A",
+    "textSecondary": "#666666",
+    "textMuted": "#999999",
+    "accent": "#1A1A1A",
+    "accentHover": "#333333",
+    "buttonPrimary": "#1A1A1A",
+    "buttonPrimaryText": "#FFFFFF",
+    "buttonSecondary": "#FFFFFF",
+    "buttonSecondaryText": "#1A1A1A",
+    "buttonSecondaryBorder": "#1A1A1A",
+    "success": "#2E7D32",
+    "warning": "#F57C00",
+    "error": "#C62828",
+    "link": "#1A1A1A",
+    "inputBackground": "#FFFFFF",
+    "inputBorder": "#E8E4DE",
+    "inputFocus": "#1A1A1A",
+    "sidebarBackground": "#FAF8F5",
+    "sidebarBorder": "#E8E4DE",
+    "sidebarActive": "#1A1A1A",
+    "sidebarActiveText": "#FFFFFF",
+    "topbarBackground": "#FFFFFF",
+    "topbarBorder": "#E8E4DE",
+    "badgeOpen": "#E8F5E9",
+    "badgeOpenText": "#2E7D32",
+    "badgeClosed": "#F5F5F5",
+    "badgeClosedText": "#666666"
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": "Georgia, serif",
+      "body": "Inter, -apple-system, sans-serif"
+    },
+    "fontSize": {
+      "h1": 32,
+      "h2": 24,
+      "h3": 20,
+      "h4": 18,
+      "body": 16,
+      "small": 14,
+      "caption": 12
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48
+  },
+  "borderRadius": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "full": 9999
+  },
+  "shadows": {
+    "sm": "0 1px 2px rgba(0,0,0,0.05)",
+    "md": "0 4px 6px rgba(0,0,0,0.05)",
+    "lg": "0 10px 15px rgba(0,0,0,0.05)"
+  }
+}

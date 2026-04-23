@@ -10,6 +10,9 @@ import { createPost, toggleLike } from "@/actions/feed";
 import { formatRelativeTime, getDisplayName } from "@/lib/utils";
 import { MentionTextarea, type ComposerMention } from "@/components/feed/MentionTextarea";
 import { renderPostContentWithMentions } from "@/components/feed/renderPostContentWithMentions";
+import { PostImagePicker } from "@/components/feed/PostImagePicker";
+import { PostImageGrid } from "@/components/feed/PostImageGrid";
+import { uploadPostImages } from "@/lib/post-image-upload";
 
 interface User {
   id: string;
@@ -69,6 +72,8 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
   const [isPending, startTransition] = useTransition();
   const [postContent, setPostContent] = useState("");
   const [mentions, setMentions] = useState<ComposerMention[]>([]);
+  const [postImages, setPostImages] = useState<File[]>([]);
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [error, setError] = useState("");
 
   const isMember = group.members.some((m) => m.user.id === currentUserId);
@@ -87,22 +92,36 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
     e.preventDefault();
     if (!postContent.trim()) return;
 
-    const formData = new FormData();
-    formData.append("content", postContent);
-    formData.append("groupId", group.id);
-    if (mentions.length > 0) {
-      formData.append("mentions", JSON.stringify(mentions));
-    }
+    setError("");
+    try {
+      setIsSubmittingPost(true);
 
-    startTransition(async () => {
+      const formData = new FormData();
+      formData.append("content", postContent);
+      formData.append("groupId", group.id);
+      if (mentions.length > 0) {
+        formData.append("mentions", JSON.stringify(mentions));
+      }
+      if (postImages.length > 0) {
+        const uploadResult = await uploadPostImages(postImages);
+        if (!uploadResult.success) {
+          setError(uploadResult.error);
+          return;
+        }
+        formData.append("imagePaths", JSON.stringify(uploadResult.data));
+      }
+
       const result = await createPost(formData);
       if (result.success) {
         setPostContent("");
         setMentions([]);
+        setPostImages([]);
       } else {
         setError(result.error);
       }
-    });
+    } finally {
+      setIsSubmittingPost(false);
+    }
   };
 
   const handleToggleLike = async (postId: string) => {
@@ -181,8 +200,13 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
                   onMentionsChange={setMentions}
                   disabled={isPending}
                 />
+                <PostImagePicker
+                  files={postImages}
+                  onChange={setPostImages}
+                  disabled={isPending || isSubmittingPost}
+                />
                 <div className="flex justify-end">
-                  <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
+                  <Button type="submit" loading={isPending || isSubmittingPost} disabled={!postContent.trim() || isSubmittingPost}>
                     Post to Company
                   </Button>
                 </div>
@@ -224,6 +248,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
                 <p style={{ whiteSpace: "pre-wrap" }}>
                   {renderPostContentWithMentions(post.content, post.mentions || [])}
                 </p>
+                <PostImageGrid images={post.images} />
 
                 {/* Post Actions */}
                 <div className="flex flex-wrap items-center gap-4 pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>

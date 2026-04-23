@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
 import { getEnhancedUserProfile } from "@/actions/profile";
+import { getMyCompanyChangeRequests } from "@/actions/company";
 
 export const revalidate = 60;
 import { ProfileForm } from "./ProfileForm";
+import { CompanyRequestPanel } from "./CompanyRequestPanel";
 import { ExperienceSection } from "./ExperienceSection";
 import { EducationSection } from "./EducationSection";
 import { Avatar } from "@/components/ui/Avatar";
@@ -26,6 +28,8 @@ export default async function SettingsPage({
   // Fetch enhanced profile data
   const profileResult = await getEnhancedUserProfile(user.id);
   const profile = profileResult.success ? profileResult.data : null;
+  const requestsResult = await getMyCompanyChangeRequests();
+  const companyRequests = requestsResult.success ? requestsResult.data : [];
 
   return (
     <div>
@@ -80,6 +84,16 @@ export default async function SettingsPage({
                 websiteUrl: profile?.websiteUrl || "",
                 timezone: profile?.timezone || user.timezone || "UTC",
               }}
+            />
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="Company Requests">
+            <CompanyRequestPanel
+              currentCompanyId={profile?.companyMemberships?.find((m) => m.isCurrent)?.company.id || null}
+              currentCompanyName={profile?.companyMemberships?.find((m) => m.isCurrent)?.company.name || user.company || null}
+              currentBatchId={user.batchId}
+              currentRole={user.role}
+              requests={companyRequests}
             />
           </SettingsSectionCard>
 

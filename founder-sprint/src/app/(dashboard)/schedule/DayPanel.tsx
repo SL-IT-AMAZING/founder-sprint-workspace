@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
+import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import { CompanySelect } from "@/components/ui/CompanySelect";
 import { OfficeHourSchedulerModal } from "@/components/office-hours/OfficeHourSchedulerModal";
+import { getCompaniesForBatch } from "@/actions/company";
 import { createEvent } from "@/actions/event";
 import type { ScheduleItem } from "@/types/schedule";
 import type { CompanyOption, FounderOption } from "@/types/invite";
@@ -33,7 +35,7 @@ interface DayPanelProps {
   companies: CompanyOption[];
   founders: FounderOption[];
   totalBatchMembers: number;
-  batchOptions: Array<{ id: string; name: string }>;
+  batchOptions: BatchOption[];
   currentBatchId: string;
 }
 
@@ -84,6 +86,9 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedEventType, setSelectedEventType] = useState<EventCreateKind | null>(null);
   const [officeHourModalOpen, setOfficeHourModalOpen] = useState(false);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [availableCompanies, setAvailableCompanies] = useState(companies);
+  const [selectedBatchMemberCount, setSelectedBatchMemberCount] = useState(totalBatchMembers);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -108,6 +113,30 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
 
   const createButtonLabel =
     selectedEventType === "general_session" ? "Create General Session" : "Create Event";
+
+  const handleBatchSelection = async (selection: { mode: "all" | "specific"; batchIds: string[] }) => {
+    setSelectedBatchIds(selection.batchIds);
+
+    const selectedIds = selection.mode === "all"
+      ? batchOptions.filter((batch) => batch.status === "active").map((batch) => batch.id)
+      : selection.batchIds;
+
+    const nextMemberCount = batchOptions
+      .filter((batch) => selectedIds.includes(batch.id))
+      .reduce((sum, batch) => sum + batch.memberCount, 0);
+    setSelectedBatchMemberCount(nextMemberCount || totalBatchMembers);
+
+    if (selectedIds.length === 1) {
+      const nextCompanies = await getCompaniesForBatch(selectedIds[0]);
+      setAvailableCompanies(nextCompanies.map((company) => ({
+        id: company.id,
+        name: company.name,
+        memberCount: company._count.members,
+      })));
+    } else {
+      setAvailableCompanies([]);
+    }
+  };
 
   const handleCreate = (eventType: EventCreateKind) => {
     setSelectedEventType(eventType);
@@ -465,6 +494,11 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
 
           {selectedEventType !== null && (
             <>
+              <BatchSelect
+                batches={batchOptions}
+                selectedBatchIds={batchOptions.some((batch) => batch.id === currentBatchId) ? [currentBatchId] : []}
+                onSelectionChange={handleBatchSelection}
+              />
               <Input label="Title" name="title" required placeholder="Event title" />
               <Textarea
                 label="Description"
@@ -490,9 +524,9 @@ export function DayPanel({ items, selectedDay, isAdmin, userTimezone, companies,
                 onChange={handleCreateEndTimeChange}
                 defaultValue={defaultEndDateTime}
               />
-              <Select label="Timezone" name="timezone" options={timezoneOptions} required />
+              <Select label="Timezone" name="timezone" options={timezoneOptions} defaultValue={userTimezone || "UTC"} required />
               <Input label="Location" name="location" placeholder="Location or meeting link (optional)" />
-              <CompanySelect companies={companies} totalBatchMembers={totalBatchMembers} label="Target Companies" inputName="companyIds" />
+              <CompanySelect companies={availableCompanies} totalBatchMembers={selectedBatchMemberCount} label="Target Companies" inputName="companyIds" allowSpecific={selectedBatchIds.length === 1} disabledMessage="Specific companies are available only when exactly one batch is selected." />
             </>
           )}
 

@@ -1,0 +1,330 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser, requireRole } from "@/lib/permissions";
+import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
+import { z } from "zod";
+import type { ActionResult } from "@/types";
+
+const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
+
+const BatchDateStringSchema = z.string().refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  "Invalid batch date"
+);
+
+const CreateBatchSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+  startDate: BatchDateStringSchema.transform((s) => new Date(s)),
+  endDate: BatchDateStringSchema.transform((s) => new Date(s)),
+});
+
+const UpdateBatchSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+});
+
+const CloneBatchSchema = z.object({
+  sourceBatchId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+  startDate: BatchDateStringSchema.transform((s) => new Date(s)),
+  endDate: BatchDateStringSchema.transform((s) => new Date(s)),
+});
+
+export async function createBatch(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = CreateBatchSchema.safeParse({
+    name: formData.get("name"),
+    description: formData.get("description"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const batch = await prisma.batch.create({
+    data: {
+      name: parsed.data.name,
+      description: parsed.data.description || null,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+    },
+  });
+
+  // Auto-add the creator as admin of this batch
+  await prisma.userBatch.create({
+    data: {
+      userId: user.id,
+      batchId: batch.id,
+      role: user.role as import("@prisma/client").$Enums.UserRole,
+      status: "active",
+      joinedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  revalidateTag("current-user");
+  return { success: true, data: { id: batch.id } };
+}
+
+export async function archiveBatch(batchId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  await prisma.batch.update({
+    where: { id: batchId },
+    data: { status: "archived" },
+  });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  return { success: true, data: undefined };
+}
+
+export async function updateBatch(
+  batchId: string,
+  data: { name?: string; startDate?: Date; endDate?: Date; description?: string }
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = UpdateBatchSchema.safeParse(data);
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const batch = await prisma.batch.update({
+    where: { id: batchId },
+    data: {
+      ...(parsed.data.name && { name: parsed.data.name }),
+      ...(parsed.data.description !== undefined && { description: parsed.data.description || null }),
+      ...(parsed.data.startDate && { startDate: parsed.data.startDate }),
+      ...(parsed.data.endDate && { endDate: parsed.data.endDate }),
+    },
+  });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  return { success: true, data: { id: batch.id } };
+}
+
+export async function deleteBatch(batchId: string): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized: only Super Admin can delete batches" };
+  }
+
+  // Safety check: prevent deletion if this is the ONLY batch for any session or event
+  const [exclusiveSessions, exclusiveEvents] = await Promise.all([
+    prisma.session.findMany({
+      where: { batches: { some: { batchId } } },
+      include: { batches: true },
+    }),
+    prisma.event.findMany({
+      where: { batches: { some: { batchId } } },
+      include: { batches: true },
+    }),
+  ]);
+
+  const sessionBlockers = exclusiveSessions.filter(s => s.batches.length === 1);
+  const eventBlockers = exclusiveEvents.filter(e => e.batches.length === 1);
+  const totalBlockers = sessionBlockers.length + eventBlockers.length;
+
+  if (totalBlockers > 0) {
+    return {
+      success: false,
+      error: `Cannot delete: ${totalBlockers} session(s)/event(s) are only assigned to this batch. Reassign them first.`,
+    };
+  }
+
+  await prisma.batch.delete({ where: { id: batchId } });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  return { success: true, data: undefined };
+}
+
+export async function cloneBatchStructure(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(user.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = CloneBatchSchema.safeParse({
+    sourceBatchId: formData.get("sourceBatchId"),
+    name: formData.get("name"),
+    description: formData.get("description"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+  }
+
+  const sourceBatch = await prisma.batch.findUnique({ where: { id: parsed.data.sourceBatchId } });
+  if (!sourceBatch) {
+    return { success: false, error: "Source batch not found" };
+  }
+
+  const sourceStartDate = new Date(sourceBatch.startDate);
+  const newStartDate = new Date(parsed.data.startDate);
+  const offsetMs = newStartDate.getTime() - sourceStartDate.getTime();
+
+  function shiftDate(original: Date | null): Date | null {
+    if (!original) return null;
+    return new Date(original.getTime() + offsetMs);
+  }
+
+  const [sourceAssignments, sourceSessions] = await Promise.all([
+    prisma.assignment.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
+    prisma.session.findMany({ where: { batchId: parsed.data.sourceBatchId } }),
+  ]);
+
+  const clonedBatch = await prisma.$transaction(async (tx) => {
+    const newBatch = await tx.batch.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description || null,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+      },
+    });
+
+    await tx.userBatch.create({
+      data: {
+        userId: user.id,
+        batchId: newBatch.id,
+        role: user.role as import("@prisma/client").$Enums.UserRole,
+        status: "active",
+        joinedAt: new Date(),
+      },
+    });
+
+    if (sourceAssignments.length > 0) {
+      await tx.assignment.createMany({
+        data: sourceAssignments.map((assignment) => ({
+          batchId: newBatch.id,
+          title: assignment.title,
+          description: assignment.description,
+          templateUrl: assignment.templateUrl,
+          reviewCriteria: assignment.reviewCriteria,
+          targetGroupId: null,
+          targetUserIds: [],
+          targetCompanyIds: [],
+          dueDate: shiftDate(assignment.dueDate) || assignment.dueDate,
+        })),
+      });
+    }
+
+    if (sourceSessions.length > 0) {
+      await tx.session.createMany({
+        data: sourceSessions.map((session) => ({
+          batchId: newBatch.id,
+          title: session.title,
+          description: session.description,
+          sessionDate: shiftDate(session.sessionDate) || session.sessionDate,
+          startTime: shiftDate(session.startTime),
+          endTime: shiftDate(session.endTime),
+          timezone: session.timezone,
+          slidesUrl: null,
+          recordingUrl: null,
+          googleEventId: null,
+          targetGroupId: null,
+          targetCompanyIds: [],
+        })),
+      });
+    }
+
+    return newBatch;
+  });
+
+  revalidatePath("/admin/batches");
+  revalidateTag("batches");
+  revalidateTag("batches-active");
+  revalidateTag("current-user");
+
+  return {
+    success: true,
+    data: { id: clonedBatch.id },
+    warning:
+      sourceAssignments.length || sourceSessions.length
+        ? `Cloned ${sourceAssignments.length} assignment(s) and ${sourceSessions.length} session(s).`
+        : "Batch created. Source batch had no assignments or sessions to clone.",
+  };
+}
+
+export async function getBatches() {
+  return unstable_cache(
+    () =>
+      prisma.batch.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: { select: { userBatches: true } },
+        },
+      }),
+    ["batches"],
+    { revalidate: 60, tags: ["batches"] }
+  )();
+}
+
+export async function getBatch(id: string) {
+  return prisma.batch.findUnique({
+    where: { id },
+    include: {
+      userBatches: {
+        include: { user: true },
+        orderBy: { invitedAt: "desc" },
+      },
+    },
+  });
+}
+
+export async function getActiveBatches() {
+  return unstable_cache(
+    () =>
+      prisma.batch.findMany({
+        where: { status: "active" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true },
+      }),
+    ["batches-active"],
+    { revalidate: 60, tags: ["batches-active", "batches"] }
+  )();
+}

@@ -27,6 +27,7 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
   const onSelectionChangeRef = useRef(onSelectionChange);
   const lastSelectionSignatureRef = useRef<string | null>(null);
 
+  const activeBatches = batches.filter((b) => b.status === "active");
   const allSelected = batches.length > 0 && selectedIds.size === batches.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < batches.length;
 
@@ -71,7 +72,9 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
   const totalMembers = batches.reduce((sum, b) => sum + b.memberCount, 0);
 
   useEffect(() => {
-    const batchIds = Array.from(selectedIds);
+    const batchIds = mode === "all"
+      ? activeBatches.map((batch) => batch.id)
+      : Array.from(selectedIds);
     const signature = JSON.stringify({ mode, batchIds });
 
     if (lastSelectionSignatureRef.current === signature) {
@@ -80,7 +83,7 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
 
     lastSelectionSignatureRef.current = signature;
     onSelectionChangeRef.current?.({ mode, batchIds });
-  }, [mode, selectedIds]);
+  }, [mode, selectedIds, activeBatches]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -121,7 +124,7 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
             transition: "background-color 0.15s, color 0.15s",
           }}
         >
-          All Batches ({batches.length})
+          All Active Batches ({activeBatches.length})
         </button>
         <button
           type="button"
@@ -298,7 +301,7 @@ export function BatchSelect({ batches, selectedBatchIds, required = true, onSele
 
       {/* Hidden inputs for FormData */}
       {mode === "all"
-        ? batches.map((b) => (
+        ? activeBatches.map((b) => (
             <input key={b.id} type="hidden" name="batchIds" value={b.id} />
           ))
         : Array.from(selectedIds).map((id) => (

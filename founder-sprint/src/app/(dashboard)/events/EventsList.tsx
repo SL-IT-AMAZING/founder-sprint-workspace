@@ -543,6 +543,7 @@ export function EventsList({
                 label="Timezone"
                 name="timezone"
                 options={TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                defaultValue={user.timezone || "UTC"}
                 required
               />
               <Input

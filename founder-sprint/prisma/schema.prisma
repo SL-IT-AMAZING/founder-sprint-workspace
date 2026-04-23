@@ -118,6 +118,9 @@ model User {
   postViews           PostView[]
   // M2: New relations
   companyMemberships CompanyMember[]
+  companyChangeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestRequester")
+  reviewedCompanyChangeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestReviewer")
+  promotedIntoCompanyChangeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestPromotedUser")
   experiences        Experience[]
   education          Education[]
   // M3: Messaging relations
@@ -154,6 +157,7 @@ model Batch {
   groups           Group[]
 
   companies        CompanyBatch[]
+  companyChangeRequests CompanyChangeRequest[]
   sessionBatches  SessionBatch[]
   eventBatches     EventBatch[]
   officeHourCredits OfficeHourCredit[]
@@ -721,6 +725,7 @@ model Company {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   members     CompanyMember[]
+  changeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestCurrentCompany")
   batches     CompanyBatch[]
   officeHourSlots OfficeHourSlot[]
 
@@ -763,6 +768,35 @@ model CompanyMember {
   @@index([userId])
   @@index([companyId])
   @@map("company_members")
+}
+
+model CompanyChangeRequest {
+  id                     String   @id @default(uuid()) @db.Uuid
+  userId                 String   @map("user_id") @db.Uuid
+  batchId                String?  @map("batch_id") @db.Uuid
+  currentCompanyId       String?  @map("current_company_id") @db.Uuid
+  targetType             String   @map("target_type") @db.VarChar(32)
+  requestedCompanyName   String?  @map("requested_company_name") @db.VarChar(200)
+  requestedDescription   String?  @map("requested_description") @db.Text
+  hasDependentCoFounders Boolean  @default(false) @map("has_dependent_co_founders")
+  resolutionType         String?  @map("resolution_type") @db.VarChar(32)
+  promotedUserId         String?  @map("promoted_user_id") @db.Uuid
+  note                   String?  @db.Text
+  status                 String   @default("pending") @db.VarChar(32)
+  reviewedById           String?  @map("reviewed_by_id") @db.Uuid
+  reviewedAt             DateTime? @map("reviewed_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  user          User     @relation("CompanyChangeRequestRequester", fields: [userId], references: [id], onDelete: Cascade)
+  batch         Batch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  currentCompany Company? @relation("CompanyChangeRequestCurrentCompany", fields: [currentCompanyId], references: [id], onDelete: SetNull)
+  reviewedBy    User?    @relation("CompanyChangeRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  promotedUser  User?    @relation("CompanyChangeRequestPromotedUser", fields: [promotedUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([batchId, status])
+  @@index([currentCompanyId])
+  @@map("company_change_requests")
 }
 
 // Experience - User work experience (plain text company, NOT FK)

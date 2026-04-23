@@ -186,6 +186,29 @@ export async function saveAssignmentAsTemplate(
   return { success: true, data: { id: template.id } };
 }
 
+export async function deleteAssignmentTemplate(
+  templateId: string
+): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user || !isStaff(user.role)) {
+    return { success: false, error: "Unauthorized: staff only" };
+  }
+
+  const template = await prisma.assignmentTemplate.findUnique({
+    where: { id: templateId },
+    select: { id: true },
+  });
+
+  if (!template) {
+    return { success: false, error: "Template not found" };
+  }
+
+  await prisma.assignmentTemplate.delete({ where: { id: templateId } });
+
+  revalidatePath("/assignments");
+  return { success: true, data: { id: templateId } };
+}
+
 export async function createAssignment(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
