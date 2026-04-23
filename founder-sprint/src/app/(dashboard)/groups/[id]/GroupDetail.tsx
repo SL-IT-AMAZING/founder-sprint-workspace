@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Textarea } from "@/components/ui/Textarea";
 import { joinGroup, leaveGroup } from "@/actions/group";
 import { createPost, toggleLike } from "@/actions/feed";
 import { formatRelativeTime, getDisplayName } from "@/lib/utils";
+import { MentionTextarea, type ComposerMention } from "@/components/feed/MentionTextarea";
+import { renderPostContentWithMentions } from "@/components/feed/renderPostContentWithMentions";
 
 interface User {
   id: string;
@@ -35,6 +36,14 @@ interface Post {
   createdAt: Date;
   author: User;
   images: PostImage[];
+  mentions: Array<{
+    id: string;
+    mentionedUserId: string;
+    displayText: string;
+    startIndex: number;
+    endIndex: number;
+    isAccessible: boolean;
+  }>;
   _count: {
     comments: number;
     likes: number;
@@ -59,6 +68,7 @@ interface GroupDetailProps {
 export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: GroupDetailProps) {
   const [isPending, startTransition] = useTransition();
   const [postContent, setPostContent] = useState("");
+  const [mentions, setMentions] = useState<ComposerMention[]>([]);
   const [error, setError] = useState("");
 
   const isMember = group.members.some((m) => m.user.id === currentUserId);
@@ -77,16 +87,18 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
     e.preventDefault();
     if (!postContent.trim()) return;
 
-    setError("");
-
     const formData = new FormData();
     formData.append("content", postContent);
     formData.append("groupId", group.id);
+    if (mentions.length > 0) {
+      formData.append("mentions", JSON.stringify(mentions));
+    }
 
     startTransition(async () => {
       const result = await createPost(formData);
       if (result.success) {
         setPostContent("");
+        setMentions([]);
       } else {
         setError(result.error);
       }
@@ -103,7 +115,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
     <div className="space-y-6">
       {/* Group Header */}
       <div className="card">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
             <h1 className="text-2xl mb-2">{group.name}</h1>
             {group.description && (
@@ -116,7 +128,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
               <span>{group.posts.length} posts</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(isAdmin || isMember) && (
               <Link href={`/groups/${group.id}/manage`}>
                 <Button variant="secondary" type="button">Manage</Button>
@@ -157,14 +169,17 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
         </div>
       )}
 
-            <div className="flex items-start gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
               <Avatar src={currentUser.profileImage} name={getDisplayName(currentUser)} />
               <div className="flex-1 space-y-3">
-                <Textarea
+                <MentionTextarea
                   placeholder="Share with the company..."
                   rows={3}
                   value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
+                  mentions={mentions}
+                  onChange={setPostContent}
+                  onMentionsChange={setMentions}
+                  disabled={isPending}
                 />
                 <div className="flex justify-end">
                   <Button type="submit" loading={isPending} disabled={!postContent.trim()}>
@@ -192,7 +207,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
             <div key={post.id} className="card">
               <div className="space-y-4">
                 {/* Post Header */}
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-start gap-3">
                     <Avatar src={post.author.profileImage} name={getDisplayName(post.author)} />
                     <div>
@@ -206,10 +221,12 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
                 </div>
 
                 {/* Post Content */}
-                <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
+                <p style={{ whiteSpace: "pre-wrap" }}>
+                  {renderPostContentWithMentions(post.content, post.mentions || [])}
+                </p>
 
                 {/* Post Actions */}
-                <div className="flex items-center gap-4 pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>
+                <div className="flex flex-wrap items-center gap-4 pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>
                   <button
                     onClick={() => handleToggleLike(post.id)}
                     className="text-sm"

@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { formatCompactBatchName } from '@/lib/utils';
+import {
+  renderPostContentWithMentions,
+  type RenderablePostMention,
+} from '@/components/feed/renderPostContentWithMentions';
 
 export interface LinkPreview {
   url: string;
@@ -20,7 +24,8 @@ export interface PostCardProps {
     company?: string;
   };
   content: string;
-  images?: Array<{ id: string; imageUrl: string }>;
+  mentions?: RenderablePostMention[];
+  images?: Array<{ id?: string; imageUrl: string }>;
   linkPreview?: LinkPreview;
   tags?: string[];
   postedAt: string;
@@ -361,7 +366,8 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
 export const PostCard: React.FC<PostCardProps> = ({
   author,
   content,
-  images,
+  mentions = [],
+  images = [],
   linkPreview,
   tags,
   postedAt,
@@ -383,9 +389,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   const truncateLength = variant === 'feed' ? 240 : 280;
 
   const shouldTruncate = content.length > truncateLength;
-  const displayContent = !isExpanded && shouldTruncate
-    ? `${content.slice(0, truncateLength)}...`
-    : content;
 
   return (
     <div style={styles.card}>
@@ -426,7 +429,9 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
 
       <div style={styles.content}>
-        {displayContent}
+        {renderPostContentWithMentions(content, mentions, {
+          truncateAt: !isExpanded && shouldTruncate ? truncateLength : undefined,
+        })}
         {shouldTruncate && !isExpanded && (
           <button
             type="button"

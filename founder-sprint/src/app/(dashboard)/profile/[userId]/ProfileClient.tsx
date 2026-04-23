@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { FollowButton } from "@/components/feed/FollowButton";
+import { renderPostContentWithMentions } from "@/components/feed/renderPostContentWithMentions";
 import { formatDate, getDisplayName, toValidDate } from "@/lib/utils";
 import Link from "next/link";
 import { getOrCreateDMConversation } from "@/actions/messaging";
@@ -75,6 +76,14 @@ interface UserPost {
   createdAt: Date;
   category: string | null;
   images: { id: string; imageUrl: string }[];
+  mentions?: Array<{
+    id: string;
+    mentionedUserId: string;
+    displayText: string;
+    startIndex: number;
+    endIndex: number;
+    isAccessible: boolean;
+  }>;
   _count: { comments: number; likes: number };
 }
 
@@ -238,7 +247,7 @@ export function ProfileClient({
             marginBottom: "24px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "24px", marginBottom: "24px" }}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start" style={{ marginBottom: "24px" }}>
             <Avatar src={profile.profileImage} name={getDisplayName(profile)} size={80} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <h1
@@ -314,6 +323,7 @@ export function ProfileClient({
 
         {/* Tab Navigation */}
         <div
+          className="overflow-x-auto"
           style={{
             backgroundColor: "#FFFFFF",
             borderRadius: "8px",
@@ -349,7 +359,7 @@ export function ProfileClient({
 
         {/* Tab Content */}
         {activeTab === "profile" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px" }} className="grid-cols-1 md:grid-cols-[1fr_300px]">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_300px]">
             {/* Main Column */}
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {/* About Section */}
@@ -879,31 +889,36 @@ export function ProfileClient({
               </div>
             ) : (
               userPosts.map((post) => (
-                <Link key={post.id} href={`/feed/${post.id}`} style={{ textDecoration: "none" }}>
-                  <div style={{
-                    backgroundColor: "#FFFFFF", borderRadius: "8px", border: "1px solid #e0e0e0",
-                    padding: "16px",
-                  }}>
-                    <p style={{ fontSize: "14px", color: "#2F2C26", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                      {post.content.length > 300 ? post.content.slice(0, 300) + "..." : post.content}
-                    </p>
-                    {post.images.length > 0 && (
-                      <div style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        {post.images.slice(0, 3).map((img) => (
-                          <img key={img.id} src={img.imageUrl} alt="" style={{
-                            width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e0e0e0",
-                          }} />
-                        ))}
-                      </div>
-                    )}
-                    <div style={{ marginTop: "12px", display: "flex", gap: "16px", fontSize: "13px", color: "#999999" }}>
-                      {post.category && <span style={{ color: "#666666" }}>{post.category}</span>}
-                      <span>{post._count.likes} likes</span>
-                      <span>{post._count.comments} comments</span>
-                      <span>{formatDate(post.createdAt)}</span>
+                <div key={post.id} style={{
+                  backgroundColor: "#FFFFFF", borderRadius: "8px", border: "1px solid #e0e0e0",
+                  padding: "16px",
+                }}>
+                  <p style={{ fontSize: "14px", color: "#2F2C26", margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {renderPostContentWithMentions(post.content, post.mentions || [], {
+                      truncateAt: 300,
+                    })}
+                  </p>
+                  {post.images.length > 0 && (
+                    <div style={{ marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {post.images.slice(0, 3).map((img) => (
+                        <img key={img.id} src={img.imageUrl} alt="" style={{
+                          width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e0e0e0",
+                        }} />
+                      ))}
                     </div>
+                  )}
+                  <div style={{ marginTop: "12px", display: "flex", gap: "16px", fontSize: "13px", color: "#999999", flexWrap: "wrap" }}>
+                    {post.category && <span style={{ color: "#666666" }}>{post.category}</span>}
+                    <span>{post._count.likes} likes</span>
+                    <span>{post._count.comments} comments</span>
+                    <span>{formatDate(post.createdAt)}</span>
                   </div>
-                </Link>
+                  <div style={{ marginTop: "12px" }}>
+                    <Link href={`/feed/${post.id}`} style={{ color: "#1A1A1A", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
+                      Open post →
+                    </Link>
+                  </div>
+                </div>
               ))
             )}
           </div>

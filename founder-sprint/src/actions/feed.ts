@@ -3,10 +3,11 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
-import { sendFeedReplyNotificationEmail } from "@/lib/email";
+import { sendFeedMentionEmail, sendFeedReplyNotificationEmail } from "@/lib/email";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+import { getAccessibleActiveUserIds } from "@/lib/user-access";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -16,7 +17,53 @@ const CreatePostSchema = z.object({
   category: z.string().optional().or(z.literal("")),
   linkPreview: z.string().optional(),
   imageUrls: z.string().optional(),
+  mentions: z.string().optional(),
 });
+
+const MentionInputSchema = z
+  .object({
+    userId: z.string().uuid(),
+    displayText: z.string().min(1).max(200),
+    startIndex: z.number().int().min(0),
+    endIndex: z.number().int().min(0),
+  })
+  .refine((value) => value.endIndex > value.startIndex, {
+    message: "Mention end index must be after start index",
+  });
+
+const CreatePostMentionsSchema = z.array(MentionInputSchema).max(10);
+
+export type PostMentionInput = z.infer<typeof MentionInputSchema>;
+
+export interface PostMentionDisplay {
+  id: string;
+  mentionedUserId: string;
+  displayText: string;
+  startIndex: number;
+  endIndex: number;
+  isAccessible: boolean;
+}
+
+async function annotateMentionsForViewer(
+  viewer: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  mentions: Array<{
+    id: string;
+    mentionedUserId: string;
+    displayText: string;
+    startIndex: number;
+    endIndex: number;
+  }>
+): Promise<PostMentionDisplay[]> {
+  const accessibleUserIds = await getAccessibleActiveUserIds(
+    viewer,
+    [...new Set(mentions.map((mention) => mention.mentionedUserId))]
+  );
+
+  return mentions.map((mention) => ({
+    ...mention,
+    isAccessible: accessibleUserIds.has(mention.mentionedUserId),
+  }));
+}
 
 export async function createPost(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
@@ -29,6 +76,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     category: formData.get("category") || undefined,
     linkPreview: formData.get("linkPreview") || undefined,
     imageUrls: formData.get("imageUrls") || undefined,
+    mentions: formData.get("mentions") || undefined,
   });
 
   if (!parsed.success) {
@@ -59,29 +107,123 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     }
   }
 
-  const post = await prisma.post.create({
-    data: {
-      batchId: user.batchId,
-      authorId: user.id,
-      content: parsed.data.content,
-      groupId: parsed.data.groupId || null,
-      category: parsed.data.category || null,
-      linkPreview: parsedLinkPreview,
-      images: parsedImageUrls.length > 0
-        ? {
-            create: parsedImageUrls.map((imageUrl) => ({ imageUrl })),
-          }
-        : undefined,
-    },
-  });
-
-  revalidatePath("/feed");
-  if (parsed.data.groupId) {
-    revalidatePath(`/groups/${parsed.data.groupId}`);
+  let mentions: PostMentionInput[] = [];
+  if (parsed.data.mentions) {
+    try {
+      const parsedMentions = JSON.parse(parsed.data.mentions) as unknown;
+      mentions = CreatePostMentionsSchema.parse(parsedMentions);
+    } catch {
+      return { success: false, error: "Invalid mentions payload" };
+    }
   }
-  revalidateTag("posts-global");
 
-  return { success: true, data: { id: post.id } };
+  try {
+    const accessibleMentionUserIds = await getAccessibleActiveUserIds(
+      user,
+      [...new Set(mentions.map((mention) => mention.userId))]
+    );
+
+    for (const mention of mentions) {
+      if (!accessibleMentionUserIds.has(mention.userId)) {
+        return { success: false, error: "One or more mentions are not available." };
+      }
+
+      const expectedText = `@${mention.displayText}`;
+      if (
+        mention.endIndex > parsed.data.content.length ||
+        parsed.data.content.slice(mention.startIndex, mention.endIndex) !== expectedText
+      ) {
+        return { success: false, error: "Mention text does not match the current post content." };
+      }
+    }
+
+    const uniqueMentionedUserIds = [
+      ...new Set(mentions.map((mention) => mention.userId).filter((userId) => userId !== user.id)),
+    ];
+
+    const post = await prisma.post.create({
+      data: {
+        batchId: user.batchId,
+        authorId: user.id,
+        content: parsed.data.content,
+        groupId: parsed.data.groupId || null,
+        category: parsed.data.category || null,
+        linkPreview: parsedLinkPreview,
+        ...(parsedImageUrls.length > 0
+          ? {
+              images: {
+                create: parsedImageUrls.map((imageUrl) => ({ imageUrl })),
+              },
+            }
+          : {}),
+        ...(mentions.length > 0
+          ? {
+              mentions: {
+                create: mentions.map((mention) => ({
+                  mentionedUserId: mention.userId,
+                  displayText: mention.displayText,
+                  startIndex: mention.startIndex,
+                  endIndex: mention.endIndex,
+                })),
+              },
+            }
+          : {}),
+      },
+    });
+
+    if (uniqueMentionedUserIds.length > 0) {
+      const mentionedUsers = await prisma.user.findMany({
+        where: { id: { in: uniqueMentionedUserIds } },
+        select: { id: true, email: true, name: true },
+      });
+
+      if (mentionedUsers.length > 0) {
+        await prisma.notification.createMany({
+          data: mentionedUsers.map((mentionedUser) => ({
+            type: "feed_mention",
+            userId: mentionedUser.id,
+            entityId: post.id,
+            title: "You were mentioned in a post",
+            message: `${user.name || user.email} mentioned you in a feed post.`,
+          })),
+        });
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const postUrl = `${appUrl}/feed/${post.id}`;
+        const postExcerpt =
+          parsed.data.content.length > 220
+            ? `${parsed.data.content.slice(0, 220)}...`
+            : parsed.data.content;
+
+        await Promise.all(
+          mentionedUsers.map((mentionedUser) =>
+            sendFeedMentionEmail({
+              to: mentionedUser.email,
+              recipientName: mentionedUser.name,
+              authorName: user.name || user.email,
+              postExcerpt,
+              postUrl,
+            })
+          )
+        );
+      }
+    }
+
+    revalidatePath("/feed");
+    revalidatePath("/bookmarks");
+    revalidatePath("/notifications");
+    revalidatePath(`/profile/${user.id}`);
+    if (parsed.data.groupId) {
+      revalidatePath(`/groups/${parsed.data.groupId}`);
+    }
+    revalidateTag("posts-global");
+    revalidateTag("notifications");
+
+    return { success: true, data: { id: post.id } };
+  } catch (error) {
+    console.error("[Feed] Failed to create post:", error);
+    return { success: false, error: "Failed to create post" };
+  }
 }
 
 export async function getPostsForBatches(batchIds: string[]) {
@@ -166,8 +308,8 @@ export async function getPaginatedPosts(
   page: number = 1,
   limit: number = 20
 ) {
-  const user = await getCurrentUser();
-  if (!user) return { items: [], total: 0, page, limit, totalPages: 0 };
+  const viewer = await getCurrentUser();
+  if (!viewer) return { items: [], total: 0, page, limit, totalPages: 0 };
 
   const where = { isHidden: false, groupId: null };
 
@@ -180,6 +322,9 @@ export async function getPaginatedPosts(
             author: true,
             batch: { select: { name: true } },
             images: true,
+            mentions: {
+              orderBy: { startIndex: "asc" },
+            },
             _count: {
               select: {
                 comments: true,
@@ -194,25 +339,47 @@ export async function getPaginatedPosts(
         prisma.post.count({ where }),
       ]);
 
+      const annotatedItems = await Promise.all(
+        items.map(async (item) => ({
+          ...item,
+          mentions: await annotateMentionsForViewer(
+            viewer,
+            item.mentions as Array<{
+              id: string;
+              mentionedUserId: string;
+              displayText: string;
+              startIndex: number;
+              endIndex: number;
+            }>
+          ),
+        }))
+      );
+
       return {
-        items,
+        items: annotatedItems,
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       };
     },
-    [`posts-global-page-${page}-limit-${limit}`],
+    [`posts-global-page-${page}-limit-${limit}-viewer-${viewer.id}`],
     { revalidate: 60, tags: ["posts-global"] }
   )();
 }
 
 export async function getUserPosts(userId: string) {
-  return prisma.post.findMany({
+  const viewer = await getCurrentUser();
+  if (!viewer) return [];
+
+  const posts = await prisma.post.findMany({
     where: { authorId: userId, isHidden: false },
     include: {
       author: true,
       images: true,
+      mentions: {
+        orderBy: { startIndex: "asc" },
+      },
       _count: {
         select: {
           comments: true,
@@ -223,11 +390,27 @@ export async function getUserPosts(userId: string) {
     orderBy: { createdAt: "desc" },
     take: 50,
   });
+
+  return Promise.all(
+    posts.map(async (post) => ({
+      ...post,
+      mentions: await annotateMentionsForViewer(
+        viewer,
+        post.mentions as Array<{
+          id: string;
+          mentionedUserId: string;
+          displayText: string;
+          startIndex: number;
+          endIndex: number;
+        }>
+      ),
+    }))
+  );
 }
 
 export async function getArchivedPosts() {
-  const user = await getCurrentUser();
-  if (!user) return [];
+  const viewer = await getCurrentUser();
+  if (!viewer) return [];
 
   return unstable_cache(
     () =>
@@ -238,6 +421,9 @@ export async function getArchivedPosts() {
         include: {
           author: true,
           images: true,
+          mentions: {
+            orderBy: { startIndex: "asc" },
+          },
           _count: {
             select: {
               comments: true,
@@ -246,8 +432,24 @@ export async function getArchivedPosts() {
           },
         },
         orderBy: { createdAt: "desc" },
-      }),
-    ["archived-posts-global"],
+      }).then(async (posts) =>
+        Promise.all(
+          posts.map(async (post) => ({
+            ...post,
+            mentions: await annotateMentionsForViewer(
+              viewer,
+              post.mentions as Array<{
+                id: string;
+                mentionedUserId: string;
+                displayText: string;
+                startIndex: number;
+                endIndex: number;
+              }>
+            ),
+          }))
+        )
+      ),
+    [`archived-posts-global-viewer-${viewer.id}`],
     { revalidate: 60, tags: ["archived-posts-global"] }
   )();
 }
@@ -481,13 +683,19 @@ export async function toggleLike(
 }
 
 export async function getPost(id: string) {
-  return unstable_cache(
+  const viewer = await getCurrentUser();
+  if (!viewer) return null;
+
+  const post = await unstable_cache(
     () =>
       prisma.post.findUnique({
         where: { id },
         include: {
           author: true,
           images: true,
+          mentions: {
+            orderBy: { startIndex: "asc" },
+          },
           comments: {
             where: { parentId: null },
             include: {
@@ -508,9 +716,25 @@ export async function getPost(id: string) {
           },
         },
       }),
-    [`post-${id}`],
+    [`post-${id}-viewer-${viewer.id}`],
     { revalidate: 60, tags: [`post-${id}`] }
   )();
+
+  if (!post) return null;
+
+  return {
+    ...post,
+    mentions: await annotateMentionsForViewer(
+      viewer,
+      post.mentions as Array<{
+        id: string;
+        mentionedUserId: string;
+        displayText: string;
+        startIndex: number;
+        endIndex: number;
+      }>
+    ),
+  };
 }
 
 const UpdatePostSchema = z.object({
@@ -534,7 +758,7 @@ export async function updatePost(
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { authorId: true, groupId: true },
+    select: { authorId: true, groupId: true, _count: { select: { mentions: true } } },
   });
 
   if (!post) {
@@ -543,6 +767,10 @@ export async function updatePost(
 
   if (post.authorId !== user.id) {
     return { success: false, error: "Unauthorized: only post owner can update" };
+  }
+
+  if (post._count.mentions > 0) {
+    return { success: false, error: "Posts with mentions cannot be edited yet." };
   }
 
   await prisma.post.update({

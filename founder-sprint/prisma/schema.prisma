@@ -128,6 +128,7 @@ model User {
   notifications            Notification[]
   assignmentTemplates      AssignmentTemplate[]
   sessionTemplates         SessionTemplate[]
+  mentionedInPosts         PostMention[]
   @@map("users")
 }
 
@@ -556,6 +557,7 @@ model Post {
   author   User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   group    Group?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
   images   PostImage[]
+  mentions PostMention[]
   comments Comment[]
   likes    Like[]
   bookmarks Bookmark[]
@@ -564,6 +566,23 @@ model Post {
   @@index([batchId, category, isPinned, createdAt])
   @@index([batchId, groupId])
   @@map("posts")
+}
+
+model PostMention {
+  id              String   @id @default(uuid()) @db.Uuid
+  postId          String   @map("post_id") @db.Uuid
+  mentionedUserId String   @map("mentioned_user_id") @db.Uuid
+  displayText     String   @map("display_text") @db.VarChar(200)
+  startIndex      Int      @map("start_index")
+  endIndex        Int      @map("end_index")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  post          Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mentionedUser User @relation(fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@index([postId, startIndex])
+  @@index([mentionedUserId, createdAt])
+  @@map("post_mentions")
 }
 
 // 18. PostImage - Post images
@@ -903,5 +922,6 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+  @@index([userId, createdAt])
   @@map("notifications")
 }

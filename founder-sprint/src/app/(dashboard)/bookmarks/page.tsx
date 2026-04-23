@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getUserBookmarks } from "@/actions/bookmark";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { renderPostContentWithMentions } from "@/components/feed/renderPostContentWithMentions";
 
 export const revalidate = 30;
 
@@ -57,11 +58,11 @@ export default async function BookmarksPage({
                   </div>
                 </div>
 
-                <Link href={`/feed/${post.id}`}>
-                  <p className="text-gray-800 line-clamp-3 hover:text-blue-600 cursor-pointer">
-                    {post.content}
-                  </p>
-                </Link>
+                <p className="text-gray-800 line-clamp-3">
+                  {renderPostContentWithMentions(post.content, post.mentions || [], {
+                    truncateAt: 220,
+                  })}
+                </p>
 
                 {post.images.length > 0 && (
                   <div className="mt-3 flex gap-2">
@@ -76,9 +77,15 @@ export default async function BookmarksPage({
                   </div>
                 )}
 
-                <div className="mt-3 flex gap-4 text-sm text-gray-500">
+                <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
                   <span>{post._count.comments} comments</span>
                   <span>{post._count.likes} likes</span>
+                </div>
+
+                <div className="mt-3">
+                  <Link href={`/feed/${post.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                    Open post →
+                  </Link>
                 </div>
               </div>
             ))}

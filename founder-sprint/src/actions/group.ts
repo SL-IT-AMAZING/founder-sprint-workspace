@@ -6,6 +6,7 @@ import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
+import { getAccessibleActiveUserIds } from "@/lib/user-access";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -87,7 +88,10 @@ export async function getGroups(batchId: string) {
 }
 
 export async function getGroup(id: string) {
-  return unstable_cache(
+  const viewer = await getCurrentUser();
+  if (!viewer) return null;
+
+  const group = await unstable_cache(
     () =>
       prisma.group.findUnique({
         where: { id },
@@ -102,6 +106,9 @@ export async function getGroup(id: string) {
             include: {
               author: true,
               images: true,
+              mentions: {
+                orderBy: { startIndex: "asc" },
+              },
               _count: {
                 select: {
                   comments: true,
@@ -116,9 +123,27 @@ export async function getGroup(id: string) {
           },
         },
       }),
-    [`group-${id}`],
+    [`group-${id}-viewer-${viewer.id}`],
     { revalidate: 60, tags: [`group-${id}`] }
   )();
+
+  if (!group) return null;
+
+  const mentionedUserIds = [
+    ...new Set(group.posts.flatMap((post) => post.mentions.map((mention) => mention.mentionedUserId))),
+  ];
+  const accessibleUserIds = await getAccessibleActiveUserIds(viewer, mentionedUserIds);
+
+  return {
+    ...group,
+    posts: group.posts.map((post) => ({
+      ...post,
+      mentions: post.mentions.map((mention) => ({
+        ...mention,
+        isAccessible: accessibleUserIds.has(mention.mentionedUserId),
+      })),
+    })),
+  };
 }
 
 export async function joinGroup(groupId: string): Promise<ActionResult> {

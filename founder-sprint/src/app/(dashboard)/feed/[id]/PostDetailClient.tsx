@@ -6,6 +6,7 @@ import { PostCard } from "@/components/bookface/PostCard";
 import { createComment, toggleLike } from "@/actions/feed";
 import { bookmarkPost, unbookmarkPost } from "@/actions/bookmark";
 import { formatRelativeTime, getDisplayName, getInitials } from "@/lib/utils";
+import type { RenderablePostMention } from "@/components/feed/renderPostContentWithMentions";
 
 interface PostComment {
   id: string;
@@ -25,6 +26,7 @@ interface PostDetail {
   createdAt: Date;
   author: { id: string; name: string | null; email: string; profileImage: string | null; headline: string | null };
   images: Array<{ id: string; imageUrl: string }>;
+  mentions: RenderablePostMention[];
   comments: PostComment[];
   likes: Array<{ userId: string }>;
   bookmarks: Array<{ id: string }>;
@@ -441,6 +443,7 @@ export function PostDetailClient({
             company: post.author.headline || undefined,
           }}
           content={post.content}
+          mentions={post.mentions}
           images={post.images}
           linkPreview={post.linkPreview as { url: string; title: string; description?: string; imageUrl?: string; domain: string } | undefined}
           postedAt={formatRelativeTime(post.createdAt)}

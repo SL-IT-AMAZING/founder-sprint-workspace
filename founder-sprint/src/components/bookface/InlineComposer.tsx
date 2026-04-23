@@ -1,13 +1,20 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from 'react';
+import { MentionTextarea, type ComposerMention } from '@/components/feed/MentionTextarea';
 
 export interface InlineComposerProps {
   currentUser: {
     name: string | null;
     profileImage: string | null;
   };
-  onSubmit: (data: { content: string; category?: string; linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null; imageUrls?: string[] }) => Promise<void>;
+  onSubmit: (data: {
+    content: string;
+    category?: string;
+    mentions: ComposerMention[];
+    linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null;
+    imageUrls: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
   isPending?: boolean;
 }
 
@@ -47,11 +54,13 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [content, setContent] = useState('');
+  const [mentions, setMentions] = useState<ComposerMention[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>('general');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasUrl = URL_REGEX.test(content);
@@ -59,32 +68,42 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
   const handleExpand = useCallback(() => {
     setIsExpanded(true);
     setTimeout(() => {
-      textareaRef.current?.focus();
+      composerRef.current?.querySelector("textarea")?.focus();
     }, 0);
   }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!content.trim() || isPending) return;
 
-    await onSubmit({
+    const result = await onSubmit({
       content,
       category: selectedCategory,
+      mentions,
       linkPreview: null,
       imageUrls,
     });
 
+    if (!result.success) {
+      setSubmitError(result.error || 'Failed to create post');
+      return;
+    }
+
     setContent('');
+    setMentions([]);
     setSelectedCategory('general');
     setImageUrls([]);
     setUploadError('');
+    setSubmitError(null);
     setIsExpanded(false);
-  }, [content, selectedCategory, imageUrls, isPending, onSubmit]);
+  }, [content, selectedCategory, mentions, imageUrls, isPending, onSubmit]);
 
   const handleCancel = useCallback(() => {
     setContent('');
+    setMentions([]);
     setSelectedCategory('general');
     setImageUrls([]);
     setUploadError('');
+    setSubmitError(null);
     setIsExpanded(false);
   }, []);
 
@@ -199,25 +218,29 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
         {renderAvatar()}
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder="Write a post..."
-            style={{
-              width: '100%',
-              border: '1px solid #ECE3D5',
-              outline: 'none',
-              resize: 'vertical',
-              borderRadius: '10px',
-              padding: '12px 14px',
-              backgroundColor: '#F8F5EE',
-              fontSize: '15px',
-              lineHeight: 1.55,
-              minHeight: '110px',
-              color: '#2F2C26',
-            }}
-          />
+          <div ref={composerRef}>
+            <MentionTextarea
+              value={content}
+              mentions={mentions}
+              onChange={setContent}
+              onMentionsChange={setMentions}
+              placeholder="Write a post..."
+              disabled={isPending}
+              rows={5}
+            />
+          </div>
+
+          {submitError && (
+            <div
+              style={{
+                marginTop: '10px',
+                color: '#C62828',
+                fontSize: '13px',
+              }}
+            >
+              {submitError}
+            </div>
+          )}
 
           {hasUrl && (
             <div

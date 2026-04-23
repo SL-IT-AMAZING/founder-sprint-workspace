@@ -165,14 +165,12 @@ export default async function FoundersPage({
             return (
               <div
                 key={member.id}
+                className="flex flex-col gap-4 sm:flex-row sm:items-start"
                 style={{
                   backgroundColor: "#FFFFFF",
                   border: "1px solid #e0e0e0",
                   borderRadius: "8px",
                   padding: "16px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "16px",
                 }}
               >
                 <Link
@@ -217,6 +215,7 @@ export default async function FoundersPage({
                       alignItems: "center",
                       gap: "8px",
                       marginBottom: "4px",
+                      flexWrap: "wrap",
                     }}
                   >
                     <Link
@@ -293,7 +292,7 @@ export default async function FoundersPage({
                 </div>
 
                 {!isCurrentUser && (
-                  <div style={{ flexShrink: 0 }}>
+                  <div style={{ flexShrink: 0, alignSelf: "flex-start" }}>
                     <FollowButton
                       targetUserId={member.id}
                       isFollowing={isFollowing}
@@ -315,6 +314,7 @@ export default async function FoundersPage({
             justifyContent: "center",
             gap: "16px",
             marginTop: "32px",
+            flexWrap: "wrap",
           }}
         >
           {page > 1 ? (

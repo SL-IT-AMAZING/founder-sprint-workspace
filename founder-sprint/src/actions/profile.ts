@@ -5,6 +5,7 @@ import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { getProfileImageStoragePath } from "@/lib/storage-utils";
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
+import { getActiveBatchIdsForUser } from "@/lib/user-access";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 import { z } from "zod";
@@ -90,18 +91,6 @@ function optionalString(value: FormDataEntryValue | null): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-async function getActiveBatchIdsForUser(userId: string): Promise<string[]> {
-  const userBatches = await prisma.userBatch.findMany({
-    where: {
-      userId,
-      status: "active",
-    },
-    select: { batchId: true },
-  });
-
-  return userBatches.map((item) => item.batchId);
 }
 
 export async function getProfile(): Promise<ActionResult<{

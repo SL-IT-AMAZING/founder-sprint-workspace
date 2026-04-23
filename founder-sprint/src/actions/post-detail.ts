@@ -1,14 +1,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/permissions";
 import { unstable_cache } from "next/cache";
+import { getAccessibleActiveUserIds } from "@/lib/user-access";
 
 export async function getPostById(postId: string) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const viewer = await getCurrentUser();
+  if (!viewer) return null;
 
-  return unstable_cache(
+  const post = await unstable_cache(
     () =>
       prisma.post.findUnique({
         where: { id: postId },
@@ -23,6 +24,9 @@ export async function getPostById(postId: string) {
             },
           },
           images: true,
+          mentions: {
+            orderBy: { startIndex: "asc" },
+          },
           comments: {
             where: { parentId: null },
             include: {
@@ -53,7 +57,7 @@ export async function getPostById(postId: string) {
             orderBy: { createdAt: "asc" },
           },
           likes: { select: { userId: true } },
-          bookmarks: { where: { userId: user.id }, select: { id: true } },
+          bookmarks: { where: { userId: viewer.id }, select: { id: true } },
           _count: {
             select: {
               comments: true,
@@ -62,9 +66,24 @@ export async function getPostById(postId: string) {
           },
         },
       }),
-    [`post-detail-${postId}`],
+    [`post-detail-${postId}-viewer-${viewer.id}`],
     { revalidate: 30, tags: [`post-${postId}`] }
   )();
+
+  if (!post) return null;
+
+  const accessibleUserIds = await getAccessibleActiveUserIds(
+    viewer,
+    [...new Set(post.mentions.map((mention) => mention.mentionedUserId))]
+  );
+
+  return {
+    ...post,
+    mentions: post.mentions.map((mention) => ({
+      ...mention,
+      isAccessible: accessibleUserIds.has(mention.mentionedUserId),
+    })),
+  };
 }
 
 export async function getConversationParticipants(postId: string) {
