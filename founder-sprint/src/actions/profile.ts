@@ -300,77 +300,79 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
     ? undefined
     : { in: viewerBatchIds };
 
-  const profile = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      profileImage: true,
-      jobTitle: true,
-      company: true,
-      bio: true,
-      headline: true,
-      followerCount: true,
-      followingCount: true,
-      location: true,
-      linkedinUrl: true,
-      twitterUrl: true,
-      websiteUrl: true,
-      timezone: true,
-      userBatches: {
-        where: {
-          status: "active",
-          ...(accessibleBatchIds ? { batchId: accessibleBatchIds } : {}),
-        },
-        select: {
-          batchId: true,
-          role: true,
-          batch: { select: { name: true } },
-        },
-      },
-      groupMembers: {
-        where: {
-          group: {
+  const [profile, liveFollowerCount, liveFollowingCount] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profileImage: true,
+        jobTitle: true,
+        company: true,
+        bio: true,
+        headline: true,
+        location: true,
+        linkedinUrl: true,
+        twitterUrl: true,
+        websiteUrl: true,
+        timezone: true,
+        userBatches: {
+          where: {
+            status: "active",
             ...(accessibleBatchIds ? { batchId: accessibleBatchIds } : {}),
           },
-        },
-        select: { group: { select: { id: true, name: true } } },
-      },
-      officeHourSlots: {
-        where: {
-          status: "available",
-          startTime: { gte: new Date() },
-          ...(accessibleBatchIds ? { batchId: accessibleBatchIds } : {}),
-        },
-        select: { id: true, startTime: true, endTime: true, status: true },
-        orderBy: { startTime: "asc" },
-        take: 5,
-      },
-      experiences: {
-        orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
-      },
-      education: {
-        orderBy: [
-          { endYear: { sort: "desc", nulls: "first" } },
-          { startYear: "desc" },
-        ],
-      },
-      companyMemberships: {
-        include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              logoUrl: true,
-            },
+          select: {
+            batchId: true,
+            role: true,
+            batch: { select: { name: true } },
           },
         },
-        orderBy: [{ isCurrent: "desc" }, { createdAt: "desc" }],
+        groupMembers: {
+          where: {
+            group: {
+              ...(accessibleBatchIds ? { batchId: accessibleBatchIds } : {}),
+            },
+          },
+          select: { group: { select: { id: true, name: true } } },
+        },
+        officeHourSlots: {
+          where: {
+            status: "available",
+            startTime: { gte: new Date() },
+            ...(accessibleBatchIds ? { batchId: accessibleBatchIds } : {}),
+          },
+          select: { id: true, startTime: true, endTime: true, status: true },
+          orderBy: { startTime: "asc" },
+          take: 5,
+        },
+        experiences: {
+          orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
+        },
+        education: {
+          orderBy: [
+            { endYear: { sort: "desc", nulls: "first" } },
+            { startYear: "desc" },
+          ],
+        },
+        companyMemberships: {
+          include: {
+            company: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                logoUrl: true,
+              },
+            },
+          },
+          orderBy: [{ isCurrent: "desc" }, { createdAt: "desc" }],
+        },
       },
-    },
-  });
+    }),
+    prisma.userFollow.count({ where: { followingId: userId } }),
+    prisma.userFollow.count({ where: { followerId: userId } }),
+  ]);
 
   if (!profile) return { success: false, error: "User not found" };
 
@@ -393,8 +395,8 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
         status: item.status,
       })),
       headline: profile.headline,
-      followerCount: profile.followerCount,
-      followingCount: profile.followingCount,
+      followerCount: liveFollowerCount,
+      followingCount: liveFollowingCount,
       location: profile.location,
       linkedinUrl: profile.linkedinUrl,
       twitterUrl: profile.twitterUrl,
