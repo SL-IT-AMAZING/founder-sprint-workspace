@@ -311,13 +311,17 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
       company: true,
       bio: true,
       headline: true,
-      followerCount: true,
-      followingCount: true,
       location: true,
       linkedinUrl: true,
       twitterUrl: true,
       websiteUrl: true,
       timezone: true,
+      _count: {
+        select: {
+          followers: true,
+          following: true,
+        },
+      },
       userBatches: {
         where: {
           status: "active",
@@ -393,8 +397,8 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
         status: item.status,
       })),
       headline: profile.headline,
-      followerCount: profile.followerCount,
-      followingCount: profile.followingCount,
+      followerCount: profile._count.followers,
+      followingCount: profile._count.following,
       location: profile.location,
       linkedinUrl: profile.linkedinUrl,
       twitterUrl: profile.twitterUrl,
