@@ -776,7 +776,7 @@ export async function removeUserFromBatch(
   return { success: true, data: undefined };
 }
 
-export async function cancelInvite(userId: string): Promise<ActionResult> {
+export async function cancelInvite(userId: string, batchId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
@@ -786,23 +786,22 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
     return { success: false, error: "Unauthorized" };
   }
 
-  const targetUser = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { userBatches: true },
+  const targetMembership = await prisma.userBatch.findUnique({
+    where: { userId_batchId: { userId, batchId } },
+    select: { status: true },
   });
 
-  if (!targetUser) {
-    return { success: false, error: "User not found" };
+  if (!targetMembership) {
+    return { success: false, error: "Invite not found" };
   }
 
-  const hasActiveStatus = targetUser.userBatches.some((ub) => ub.status === "active");
-  if (hasActiveStatus) {
-    return { success: false, error: "Cannot cancel invite for active user" };
+  if (targetMembership.status !== "invited") {
+    return { success: false, error: "Only pending invites can be cancelled" };
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.invitationToken.deleteMany({ where: { userId } });
-    await tx.userBatch.deleteMany({ where: { userId, status: "invited" } });
+    await tx.invitationToken.deleteMany({ where: { userId, batchId } });
+    await tx.userBatch.deleteMany({ where: { userId, batchId, status: "invited" } });
 
     const hasAnyMembership = await tx.userBatch.count({ where: { userId } });
     if (hasAnyMembership === 0) {
@@ -815,9 +814,7 @@ export async function cancelInvite(userId: string): Promise<ActionResult> {
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/batches");
-  targetUser.userBatches.forEach((userBatch) => {
-    revalidateTag(`batch-users-${userBatch.batchId}`);
-  });
+  revalidateTag(`batch-users-${batchId}`);
   revalidateTag("current-user");
   return { success: true, data: undefined };
 }
@@ -1221,6 +1218,26 @@ export async function getBatchUsers(batchId: string) {
     [`batch-users-${batchId}`],
     { revalidate: 60, tags: [`batch-users-${batchId}`] }
   )();
+
+  return batchUsers.map((membership) => ({
+    ...membership,
+    role: membership.user.role === "super_admin" ? "super_admin" : membership.role,
+    additionalRoles: membership.additionalRoles ?? [],
+    user: {
+      ...membership.user,
+      status: membership.user.status ?? "active",
+    },
+  }));
+}
+
+export async function getAllBatchUsers() {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user)) return [];
+
+  const batchUsers = await prisma.userBatch.findMany({
+    include: { user: true, batch: true },
+    orderBy: [{ batchId: "asc" }, { invitedAt: "desc" }],
+  });
 
   return batchUsers.map((membership) => ({
     ...membership,

@@ -33,6 +33,7 @@ interface Company {
   tags: string[];
   memberCount: number;
   memberAvatars: Array<string | null>;
+  batchNames: string[];
 }
 
 interface AdminViewProps {

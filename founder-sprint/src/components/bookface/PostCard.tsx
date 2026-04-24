@@ -35,6 +35,7 @@ export interface PostCardProps {
   views?: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  isShareCopied?: boolean;
   onLike?: () => void;
   onComment?: () => void;
   onBookmark?: () => void;
@@ -352,6 +353,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   views,
   isLiked = false,
   isBookmarked = false,
+  isShareCopied = false,
   onLike,
   onComment,
   onBookmark,
@@ -463,9 +465,18 @@ export const PostCard: React.FC<PostCardProps> = ({
           {comments > 0 && comments}
         </button>
 
-        <button type="button" style={styles.actionBtn} onClick={onShare}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
-          Share
+        <button
+          type="button"
+          style={{ ...styles.actionBtn, ...(isShareCopied ? styles.actionBtnActive : {}) }}
+          onClick={onShare}
+          aria-live="polite"
+        >
+          {isShareCopied ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
+          )}
+          {isShareCopied ? 'Copied' : 'Share'}
         </button>
 
         <button
