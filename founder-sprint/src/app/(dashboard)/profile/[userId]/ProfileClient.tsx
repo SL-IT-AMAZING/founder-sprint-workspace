@@ -8,6 +8,7 @@ import { renderPostContentWithMentions } from "@/components/feed/renderPostConte
 import { formatDate, getDisplayName, toValidDate } from "@/lib/utils";
 import Link from "next/link";
 import { getOrCreateDMConversation } from "@/actions/messaging";
+import { EducationLogoFallback, LinkedInIcon, WebsiteIcon, XIcon } from "@/components/profile/ProfileIcons";
 
 type Tab = "profile" | "posts" | "followers" | "following";
 
@@ -621,23 +622,7 @@ export function ProfileClient({
                   <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                     {profile.education.map((edu) => (
                       <div key={edu.id} style={{ display: "flex", gap: "12px" }}>
-                        <div
-                          style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "4px",
-                            backgroundColor: "#f5f5f5",
-                            flexShrink: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "20px",
-                            fontWeight: 600,
-                            color: "#666666",
-                          }}
-                        >
-                          🎓
-                        </div>
+                        <EducationLogoFallback institution={edu.institution} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <h3
                             style={{
@@ -785,17 +770,18 @@ export function ProfileClient({
                         href={profile.linkedinUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label="Open LinkedIn profile"
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "8px",
                           fontSize: "14px",
-                          color: "#0077B5",
+                          color: "#0A66C2",
                           textDecoration: "none",
                           transition: "opacity 0.2s",
                         }}
                       >
-                        <span style={{ fontSize: "16px" }}>🔗</span>
+                        <LinkedInIcon />
                         LinkedIn
                       </a>
                     )}
@@ -804,6 +790,7 @@ export function ProfileClient({
                         href={profile.twitterUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label="Open X profile"
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -814,8 +801,8 @@ export function ProfileClient({
                           transition: "opacity 0.2s",
                         }}
                       >
-                        <span style={{ fontSize: "16px" }}>🐦</span>
-                        Twitter
+                        <XIcon />
+                        X
                       </a>
                     )}
                     {profile.websiteUrl && (
@@ -823,6 +810,7 @@ export function ProfileClient({
                         href={profile.websiteUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label="Open website"
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -833,7 +821,7 @@ export function ProfileClient({
                           transition: "opacity 0.2s",
                         }}
                       >
-                        <span style={{ fontSize: "16px" }}>🌐</span>
+                        <WebsiteIcon />
                         Website
                       </a>
                     )}
