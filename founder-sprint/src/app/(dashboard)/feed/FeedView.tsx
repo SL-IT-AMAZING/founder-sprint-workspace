@@ -80,6 +80,8 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
 
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set(likedPostIds));
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set(bookmarkedPostIds));
+  const [shareCopiedPostId, setShareCopiedPostId] = useState<string | null>(null);
+  const shareCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverLikedIds = useMemo(() => new Set(likedPostIds), [likedPostIds]);
 
   useEffect(() => {
@@ -89,6 +91,12 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
   useEffect(() => {
     setBookmarkedIds(new Set(bookmarkedPostIds));
   }, [bookmarkedPostIds]);
+
+  useEffect(() => {
+    return () => {
+      if (shareCopiedTimerRef.current) clearTimeout(shareCopiedTimerRef.current);
+    };
+  }, []);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -196,6 +204,11 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
       }
 
       toast.success("Link copied to clipboard");
+      setShareCopiedPostId(postId);
+      if (shareCopiedTimerRef.current) clearTimeout(shareCopiedTimerRef.current);
+      shareCopiedTimerRef.current = setTimeout(() => {
+        setShareCopiedPostId((currentPostId) => currentPostId === postId ? null : currentPostId);
+      }, 2000);
     } catch {
       toast.error("Failed to copy link");
     }
@@ -412,6 +425,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 views={post.viewCount}
                 isLiked={likedIds.has(post.id)}
                 isBookmarked={bookmarkedIds.has(post.id)}
+                isShareCopied={shareCopiedPostId === post.id}
                 onLike={() => handleToggleLike(post.id)}
                 onComment={() => router.push(`/feed/${post.id}`)}
                 onBookmark={() => handleBookmark(post.id)}

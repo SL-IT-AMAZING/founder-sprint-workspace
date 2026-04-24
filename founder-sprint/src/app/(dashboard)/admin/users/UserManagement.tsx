@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  getAllBatchUsers,
   getBatchUsers,
   inviteUser,
   bulkInviteUsers,
@@ -111,17 +113,21 @@ const baseRoleOptions = [
 ];
 
 export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementProps) {
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [users, setUsers] = useState<BatchUser[]>([]);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const toast = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const selectedBatchId = searchParams.get("batchId") || "";
+  const sourceInviteBatchId = searchParams.get("sourceBatchId") || "";
+  const shouldOpenInviteFromQuery = searchParams.get("openInvite") === "1";
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [formError, setFormError] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string; batchId: string; batchName: string } | null>(null);
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; _count: { members: number } }>>([]);
   const [selectedRole, setSelectedRole] = useState("founder");
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
@@ -131,11 +137,11 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
-  const [sourceInviteBatchId, setSourceInviteBatchId] = useState<string>("");
   const [sourceInviteCandidates, setSourceInviteCandidates] = useState<SourceBatchInviteCandidate[]>([]);
   const [selectedSourceUserIds, setSelectedSourceUserIds] = useState<string[]>([]);
   const [isLoadingSourceCandidates, setIsLoadingSourceCandidates] = useState(false);
   const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadedScopeRef = useRef<string | null>(null);
   const roleOptions = canAssignSuperAdmin
     ? [{ value: "super_admin", label: "Super Admin" }, ...baseRoleOptions]
     : baseRoleOptions;
@@ -146,41 +152,60 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     };
   }, []);
 
-  // Handle batch selection change
-  const handleBatchChange = (batchId: string) => {
-    setSelectedBatchId(batchId);
-    setUsers([]); // Clear users when changing batch
-    setAuditEntries([]);
-    if (batchId) {
-      loadUsers(batchId);
-      loadAuditLogs(batchId);
-      loadFounderActivity(batchId);
-    }
-  };
-
   // Load users function
-  const loadUsers = (batchId: string) => {
+  const loadUsers = useCallback((batchId: string) => {
     setIsLoadingUsers(true);
-    getBatchUsers(batchId)
+    const usersRequest = batchId ? getBatchUsers(batchId) : getAllBatchUsers();
+    usersRequest
       .then((data) => setUsers(data as BatchUser[]))
       .catch(() => setUsers([]))
       .finally(() => setIsLoadingUsers(false));
-  };
+  }, []);
 
-  const loadAuditLogs = (batchId: string) => {
+  const loadAuditLogs = useCallback((batchId: string) => {
     setIsLoadingAudit(true);
     getRecentUserManagementAuditLogs(batchId)
       .then((data) => setAuditEntries(data as AuditEntry[]))
       .catch(() => setAuditEntries([]))
       .finally(() => setIsLoadingAudit(false));
-  };
+  }, []);
 
-  const loadFounderActivity = (batchId: string) => {
+  const loadFounderActivity = useCallback((batchId: string) => {
     setIsLoadingActivity(true);
     getFounderActivitySummaries(batchId)
       .then((data) => setActivityEntries(data as FounderActivityEntry[]))
       .catch(() => setActivityEntries([]))
       .finally(() => setIsLoadingActivity(false));
+  }, []);
+
+  const loadScope = useCallback((batchId: string) => {
+    setUsers([]);
+    setAuditEntries([]);
+    setActivityEntries([]);
+    loadUsers(batchId);
+    if (batchId) {
+      loadAuditLogs(batchId);
+      loadFounderActivity(batchId);
+    }
+  }, [loadUsers, loadAuditLogs, loadFounderActivity]);
+
+  // Handle batch selection change
+  const handleBatchChange = (batchId: string) => {
+    setSourceInviteCandidates([]);
+    setSelectedSourceUserIds([]);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (batchId) {
+      params.set("batchId", batchId);
+    } else {
+      params.delete("batchId");
+      params.delete("sourceBatchId");
+      params.delete("openInvite");
+      setIsInviteModalOpen(false);
+    }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   // Fetch companies (not batch-scoped)
@@ -190,33 +215,39 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     });
   }, []);
   useEffect(() => {
-    const batchIdFromQuery = searchParams.get("batchId") || "";
-    const sourceBatchIdFromQuery = searchParams.get("sourceBatchId") || "";
-    const shouldOpenInvite = searchParams.get("openInvite") === "1";
-
-    if (batchIdFromQuery && batchIdFromQuery !== selectedBatchId) {
-      handleBatchChange(batchIdFromQuery);
+    if (loadedScopeRef.current !== selectedBatchId) {
+      loadedScopeRef.current = selectedBatchId;
+      loadScope(selectedBatchId);
     }
 
-    if (sourceBatchIdFromQuery !== sourceInviteBatchId) {
-      setSourceInviteBatchId(sourceBatchIdFromQuery);
+    if (shouldOpenInviteFromQuery && selectedBatchId) {
+      Promise.resolve().then(() => setIsInviteModalOpen(true));
     }
-
-    if (shouldOpenInvite) {
-      setIsInviteModalOpen(true);
-    }
-  }, [searchParams]);
+  }, [selectedBatchId, shouldOpenInviteFromQuery, loadScope]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!sourceInviteBatchId || !selectedBatchId) {
-      setSourceInviteCandidates([]);
-      setSelectedSourceUserIds([]);
-      return;
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setSourceInviteCandidates([]);
+        setSelectedSourceUserIds([]);
+        setIsLoadingSourceCandidates(false);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setIsLoadingSourceCandidates(true);
-    getBatchUsers(sourceInviteBatchId)
-      .then((data) => {
+    Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setIsLoadingSourceCandidates(true);
+
+      try {
+        const data = await getBatchUsers(sourceInviteBatchId);
+        if (cancelled) return;
+
         const candidates = (data as BatchUser[])
           .filter((membership) => membership.status === "active")
           .map((membership) => ({
@@ -230,12 +261,18 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
           }));
         setSourceInviteCandidates(candidates);
         setSelectedSourceUserIds([]);
-      })
-      .catch(() => {
+      } catch {
+        if (cancelled) return;
         setSourceInviteCandidates([]);
         setSelectedSourceUserIds([]);
-      })
-      .finally(() => setIsLoadingSourceCandidates(false));
+      } finally {
+        if (!cancelled) setIsLoadingSourceCandidates(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [sourceInviteBatchId, selectedBatchId]);
 
   const handleInviteSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -324,12 +361,22 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     });
   };
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
+  const refreshCurrentScope = () => loadUsers(selectedBatchId);
+  const refreshBatchPanelsIfVisible = (batchId: string) => {
+    if (selectedBatchId !== batchId) return;
+    loadAuditLogs(batchId);
+    loadFounderActivity(batchId);
+  };
+
+  const handleRoleChange = async (userBatch: BatchUser, newRole: string) => {
     startTransition(async () => {
-      const result = await updateUserRole(userId, selectedBatchId, newRole as UserRole);
+      const result = await updateUserRole(userBatch.userId, userBatch.batchId, newRole as UserRole);
 
       if (result.success) {
-        loadUsers(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(userBatch.batchId);
+      } else {
+        toast.error(result.error);
       }
     });
   };
@@ -340,10 +387,10 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       : (userBatch.additionalRoles || []).filter((additionalRole) => additionalRole !== role);
 
     startTransition(async () => {
-      const result = await updateAdditionalRoles(userBatch.userId, selectedBatchId, nextRoles);
+      const result = await updateAdditionalRoles(userBatch.userId, userBatch.batchId, nextRoles);
       if (result.success) {
-        loadUsers(selectedBatchId);
-        loadAuditLogs(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(userBatch.batchId);
       } else {
         toast.error(result.error);
       }
@@ -404,7 +451,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       <div className={`flex ${compact ? "flex-col" : "flex-col items-end"} gap-2`}>
         <select
           value={userBatch.role}
-          onChange={(e) => handleRoleChange(userBatch.userId, e.target.value)}
+          onChange={(e) => handleRoleChange(userBatch, e.target.value)}
           disabled={isPending}
           className={compact ? "form-input flex-1" : "form-input"}
           style={compact ? { fontSize: "14px", height: 36 } : { minWidth: 140, fontSize: "14px", height: 36 }}
@@ -418,34 +465,38 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     );
   };
 
-  const handleRemoveUser = async (userId: string) => {
+  const handleRemoveUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await removeUserFromBatch(userId, selectedBatchId);
+      const result = await removeUserFromBatch(userId, batchId);
 
       if (result.success) {
-        loadUsers(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
         setConfirmRemove(null);
-      }
-    });
-  };
-
-  const handleCancelInvite = async (userId: string, userName: string) => {
-    if (!confirm(`Cancel invite for ${userName}? They will need to be re-invited.`)) return;
-
-    startTransition(async () => {
-      const result = await cancelInvite(userId);
-
-      if (result.success) {
-        loadUsers(selectedBatchId);
       } else {
         toast.error(result.error);
       }
     });
   };
 
-  const handleResendInvite = async (userId: string) => {
+  const handleCancelInvite = async (userId: string, batchId: string, userName: string, batchName: string) => {
+    if (!confirm(`Cancel invite for ${userName} in ${batchName}? They will need to be re-invited.`)) return;
+
     startTransition(async () => {
-      const result = await resendInvite(userId, selectedBatchId);
+      const result = await cancelInvite(userId, batchId);
+
+      if (result.success) {
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
+
+  const handleResendInvite = async (userId: string, batchId: string) => {
+    startTransition(async () => {
+      const result = await resendInvite(userId, batchId);
       if (result.success) {
         if (result.warning) {
           toast.warning(result.warning);
@@ -453,63 +504,63 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         } else {
           toast.success("Invitation resent");
         }
-        loadAuditLogs(selectedBatchId);
+        refreshBatchPanelsIfVisible(batchId);
       } else {
         toast.error(result.error);
       }
     });
   };
 
-  const handleDeactivateUser = async (userId: string, userName: string) => {
+  const handleDeactivateUser = async (userId: string, batchId: string, userName: string) => {
     if (!confirm(`Deactivate ${userName}? They will no longer be able to sign in.`)) return;
 
     startTransition(async () => {
-      const result = await deactivateUser(userId, selectedBatchId);
+      const result = await deactivateUser(userId, batchId);
       if (result.success) {
         toast.success("User deactivated");
-        loadUsers(selectedBatchId);
-        loadAuditLogs(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
       } else {
         toast.error(result.error);
       }
     });
   };
 
-  const handleReactivateUser = async (userId: string) => {
+  const handleReactivateUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await reactivateUser(userId, selectedBatchId);
+      const result = await reactivateUser(userId, batchId);
       if (result.success) {
         toast.success("User reactivated");
-        loadUsers(selectedBatchId);
-        loadAuditLogs(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
       } else {
         toast.error(result.error);
       }
     });
   };
 
-  const handleDropoutUser = async (userId: string, userName: string) => {
-    if (!confirm(`Mark ${userName} as dropped out from this batch? They will lose access to this batch but remain active in other batches.`)) return;
+  const handleDropoutUser = async (userId: string, batchId: string, userName: string, batchName: string) => {
+    if (!confirm(`Mark ${userName} as dropped out from ${batchName}? They will lose access to this batch but remain active in other batches.`)) return;
 
     startTransition(async () => {
-      const result = await dropoutUserFromBatch(userId, selectedBatchId);
+      const result = await dropoutUserFromBatch(userId, batchId);
       if (result.success) {
         toast.success("User dropped out from batch");
-        loadUsers(selectedBatchId);
-        loadAuditLogs(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
       } else {
         toast.error(result.error);
       }
     });
   };
 
-  const handleRestoreBatchUser = async (userId: string) => {
+  const handleRestoreBatchUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await restoreUserBatch(userId, selectedBatchId);
+      const result = await restoreUserBatch(userId, batchId);
       if (result.success) {
         toast.success("Batch membership restored");
-        loadUsers(selectedBatchId);
-        loadAuditLogs(selectedBatchId);
+        refreshCurrentScope();
+        refreshBatchPanelsIfVisible(batchId);
       } else {
         toast.error(result.error);
       }
@@ -559,14 +610,34 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     return `${entry.userName} performed ${entry.action}`;
   };
 
-  const batchOptions = batches.map((batch) => ({
-    value: batch.id,
-    label: `${batch.name} (${getBatchStatusLabel({ status: batch.status as BatchStatus, endDate: new Date(batch.endDate) })})`,
-  }));
+  const batchOptions = [
+    { value: "", label: "All Users" },
+    ...batches.map((batch) => ({
+      value: batch.id,
+      label: `${batch.name} (${getBatchStatusLabel({ status: batch.status as BatchStatus, endDate: new Date(batch.endDate) })})`,
+    })),
+  ];
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
   const sourceInviteBatch = batches.find((b) => b.id === sourceInviteBatchId);
   const founderChoices = users.filter((userBatch) => getVisibleRoles(userBatch).includes("founder"));
+  const isAllUsersView = !selectedBatchId;
+  const userListDescription = isAllUsersView
+    ? `Showing all batch memberships (${users.length})`
+    : `Showing users in ${selectedBatch?.name || "selected batch"} (${users.length})`;
+
+  const renderBatchBadge = (userBatch: BatchUser) => (
+    <Badge variant="outline" size="sm">{userBatch.batch.name}</Badge>
+  );
+
+  const openRemoveConfirm = (userBatch: BatchUser) => {
+    setConfirmRemove({
+      userId: userBatch.userId,
+      userName: getDisplayName(userBatch.user),
+      batchId: userBatch.batchId,
+      batchName: userBatch.batch.name,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -575,9 +646,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <Select
-              label="Select Batch"
+              label="Filter by Batch"
               options={batchOptions}
-              placeholder="Choose a batch to view users..."
+              placeholder="Choose a batch filter..."
               value={selectedBatchId}
               onChange={(e) => handleBatchChange(e.target.value)}
             />
@@ -593,12 +664,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       </div>
 
       {/* Users list */}
-      {!selectedBatchId ? (
-        <EmptyState
-          title="No batch selected"
-          description="Select a batch from the dropdown above to view and manage its users"
-        />
-      ) : isLoadingUsers ? (
+      {isLoadingUsers ? (
         <div className="card text-center py-12">
           <p className="text-lg" style={{ color: "var(--color-foreground-secondary)" }}>
             Loading users...
@@ -606,10 +672,10 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         </div>
       ) : users.length === 0 ? (
         <EmptyState
-          title="No users in this batch"
-          description="Invite users to get started"
+          title={isAllUsersView ? "No users found" : "No users in this batch"}
+          description={isAllUsersView ? "No batch memberships found yet" : "Invite users to get started"}
           action={
-            selectedBatch ? (
+            selectedBatchId && selectedBatch ? (
               <Button onClick={() => setIsInviteModalOpen(true)}>
                 Invite First User
               </Button>
@@ -618,6 +684,11 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         />
         ) : (
           <div className="space-y-4">
+            <div className="card py-3">
+              <p className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                {userListDescription}
+              </p>
+            </div>
             <div className="md:hidden space-y-4">
               {users.map((userBatch) => (
                 <div
@@ -628,8 +699,11 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
                   }}
                 >
-                  <div className="flex items-center gap-3">
-                     <Avatar
+                  <Link
+                    href={`/profile/${userBatch.user.id}`}
+                    className="flex items-center gap-3 hover:opacity-80"
+                  >
+                    <Avatar
                       src={userBatch.user.profileImage}
                       name={getDisplayName(userBatch.user)}
                       size={40}
@@ -640,6 +714,10 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         {userBatch.user.email}
                       </div>
                     </div>
+                  </Link>
+                  <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
+                    <span>Batch</span>
+                    {renderBatchBadge(userBatch)}
                   </div>
                   
                   <div className="flex items-center justify-between gap-2">
@@ -667,7 +745,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleResendInvite(userBatch.userId)}
+                          onClick={() => handleResendInvite(userBatch.userId, userBatch.batchId)}
                           disabled={isPending}
                         >
                           Resend Invite
@@ -675,7 +753,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                          onClick={() => handleCancelInvite(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
                           disabled={isPending}
                         >
                           Cancel Invite
@@ -686,7 +764,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                           <Button
                             variant="ghost"
                             size="sm"
-                        onClick={() => handleReactivateUser(userBatch.userId)}
+                        onClick={() => handleReactivateUser(userBatch.userId, userBatch.batchId)}
                         disabled={isPending}
                       >
                             Reactivate
@@ -695,7 +773,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleRestoreBatchUser(userBatch.userId)}
+                            onClick={() => handleRestoreBatchUser(userBatch.userId, userBatch.batchId)}
                             disabled={isPending}
                           >
                             Restore Batch
@@ -705,7 +783,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDropoutUser(userBatch.userId, getDisplayName(userBatch.user))}
+                              onClick={() => handleDropoutUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
                               disabled={isPending || userBatch.status !== "active"}
                             >
                               Dropout
@@ -713,7 +791,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                             <Button
                               variant="danger"
                               size="sm"
-                              onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                              onClick={() => handleDeactivateUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user))}
                               disabled={isPending}
                             >
                               Deactivate
@@ -723,7 +801,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     <Button
                       variant="danger"
                       size="sm"
-                      onClick={() => setConfirmRemove({ userId: userBatch.userId, userName: getDisplayName(userBatch.user) })}
+                      onClick={() => openRemoveConfirm(userBatch)}
                       disabled={isPending}
                     >
                       Remove
@@ -747,6 +825,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     Email
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
+                    Batch
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
                     Role
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "var(--color-foreground-secondary)" }}>
@@ -767,19 +848,29 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     style={{ borderBottom: "1px solid var(--color-card-border)" }}
                   >
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
+                      <Link
+                        href={`/profile/${userBatch.user.id}`}
+                        className="flex items-center gap-3 hover:opacity-80"
+                      >
                          <Avatar
                           src={userBatch.user.profileImage}
                           name={getDisplayName(userBatch.user)}
                           size={36}
                         />
                         <span className="font-medium">{getDisplayName(userBatch.user)}</span>
-                      </div>
+                      </Link>
                     </td>
                     <td className="py-3 px-4">
-                      <span style={{ color: "var(--color-foreground-secondary)" }}>
+                      <Link
+                        href={`/profile/${userBatch.user.id}`}
+                        className="hover:opacity-80"
+                        style={{ color: "var(--color-foreground-secondary)" }}
+                      >
                         {userBatch.user.email}
-                      </span>
+                      </Link>
+                    </td>
+                    <td className="py-3 px-4">
+                      {renderBatchBadge(userBatch)}
                     </td>
                     <td className="py-3 px-4">
                       {renderRoleBadges(userBatch)}
@@ -809,7 +900,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleResendInvite(userBatch.userId)}
+                              onClick={() => handleResendInvite(userBatch.userId, userBatch.batchId)}
                               disabled={isPending}
                             >
                               Resend Invite
@@ -817,7 +908,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleCancelInvite(userBatch.userId, getDisplayName(userBatch.user))}
+                              onClick={() => handleCancelInvite(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
                               disabled={isPending}
                             >
                               Cancel Invite
@@ -828,7 +919,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                       <Button
                         variant="ghost"
                         size="sm"
-                            onClick={() => handleReactivateUser(userBatch.userId)}
+                            onClick={() => handleReactivateUser(userBatch.userId, userBatch.batchId)}
                             disabled={isPending}
                           >
                         Reactivate
@@ -837,7 +928,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRestoreBatchUser(userBatch.userId)}
+                        onClick={() => handleRestoreBatchUser(userBatch.userId, userBatch.batchId)}
                         disabled={isPending}
                       >
                         Restore Batch
@@ -847,7 +938,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDropoutUser(userBatch.userId, getDisplayName(userBatch.user))}
+                          onClick={() => handleDropoutUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
                           disabled={isPending || userBatch.status !== "active"}
                         >
                           Dropout
@@ -855,7 +946,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => handleDeactivateUser(userBatch.userId, getDisplayName(userBatch.user))}
+                          onClick={() => handleDeactivateUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user))}
                           disabled={isPending}
                         >
                           Deactivate
@@ -865,7 +956,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => setConfirmRemove({ userId: userBatch.userId, userName: getDisplayName(userBatch.user) })}
+                          onClick={() => openRemoveConfirm(userBatch)}
                           disabled={isPending}
                         >
                           Remove
@@ -1380,7 +1471,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       >
         <div className="space-y-4">
           <p style={{ color: "var(--color-foreground-secondary)" }}>
-            Are you sure you want to remove <strong>{confirmRemove?.userName}</strong> from this batch?
+            Are you sure you want to remove <strong>{confirmRemove?.userName}</strong> from <strong>{confirmRemove?.batchName}</strong>?
             This action cannot be undone.
           </p>
 
@@ -1394,7 +1485,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
             </Button>
             <Button
               variant="danger"
-              onClick={() => confirmRemove && handleRemoveUser(confirmRemove.userId)}
+              onClick={() => confirmRemove && handleRemoveUser(confirmRemove.userId, confirmRemove.batchId)}
               loading={isPending}
             >
               Remove User

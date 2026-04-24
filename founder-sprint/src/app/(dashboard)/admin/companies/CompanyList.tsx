@@ -22,6 +22,7 @@ interface Company {
   tags: string[];
   memberCount: number;
   memberAvatars: Array<string | null>;
+  batchNames: string[];
 }
 
 interface CompanyListProps {
@@ -33,6 +34,33 @@ export function CompanyList({ initialCompanies }: CompanyListProps) {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  const renderBatchNames = (batchNames: string[]) => {
+    if (batchNames.length === 0) {
+      return <span style={{ color: "#999" }}>-</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {batchNames.map((batchName) => (
+          <span
+            key={batchName}
+            className="text-xs"
+            style={{
+              padding: "3px 8px",
+              borderRadius: "999px",
+              backgroundColor: "#f3f4f6",
+              color: "#4b5563",
+              border: "1px solid #e5e7eb",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {batchName}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   const handleDelete = async (id: string) => {
     startTransition(async () => {
@@ -103,6 +131,9 @@ export function CompanyList({ initialCompanies }: CompanyListProps) {
                       {company.hqLocation}
                     </p>
                   )}
+                  <div className="mt-2">
+                    {renderBatchNames(company.batchNames)}
+                  </div>
                 </div>
               </div>
 
@@ -135,6 +166,9 @@ export function CompanyList({ initialCompanies }: CompanyListProps) {
               <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
                 <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "#666" }}>
                   Company
+                </th>
+                <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "#666" }}>
+                  Batches
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: "#666" }}>
                   Industry
@@ -177,6 +211,9 @@ export function CompanyList({ initialCompanies }: CompanyListProps) {
                         )}
                       </div>
                     </Link>
+                  </td>
+                  <td className="py-3 px-4">
+                    {renderBatchNames(company.batchNames)}
                   </td>
                   <td className="py-3 px-4">
                     <span style={{ color: "#2F2C26" }}>
