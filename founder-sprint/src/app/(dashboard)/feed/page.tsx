@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
 import { getPaginatedPosts, getArchivedPosts, getUserLikedPostIds } from "@/actions/feed";
 import { getUserBookmarkedPostIds } from "@/actions/bookmark";
-import { getFollowingIdsForUser, getFollowSuggestions } from "@/actions/follow";
+import { getFollowSuggestions } from "@/actions/follow";
 import { FeedView } from "./FeedView";
 import { PeopleToFollow } from "@/components/feed/PeopleToFollow";
 import { Pagination } from "@/components/ui/Pagination";
@@ -15,15 +15,14 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   if (!user) redirect("/login");
 
   const params = await searchParams;
-  const tab = params.tab || 'top';
+  const tab = params.tab || 'recent';
   const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
   const isAdmin = user.role === "super_admin" || user.role === "admin";
 
-  const [paginatedPosts, archivedPosts, followSuggestions, followingIds] = await Promise.all([
+  const [paginatedPosts, archivedPosts, followSuggestions] = await Promise.all([
     getPaginatedPosts(page),
     isAdmin ? getArchivedPosts() : Promise.resolve([]),
     getFollowSuggestions(8),
-    getFollowingIdsForUser(user.id),
   ]);
 
   const postIds = paginatedPosts.items.map((p) => p.id);
