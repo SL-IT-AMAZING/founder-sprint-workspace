@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import type { MessageItem } from "@/actions/messaging";
 import { Avatar } from "@/components/ui/Avatar";
+import MessageImageGrid from "./MessageImageGrid";
 
 interface MessageBubbleProps {
   message: MessageItem;
@@ -20,6 +21,8 @@ export default function MessageBubble({
   const formatTime = (date: Date) => {
     return format(new Date(date), "h:mm a");
   };
+  const hasText = message.content.trim().length > 0;
+  const hasAttachments = message.attachments.length > 0;
 
   // System message (no sender)
   if (!message.sender) {
@@ -78,20 +81,26 @@ export default function MessageBubble({
           </div>
         )}
 
+        {hasAttachments && (
+          <MessageImageGrid images={message.attachments} isOwn={isOwn} />
+        )}
+
         {/* Message Bubble */}
-        <div
-          style={{
-            backgroundColor: isOwn ? "#1A1A1A" : "#f1eadd",
-            color: isOwn ? "#FFFFFF" : "#2F2C26",
-            borderRadius: isOwn ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-            padding: "10px 14px",
-            fontSize: "14px",
-            lineHeight: "1.5",
-            wordBreak: "break-word",
-          }}
-        >
-          {message.content}
-        </div>
+        {hasText && (
+          <div
+            style={{
+              backgroundColor: isOwn ? "#1A1A1A" : "#f1eadd",
+              color: isOwn ? "#FFFFFF" : "#2F2C26",
+              borderRadius: isOwn ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+              padding: "10px 14px",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              wordBreak: "break-word",
+            }}
+          >
+            {message.content}
+          </div>
+        )}
 
         {/* Timestamp */}
         <div

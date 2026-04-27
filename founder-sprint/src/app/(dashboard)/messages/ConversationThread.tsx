@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
-import type { ConversationDetail, MessageItem } from "@/actions/messaging";
+import type { ConversationDetail, MessageAttachmentInput, MessageItem } from "@/actions/messaging";
 import MessageBubble from "./MessageBubble";
 import MessageComposer from "./MessageComposer";
 import { Avatar } from "@/components/ui/Avatar";
@@ -13,7 +13,10 @@ interface ConversationThreadProps {
   conversationDetail: ConversationDetail | null;
   messages: MessageItem[];
   currentUserId: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (
+    content: string,
+    attachments: MessageAttachmentInput[]
+  ) => boolean | Promise<boolean>;
   isLoading: boolean;
 }
 
