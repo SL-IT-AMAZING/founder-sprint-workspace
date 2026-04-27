@@ -372,6 +372,7 @@ export async function getCompaniesDirectory(
       ? {
           members: {
             some: {
+              isCurrent: true,
               user: {
                 userBatches: {
                   some: {
@@ -400,11 +401,12 @@ export async function getCompaniesDirectory(
         foundedYear: true,
         logoUrl: true,
         tags: true,
-        _count: { select: { members: true } },
+        _count: { select: { members: { where: { isCurrent: true } } } },
         batches: {
           select: { batch: { select: { name: true } } },
         },
         members: {
+          where: { isCurrent: true },
           select: {
             user: {
               select: {
