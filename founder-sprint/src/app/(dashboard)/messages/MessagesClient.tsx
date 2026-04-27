@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUserConversations, getConversation, getMessages, sendMessage, deleteConversation, markConversationRead, searchConversations, getAllUsersForMessaging } from "@/actions/messaging";
-import type { ConversationListItem, ConversationDetail, MessageItem } from "@/actions/messaging";
+import { getUserConversations, getConversation, getMessages, sendMessage, deleteConversation, markConversationRead, searchConversations, getAllUsersForMessaging, getOrCreateDMConversation } from "@/actions/messaging";
+import type { ConversationListItem, ConversationDetail, MessageAttachmentInput, MessageItem } from "@/actions/messaging";
 import ConversationList from "./ConversationList";
 import ConversationThread from "./ConversationThread";
 import BrowseGroupsModal from "./BrowseGroupsModal";
 import CreateGroupModal from "./CreateGroupModal";
 import EditGroupModal from "./EditGroupModal";
+import NewDirectMessageModal from "./NewDirectMessageModal";
 
 interface MessagesClientProps {
   conversations: ConversationListItem[];
@@ -21,13 +22,11 @@ interface MessagesClientProps {
 export default function MessagesClient({
   conversations: initialConversations,
   currentUserId,
-  currentUserName,
-  currentUserImage,
   allUsers,
 }: MessagesClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const [conversations, setConversations] = useState<ConversationListItem[]>(initialConversations);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     searchParams.get("conversation")
@@ -38,6 +37,7 @@ export default function MessagesClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ConversationListItem[] | null>(null);
   const [browseGroupsOpen, setBrowseGroupsOpen] = useState(false);
+  const [newDirectMessageOpen, setNewDirectMessageOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [editGroupId, setEditGroupId] = useState<string | null>(null);
   const [fetchedUsers, setFetchedUsers] = useState(allUsers);
@@ -67,17 +67,16 @@ export default function MessagesClient({
   // Debounced server-side search
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults(null);
       return;
     }
-    
+
     const timer = setTimeout(async () => {
       const result = await searchConversations(searchQuery);
       if (result.success) {
         setSearchResults(result.data);
       }
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -118,7 +117,7 @@ export default function MessagesClient({
 
     // Mark as read
     await markConversationRead(conversationId);
-    
+
     // Update the unread count in the local conversations list
     setConversations(prev =>
       prev.map(c =>
@@ -127,18 +126,32 @@ export default function MessagesClient({
     );
   };
 
-  const handleSendMessage = async (content: string) => {
-    if (!selectedConversationId) return;
+  const handleSendMessage = async (
+    content: string,
+    attachments: MessageAttachmentInput[]
+  ): Promise<boolean> => {
+    if (!selectedConversationId) return false;
 
-    const result = await sendMessage(selectedConversationId, content);
-    
-    if (result.success) {
-      // Immediately fetch updated messages
-      const messagesResult = await getMessages(selectedConversationId);
-      if (messagesResult.success) {
-        setMessages(messagesResult.data.messages);
-      }
+    const result = await sendMessage(selectedConversationId, content, attachments);
+
+    if (!result.success) {
+      window.alert(result.error);
+      return false;
     }
+
+    // Immediately fetch updated messages and conversation list
+    const [messagesResult, conversationsResult] = await Promise.all([
+      getMessages(selectedConversationId),
+      getUserConversations(),
+    ]);
+    if (messagesResult.success) {
+      setMessages(messagesResult.data.messages);
+    }
+    if (conversationsResult.success) {
+      setConversations(conversationsResult.data);
+    }
+
+    return true;
   };
 
   const handleDeleteConversation = async (conversationId: string) => {
@@ -163,7 +176,7 @@ export default function MessagesClient({
   };
 
   const handleComposeClick = () => {
-    setCreateGroupOpen(true);
+    setNewDirectMessageOpen(true);
   };
 
   const handleBrowseGroupsClick = () => {
@@ -216,6 +229,23 @@ export default function MessagesClient({
     await handleSelectConversation(conversationId);
   };
 
+  const handleStartDirectMessage = async (targetUserId: string) => {
+    const result = await getOrCreateDMConversation(targetUserId);
+    if (!result.success) {
+      window.alert(result.error);
+      return;
+    }
+
+    setNewDirectMessageOpen(false);
+
+    const conversationsResult = await getUserConversations();
+    if (conversationsResult.success) {
+      setConversations(conversationsResult.data);
+    }
+
+    await handleSelectConversation(result.data.conversationId);
+  };
+
   return (
     <div className="flex" style={{ height: "calc(100vh - 56px)" }}>
       <div style={{ width: "320px", borderRight: "1px solid #e0e0e0" }}>
@@ -228,7 +258,12 @@ export default function MessagesClient({
           onEditGroup={handleEditGroup}
           onComposeClick={handleComposeClick}
           onBrowseGroupsClick={handleBrowseGroupsClick}
-          onSearchChange={setSearchQuery}
+          onSearchChange={(query) => {
+            setSearchQuery(query);
+            if (!query.trim()) {
+              setSearchResults(null);
+            }
+          }}
           searchQuery={searchQuery}
         />
       </div>
@@ -247,6 +282,16 @@ export default function MessagesClient({
         isOpen={browseGroupsOpen}
         onClose={() => setBrowseGroupsOpen(false)}
         onJoinGroup={handleJoinGroup}
+      />
+      <NewDirectMessageModal
+        isOpen={newDirectMessageOpen}
+        onClose={() => setNewDirectMessageOpen(false)}
+        users={fetchedUsers}
+        onStartConversation={handleStartDirectMessage}
+        onCreateGroupClick={() => {
+          setNewDirectMessageOpen(false);
+          setCreateGroupOpen(true);
+        }}
       />
       <CreateGroupModal
         isOpen={createGroupOpen}

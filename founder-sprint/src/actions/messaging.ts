@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
-import { requireActiveBatch } from "@/lib/batch-gate";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { MESSAGE_IMAGE_BUCKET, MESSAGE_IMAGE_MAX_FILES } from "@/lib/message-images";
 import type { ActionResult } from "@/types";
 
 export interface ConversationListItem {
@@ -23,6 +25,24 @@ export interface MessageItem {
   content: string;
   createdAt: Date;
   sender: { id: string; name: string | null; profileImage: string | null } | null;
+  attachments: MessageAttachmentItem[];
+}
+
+export interface MessageAttachmentItem {
+  id: string;
+  imageUrl: string;
+  storagePath: string;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+}
+
+export interface MessageAttachmentInput {
+  imageUrl: string;
+  storagePath: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
 }
 
 export interface ConversationDetail {
@@ -73,6 +93,49 @@ type ParticipantConversation = {
     }[];
   };
 };
+
+const MessageAttachmentInputSchema = z.object({
+  imageUrl: z.string().url(),
+  storagePath: z.string().min(1).max(500),
+  fileName: z.string().max(255).nullable().optional(),
+  mimeType: z.string().max(100).nullable().optional(),
+  sizeBytes: z.number().int().min(0).max(5 * 1024 * 1024).nullable().optional(),
+});
+
+const MessageAttachmentsInputSchema = z
+  .array(MessageAttachmentInputSchema)
+  .max(MESSAGE_IMAGE_MAX_FILES);
+
+const MessageImagePathsSchema = z
+  .array(z.string().min(1).max(500))
+  .max(MESSAGE_IMAGE_MAX_FILES);
+
+function createStorageClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+async function deleteMessageImageStoragePaths(paths: string[]) {
+  const uniquePaths = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
+  if (uniquePaths.length === 0) return;
+
+  const storage = createStorageClient();
+  if (!storage) {
+    console.error("[Messaging] Storage cleanup skipped: service role client not configured.");
+    return;
+  }
+
+  const { error } = await storage.storage.from(MESSAGE_IMAGE_BUCKET).remove(uniquePaths);
+  if (error) {
+    console.error("[Messaging] Failed to clean up message images from storage:", error);
+  }
+}
 
 async function getUnreadCountsByConversation(
   userId: string,
@@ -262,6 +325,26 @@ export async function getOrCreateDMConversation(
   } catch {
     return { success: false, error: "Failed to create conversation" };
   }
+}
+
+export async function cleanupUploadedMessageImages(
+  paths: string[]
+): Promise<ActionResult<{ removed: number }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const parsed = MessageImagePathsSchema.safeParse(paths);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid image cleanup request" };
+  }
+
+  const invalidPath = parsed.data.find((path) => !path.startsWith(`${user.id}/`));
+  if (invalidPath) {
+    return { success: false, error: "Invalid image cleanup request" };
+  }
+
+  await deleteMessageImageStoragePaths(parsed.data);
+  return { success: true, data: { removed: parsed.data.length } };
 }
 
 export async function createGroupConversation(
@@ -472,6 +555,17 @@ export async function getMessages(
             profileImage: true,
           },
         },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            imageUrl: true,
+            storagePath: true,
+            fileName: true,
+            mimeType: true,
+            sizeBytes: true,
+          },
+        },
       },
     });
 
@@ -497,7 +591,8 @@ export async function getMessages(
 
 export async function sendMessage(
   conversationId: string,
-  content: string
+  content: string,
+  attachments: MessageAttachmentInput[] = []
 ): Promise<ActionResult<{ messageId: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -505,8 +600,24 @@ export async function sendMessage(
   // No batch gate - messaging is cross-batch
 
   const trimmedContent = content.trim();
-  if (trimmedContent.length < 1 || trimmedContent.length > 5000) {
-    return { success: false, error: "Message content must be between 1 and 5000 characters" };
+  const parsedAttachments = MessageAttachmentsInputSchema.safeParse(attachments);
+  if (!parsedAttachments.success) {
+    return { success: false, error: "Invalid image attachment payload" };
+  }
+
+  const invalidPath = parsedAttachments.data.find(
+    (attachment) => !attachment.storagePath.startsWith(`${user.id}/`)
+  );
+  if (invalidPath) {
+    return { success: false, error: "Invalid image attachment payload" };
+  }
+
+  if (trimmedContent.length > 5000) {
+    return { success: false, error: "Message content must be 5000 characters or fewer" };
+  }
+
+  if (trimmedContent.length < 1 && parsedAttachments.data.length === 0) {
+    return { success: false, error: "Message needs text or an image" };
   }
 
   try {
@@ -524,19 +635,36 @@ export async function sendMessage(
       return { success: false, error: "You do not have access to this conversation" };
     }
 
+    const attachmentCount = parsedAttachments.data.length;
+    const previewText =
+      trimmedContent ||
+      (attachmentCount === 1 ? "📷 Photo" : `📷 ${attachmentCount} photos`);
+
     const [message] = await prisma.$transaction([
       prisma.message.create({
         data: {
           conversationId,
           senderId: user.id,
           content: trimmedContent,
+          attachments:
+            parsedAttachments.data.length > 0
+              ? {
+                  create: parsedAttachments.data.map((attachment) => ({
+                    imageUrl: attachment.imageUrl,
+                    storagePath: attachment.storagePath,
+                    fileName: attachment.fileName || null,
+                    mimeType: attachment.mimeType || null,
+                    sizeBytes: attachment.sizeBytes ?? null,
+                  })),
+                }
+              : undefined,
         },
         select: { id: true },
       }),
       prisma.conversation.update({
         where: { id: conversationId },
         data: {
-          lastMessage: trimmedContent.substring(0, 200),
+          lastMessage: previewText.substring(0, 200),
           lastMessageAt: new Date(),
         },
         select: { id: true },
