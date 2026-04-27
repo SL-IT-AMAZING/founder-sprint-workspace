@@ -138,3 +138,21 @@ export async function markNotificationRead(
 
   return { success: true, data: { id: notification.id } };
 }
+
+export async function markAllNotificationsRead(): Promise<ActionResult<{ count: number }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const result = await prisma.notification.updateMany({
+    where: {
+      userId: user.id,
+      read: false,
+    },
+    data: { read: true },
+  });
+
+  revalidatePath("/notifications");
+  revalidateTag("notifications");
+
+  return { success: true, data: { count: result.count } };
+}

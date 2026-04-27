@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { markNotificationRead } from "@/actions/notification";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { markAllNotificationsRead, markNotificationRead } from "@/actions/notification";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -25,10 +24,42 @@ export function NotificationsListClient({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [items, setItems] = useState(notifications);
+  const unreadCount = useMemo(
+    () => items.filter((notification) => !notification.read).length,
+    [items]
+  );
+
+  useEffect(() => {
+    setItems(notifications);
+  }, [notifications]);
+
+  const markLocalNotificationRead = (notificationId: string) => {
+    setItems((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const handleMarkAllRead = () => {
+    startTransition(async () => {
+      const result = await markAllNotificationsRead();
+      if (result.success) {
+        setItems((current) =>
+          current.map((notification) => ({ ...notification, read: true }))
+        );
+        router.refresh();
+      }
+    });
+  };
 
   const handleOpenNotification = (notification: NotificationItem) => {
     startTransition(async () => {
       await markNotificationRead(notification.id);
+      markLocalNotificationRead(notification.id);
       if (notification.targetPath) {
         router.push(notification.targetPath);
       }
@@ -46,7 +77,20 @@ export function NotificationsListClient({
 
   return (
     <div className="space-y-3">
-      {notifications.map((notification) => (
+      {unreadCount > 0 && (
+        <div className="flex items-center justify-end">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleMarkAllRead}
+            loading={isPending}
+          >
+            Mark all as read
+          </Button>
+        </div>
+      )}
+
+      {items.map((notification) => (
         <div
           key={notification.id}
           className="card"
@@ -102,6 +146,7 @@ export function NotificationsListClient({
                   onClick={() => {
                     startTransition(async () => {
                       await markNotificationRead(notification.id);
+                      markLocalNotificationRead(notification.id);
                       router.refresh();
                     });
                   }}
@@ -111,11 +156,6 @@ export function NotificationsListClient({
                 </Button>
               )}
             </div>
-            {notification.targetPath && (
-              <Link href={notification.targetPath} className="text-sm" style={{ color: "var(--color-primary)" }}>
-                {notification.targetPath}
-              </Link>
-            )}
           </div>
         </div>
       ))}
