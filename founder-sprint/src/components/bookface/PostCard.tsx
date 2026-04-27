@@ -73,39 +73,18 @@ function CommentIcon({ size = 22 }: { size?: number }) {
   );
 }
 
-function RepostIcon({ size = 22 }: { size?: number }) {
+function ShareIcon({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
-        d="M7 7h9.5c1.9 0 3.5 1.6 3.5 3.5v.5M17 4l3 3-3 3"
+        d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M17 17H7.5C5.6 17 4 15.4 4 13.5V13M7 20l-3-3 3-3"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SendIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M21 3 3.8 10.5c-.9.4-.8 1.7.1 2l6.4 2.1 2.1 6.4c.3.9 1.6 1 2 .1L21 3Z"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m10.4 14.6 4.9-4.9"
+        d="M16 6 12 2 8 6M12 2v13"
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
@@ -585,24 +564,14 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         <button
           type="button"
-          style={getActionButtonStyle(false, !onShare)}
-          onClick={onShare}
-          disabled={!onShare}
-          aria-label="Copy post link"
-        >
-          <RepostIcon />
-        </button>
-
-        <button
-          type="button"
           style={getActionButtonStyle(isShareCopied, !onShare)}
           onClick={onShare}
           disabled={!onShare}
           aria-label={isShareCopied ? 'Link copied' : 'Share post'}
           aria-live="polite"
         >
-          {isShareCopied ? <CheckIcon /> : <SendIcon />}
-          {isShareCopied && <span style={{ fontSize: '12px' }}>Copied</span>}
+          {isShareCopied ? <CheckIcon /> : <ShareIcon />}
+          <span style={{ fontSize: '12px' }}>{isShareCopied ? 'Copied' : 'Share'}</span>
         </button>
 
         <button
