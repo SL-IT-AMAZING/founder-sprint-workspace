@@ -45,6 +45,104 @@ export interface PostCardProps {
   variant?: PostCardVariant;
 }
 
+function HeartIcon({ filled = false, size = 22 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} aria-hidden="true">
+      <path
+        d="M20.8 4.6c-2-2-5.2-1.9-7.1.2L12 6.5l-1.7-1.7C8.4 2.7 5.2 2.6 3.2 4.6c-2.2 2.2-2.1 5.8.2 8l8.6 8.1 8.6-8.1c2.3-2.2 2.4-5.8.2-8Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CommentIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 11.6c0 4.2-3.6 7.6-8 7.6-1.1 0-2.1-.2-3.1-.6L4 20l1.3-4.1A7.1 7.1 0 0 1 4 11.6C4 7.4 7.6 4 12 4s8 3.4 8 7.6Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function RepostIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 7h9.5c1.9 0 3.5 1.6 3.5 3.5v.5M17 4l3 3-3 3"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17 17H7.5C5.6 17 4 15.4 4 13.5V13M7 20l-3-3 3-3"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SendIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 3 3.8 10.5c-.9.4-.8 1.7.1 2l6.4 2.1 2.1 6.4c.3.9 1.6 1 2 .1L21 3Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m10.4 14.6 4.9-4.9"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BookmarkIcon({ filled = false, size = 21 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} aria-hidden="true">
+      <path
+        d="M6 4.5A2.5 2.5 0 0 1 8.5 2h7A2.5 2.5 0 0 1 18 4.5v16L12 17l-6 3.5v-16Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="m5 12 4 4L19 6"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function getStyles(variant: PostCardVariant) {
   const isFeed = variant === 'feed';
 
@@ -221,7 +319,7 @@ function getStyles(variant: PostCardVariant) {
     actions: {
       display: 'flex',
       alignItems: 'center',
-      gap: isFeed ? '10px' : '20px',
+      gap: isFeed ? '18px' : '20px',
       borderTop: isFeed ? '1px solid #EFE8DB' : '1px solid #f0f0f0',
       paddingTop: isFeed ? '10px' : '12px',
       flexWrap: 'wrap' as const,
@@ -229,20 +327,27 @@ function getStyles(variant: PostCardVariant) {
     actionBtn: {
       display: 'flex',
       alignItems: 'center',
+      gap: '6px',
       backgroundColor: 'transparent',
       border: 'none',
       cursor: 'pointer',
-      padding: isFeed ? '2px 4px' : '4px 6px',
-      borderRadius: '4px',
-      color: isFeed ? '#7A7468' : '#666',
-      fontSize: isFeed ? '12px' : '13px',
-      fontWeight: 500,
-      transition: 'background-color 0.2s, color 0.2s',
+      padding: isFeed ? '4px 2px' : '4px 6px',
+      borderRadius: '999px',
+      color: isFeed ? '#3F3D3A' : '#444',
+      fontSize: isFeed ? '14px' : '13px',
+      fontWeight: 600,
+      lineHeight: 1,
+      minHeight: '30px',
+      transition: 'color 0.16s ease, transform 0.16s ease, opacity 0.16s ease',
     },
     actionBtnActive: {
       color: '#2F2C26',
-      backgroundColor: isFeed ? 'transparent' : 'rgba(26, 26, 26, 0.1)',
+      backgroundColor: 'transparent',
       fontWeight: 600,
+    },
+    actionBtnDisabled: {
+      cursor: 'default',
+      opacity: 0.45,
     },
     viewCount: {
       marginLeft: 'auto',
@@ -367,6 +472,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   const truncateLength = variant === 'feed' ? 240 : 280;
 
   const shouldTruncate = content.length > truncateLength;
+  const getActionButtonStyle = (active = false, disabled = false) => ({
+    ...styles.actionBtn,
+    ...(active ? styles.actionBtnActive : {}),
+    ...(disabled ? styles.actionBtnDisabled : {}),
+  });
 
   return (
     <div style={styles.card}>
@@ -453,38 +563,56 @@ export const PostCard: React.FC<PostCardProps> = ({
       <div style={styles.actions}>
         <button
           type="button"
-          style={{ ...styles.actionBtn, ...(isLiked ? styles.actionBtnActive : {}) }}
+          style={getActionButtonStyle(isLiked, !onLike)}
           onClick={onLike}
+          disabled={!onLike}
+          aria-label={isLiked ? 'Unlike post' : 'Like post'}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill={isLiked ? '#1A1A1A' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+          <HeartIcon filled={isLiked} />
           {likes > 0 && likes}
         </button>
 
-        <button type="button" style={styles.actionBtn} onClick={onComment}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        <button
+          type="button"
+          style={getActionButtonStyle(false, !onComment)}
+          onClick={onComment}
+          disabled={!onComment}
+          aria-label="View comments"
+        >
+          <CommentIcon />
           {comments > 0 && comments}
         </button>
 
         <button
           type="button"
-          style={{ ...styles.actionBtn, ...(isShareCopied ? styles.actionBtnActive : {}) }}
+          style={getActionButtonStyle(false, !onShare)}
           onClick={onShare}
-          aria-live="polite"
+          disabled={!onShare}
+          aria-label="Copy post link"
         >
-          {isShareCopied ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><polyline points="20 6 9 17 4 12" /></svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
-          )}
-          {isShareCopied ? 'Copied' : 'Share'}
+          <RepostIcon />
         </button>
 
         <button
           type="button"
-          style={{ ...styles.actionBtn, ...(isBookmarked ? styles.actionBtnActive : {}) }}
-          onClick={onBookmark}
+          style={getActionButtonStyle(isShareCopied, !onShare)}
+          onClick={onShare}
+          disabled={!onShare}
+          aria-label={isShareCopied ? 'Link copied' : 'Share post'}
+          aria-live="polite"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill={isBookmarked ? '#1A1A1A' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '2px' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+          {isShareCopied ? <CheckIcon /> : <SendIcon />}
+          {isShareCopied && <span style={{ fontSize: '12px' }}>Copied</span>}
+        </button>
+
+        <button
+          type="button"
+          style={getActionButtonStyle(isBookmarked, !onBookmark)}
+          onClick={onBookmark}
+          disabled={!onBookmark}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark post'}
+        >
+          <BookmarkIcon filled={isBookmarked} />
         </button>
 
         {views !== undefined && (

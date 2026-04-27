@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PostCard } from "@/components/bookface/PostCard";
 import { createComment, toggleLike } from "@/actions/feed";
 import { bookmarkPost, unbookmarkPost } from "@/actions/bookmark";
 import { formatRelativeTime, getDisplayName, getInitials } from "@/lib/utils";
 import type { RenderablePostMention } from "@/components/feed/renderPostContentWithMentions";
+import { useToast } from "@/hooks/useToast";
 
 interface PostComment {
   id: string;
@@ -39,7 +40,6 @@ interface PostDetailClientProps {
   currentUser: { id: string; name: string | null; email: string; profileImage: string | null };
   isLiked: boolean;
   isBookmarked: boolean;
-  isAdmin: boolean;
   participants: Array<{ id: string; name: string | null; email: string; profileImage: string | null }>;
 }
 
@@ -170,13 +170,16 @@ const styles = {
     alignItems: 'center',
     gap: '6px',
     fontSize: '13px',
-    color: '#666',
+    color: '#3F3D3A',
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    transition: 'background-color 0.2s',
+    padding: '4px 2px',
+    borderRadius: '999px',
+    fontWeight: 600,
+    lineHeight: 1,
+    minHeight: '28px',
+    transition: 'color 0.16s ease, transform 0.16s ease, opacity 0.16s ease',
   },
   actionButtonActive: {
     display: 'flex',
@@ -187,9 +190,16 @@ const styles = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    transition: 'background-color 0.2s',
+    padding: '4px 2px',
+    borderRadius: '999px',
+    fontWeight: 600,
+    lineHeight: 1,
+    minHeight: '28px',
+    transition: 'color 0.16s ease, transform 0.16s ease, opacity 0.16s ease',
+  },
+  actionButtonDisabled: {
+    cursor: 'default',
+    opacity: 0.5,
   },
   repliesContainer: {
     marginTop: '16px',
@@ -269,20 +279,49 @@ const styles = {
   },
 };
 
+function HeartIcon({ filled = false, size = 20 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} aria-hidden="true">
+      <path
+        d="M20.8 4.6c-2-2-5.2-1.9-7.1.2L12 6.5l-1.7-1.7C8.4 2.7 5.2 2.6 3.2 4.6c-2.2 2.2-2.1 5.8.2 8l8.6 8.1 8.6-8.1c2.3-2.2 2.4-5.8.2-8Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CommentIcon({ size = 19 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 11.6c0 4.2-3.6 7.6-8 7.6-1.1 0-2.1-.2-3.1-.6L4 20l1.3-4.1A7.1 7.1 0 0 1 4 11.6C4 7.4 7.6 4 12 4s8 3.4 8 7.6Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function PostDetailClient({
   post,
   currentUser,
   isLiked: initialIsLiked,
   isBookmarked: initialIsBookmarked,
-  isAdmin,
   participants,
 }: PostDetailClientProps) {
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [commentInput, setCommentInput] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyInput, setReplyInput] = useState("");
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked);
+  const [isShareCopied, setIsShareCopied] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes.length);
   const [commentLikes, setCommentLikes] = useState<Record<string, boolean>>(() => {
     const likes: Record<string, boolean> = {};
@@ -294,26 +333,94 @@ export function PostDetailClient({
     });
     return likes;
   });
+  const [commentLikeCounts, setCommentLikeCounts] = useState<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    post.comments.forEach((comment) => {
+      counts[comment.id] = comment.likes.length;
+      comment.replies?.forEach((reply) => {
+        counts[reply.id] = reply.likes.length;
+      });
+    });
+    return counts;
+  });
+  const commentSectionRef = useRef<HTMLDivElement | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const shareCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shareCopiedTimerRef.current) clearTimeout(shareCopiedTimerRef.current);
+    };
+  }, []);
 
   const handlePostLike = () => {
+    const nextIsLiked = !isLiked;
+    setIsLiked(nextIsLiked);
+    setLikeCount((prev) => Math.max(0, prev + (nextIsLiked ? 1 : -1)));
+
     startTransition(async () => {
-      const newIsLiked = !isLiked;
-      setIsLiked(newIsLiked);
-      setLikeCount((prev) => (newIsLiked ? prev + 1 : prev - 1));
-      await toggleLike("post", post.id);
+      const result = await toggleLike("post", post.id);
+      if (!result.success) {
+        setIsLiked(!nextIsLiked);
+        setLikeCount((prev) => Math.max(0, prev + (nextIsLiked ? -1 : 1)));
+        toast.error(result.error);
+      }
     });
   };
 
   const handlePostBookmark = () => {
+    const nextIsBookmarked = !isBookmarked;
+    setIsBookmarked(nextIsBookmarked);
+
     startTransition(async () => {
-      const newIsBookmarked = !isBookmarked;
-      setIsBookmarked(newIsBookmarked);
-      if (newIsBookmarked) {
-        await bookmarkPost(post.id);
-      } else {
-        await unbookmarkPost(post.id);
+      const result = nextIsBookmarked
+        ? await bookmarkPost(post.id)
+        : await unbookmarkPost(post.id);
+
+      if (!result.success) {
+        setIsBookmarked(!nextIsBookmarked);
+        toast.error(result.error);
       }
     });
+  };
+
+  const handlePostCommentClick = () => {
+    commentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => commentInputRef.current?.focus(), 250);
+  };
+
+  const handlePostShare = async () => {
+    const url = `${window.location.origin}/feed/${post.id}`;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (!copied) {
+          throw new Error("Clipboard copy command failed");
+        }
+      }
+
+      setIsShareCopied(true);
+      toast.success("Link copied to clipboard");
+      if (shareCopiedTimerRef.current) clearTimeout(shareCopiedTimerRef.current);
+      shareCopiedTimerRef.current = setTimeout(() => {
+        setIsShareCopied(false);
+      }, 2000);
+    } catch {
+      toast.error("Could not copy link");
+    }
   };
 
   const handleCommentSubmit = () => {
@@ -336,15 +443,34 @@ export function PostDetailClient({
   };
 
   const handleCommentLike = (commentId: string) => {
+    const wasLiked = commentLikes[commentId] || false;
+    const nextIsLiked = !wasLiked;
+    setCommentLikes((prev) => ({ ...prev, [commentId]: nextIsLiked }));
+    setCommentLikeCounts((prev) => ({
+      ...prev,
+      [commentId]: Math.max(0, (prev[commentId] ?? 0) + (nextIsLiked ? 1 : -1)),
+    }));
+
     startTransition(async () => {
-      setCommentLikes((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
-      await toggleLike("comment", undefined, commentId);
+      const result = await toggleLike("comment", undefined, commentId);
+      if (!result.success) {
+        setCommentLikes((prev) => ({ ...prev, [commentId]: wasLiked }));
+        setCommentLikeCounts((prev) => ({
+          ...prev,
+          [commentId]: Math.max(0, (prev[commentId] ?? 0) + (nextIsLiked ? -1 : 1)),
+        }));
+        toast.error(result.error);
+      }
     });
   };
 
   const renderComment = (comment: PostComment, isReply: boolean = false) => {
     const isLikedByUser = commentLikes[comment.id] || false;
-    const likeCount = comment.likes.length;
+    const likeCount = commentLikeCounts[comment.id] ?? comment.likes.length;
+    const likeButtonStyle = {
+      ...(isLikedByUser ? styles.actionButtonActive : styles.actionButton),
+      ...(isPending ? styles.actionButtonDisabled : {}),
+    };
 
     return (
       <div key={comment.id}>
@@ -371,18 +497,22 @@ export function PostDetailClient({
           <div style={styles.commentContent}>{comment.content}</div>
           <div style={styles.commentActions}>
             <button
-              style={isLikedByUser ? styles.actionButtonActive : styles.actionButton}
+              type="button"
+              style={likeButtonStyle}
               onClick={() => handleCommentLike(comment.id)}
               disabled={isPending}
+              aria-label={isLikedByUser ? "Unlike comment" : "Like comment"}
             >
-              <span>{isLikedByUser ? "❤️" : "🤍"}</span>
+              <HeartIcon filled={isLikedByUser} />
               {likeCount > 0 && <span>{likeCount}</span>}
             </button>
             {!isReply && (
               <button
+                type="button"
                 style={styles.actionButton}
                 onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
               >
+                <CommentIcon />
                 Reply
               </button>
             )}
@@ -452,11 +582,14 @@ export function PostDetailClient({
           views={post.viewCount}
           isLiked={isLiked}
           isBookmarked={isBookmarked}
+          isShareCopied={isShareCopied}
           onLike={handlePostLike}
+          onComment={handlePostCommentClick}
           onBookmark={handlePostBookmark}
+          onShare={handlePostShare}
         />
 
-        <div style={styles.commentSection}>
+        <div ref={commentSectionRef} style={styles.commentSection}>
           <div style={styles.commentInputContainer}>
             {currentUser.profileImage ? (
               <img
@@ -471,6 +604,7 @@ export function PostDetailClient({
             )}
             <div style={styles.commentInputWrapper}>
               <textarea
+                ref={commentInputRef}
                 style={styles.textarea}
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
