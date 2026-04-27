@@ -69,7 +69,7 @@ interface FeedViewProps {
 export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = false, initialTab, likedPostIds, bookmarkedPostIds }: FeedViewProps) {
   const router = useRouter();
   const [showArchived, setShowArchived] = useState(false);
-  const [activeTab, setActiveTab] = useState(initialTab || 'top');
+  const [activeTab, setActiveTab] = useState(initialTab || 'recent');
   const [isPending, startTransition] = useTransition();
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const toast = useToast();

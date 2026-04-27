@@ -13,8 +13,8 @@ export interface FeedTabsProps {
 }
 
 export const defaultTabs: Tab[] = [
+  { id: 'recent', label: 'Latest' },
   { id: 'top', label: 'Top' },
-  { id: 'recent', label: 'Recent' },
   { id: 'general', label: 'General' },
   { id: 'launch', label: 'Launch' },
   { id: 'classifieds', label: 'Classifieds' },

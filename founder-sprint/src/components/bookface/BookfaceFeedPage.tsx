@@ -246,7 +246,7 @@ export const BookfaceFeedPage: React.FC<BookfaceFeedPageProps> = ({
   posts = defaultPosts,
   peopleToFollow = defaultPeopleToFollow,
 }) => {
-  const [activeTab, setActiveTab] = useState('top');
+  const [activeTab, setActiveTab] = useState('recent');
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set(['2']));
   const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
@@ -325,7 +325,7 @@ export const BookfaceFeedPage: React.FC<BookfaceFeedPageProps> = ({
           <div style={styles.newPostBox}>
             <div style={styles.newPostAvatar}>J</div>
             <div style={styles.newPostInput}>
-              What's on your mind?
+              What&apos;s on your mind?
             </div>
           </div>
 
