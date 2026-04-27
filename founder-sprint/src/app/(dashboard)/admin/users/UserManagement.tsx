@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -73,6 +73,7 @@ interface BatchUser {
     name: string;
     status: string;
   };
+  allMemberships?: BatchUser[];
 }
 
 interface SourceBatchInviteCandidate {
@@ -111,6 +112,42 @@ const baseRoleOptions = [
   { value: "founder", label: "Founder" },
   { value: "co_founder", label: "Co-founder" },
 ];
+
+const membershipStatusPriority: Record<BatchUser["status"], number> = {
+  active: 0,
+  invited: 1,
+  dropped_out: 2,
+};
+
+function compareMembershipsForAllUsersView(a: BatchUser, b: BatchUser) {
+  const statusDiff = membershipStatusPriority[a.status] - membershipStatusPriority[b.status];
+  if (statusDiff !== 0) return statusDiff;
+
+  const invitedAtDiff = new Date(b.invitedAt).getTime() - new Date(a.invitedAt).getTime();
+  if (invitedAtDiff !== 0) return invitedAtDiff;
+
+  return a.batch.name.localeCompare(b.batch.name);
+}
+
+function dedupeBatchUsersByUser(batchUsers: BatchUser[]) {
+  const membershipsByUser = new Map<string, BatchUser[]>();
+
+  for (const userBatch of batchUsers) {
+    const current = membershipsByUser.get(userBatch.userId) || [];
+    current.push(userBatch);
+    membershipsByUser.set(userBatch.userId, current);
+  }
+
+  return Array.from(membershipsByUser.values())
+    .map((memberships) => {
+      const sortedMemberships = [...memberships].sort(compareMembershipsForAllUsersView);
+      return {
+        ...sortedMemberships[0],
+        allMemberships: sortedMemberships,
+      };
+    })
+    .sort((a, b) => getDisplayName(a.user).localeCompare(getDisplayName(b.user)));
+}
 
 export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementProps) {
   const [users, setUsers] = useState<BatchUser[]>([]);
@@ -408,8 +445,8 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const renderRoleBadges = (userBatch: BatchUser) => (
     <div className="flex items-center gap-2 flex-wrap">
-      {getVisibleRoles(userBatch).map((role) => (
-        <Badge key={`${userBatch.id}-${role}`} variant="role">{getRoleDisplayName(role)}</Badge>
+      {Array.from(new Set(getDisplayMemberships(userBatch).flatMap((membership) => getVisibleRoles(membership)))).map((role) => (
+        <Badge key={`${userBatch.userId}-${role}`} variant="role">{getRoleDisplayName(role)}</Badge>
       ))}
     </div>
   );
@@ -618,16 +655,132 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     })),
   ];
 
+  const isAllUsersView = !selectedBatchId;
+  const displayUsers = useMemo(
+    () => (isAllUsersView ? dedupeBatchUsersByUser(users) : users),
+    [isAllUsersView, users]
+  );
   const selectedBatch = batches.find((b) => b.id === selectedBatchId);
   const sourceInviteBatch = batches.find((b) => b.id === sourceInviteBatchId);
   const founderChoices = users.filter((userBatch) => getVisibleRoles(userBatch).includes("founder"));
-  const isAllUsersView = !selectedBatchId;
   const userListDescription = isAllUsersView
-    ? `Showing all batch memberships (${users.length})`
-    : `Showing users in ${selectedBatch?.name || "selected batch"} (${users.length})`;
+    ? `Showing all users (${displayUsers.length})`
+    : `Showing users in ${selectedBatch?.name || "selected batch"} (${displayUsers.length})`;
+
+  const getDisplayMemberships = (userBatch: BatchUser) => userBatch.allMemberships || [userBatch];
+
+  const hasMultipleMembershipsInAllUsersView = (userBatch: BatchUser) =>
+    isAllUsersView && getDisplayMemberships(userBatch).length > 1;
 
   const renderBatchBadge = (userBatch: BatchUser) => (
-    <Badge variant="outline" size="sm">{userBatch.batch.name}</Badge>
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {getDisplayMemberships(userBatch).map((membership) => (
+        <Badge key={membership.id} variant="outline" size="sm">{membership.batch.name}</Badge>
+      ))}
+    </div>
+  );
+
+  const renderStatusBadges = (userBatch: BatchUser) => {
+    const statuses = Array.from(new Set(getDisplayMemberships(userBatch).map((membership) => membership.status)));
+
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        {statuses.map((status) => (
+          <Badge key={`${userBatch.userId}-${status}`} variant={status === "active" ? "success" : status === "dropped_out" ? "default" : "warning"}>
+            {status}
+          </Badge>
+        ))}
+        {userBatch.user.status === "inactive" && (
+          <Badge variant="error">Deactivated</Badge>
+        )}
+      </div>
+    );
+  };
+
+  const renderMembershipManagementHint = () => (
+    <span className="text-sm text-right" style={{ color: "var(--color-foreground-secondary)" }}>
+      Filter by a batch to manage memberships.
+    </span>
+  );
+
+  const renderMembershipActions = (userBatch: BatchUser, compact = false) => (
+    hasMultipleMembershipsInAllUsersView(userBatch) ? (
+      renderMembershipManagementHint()
+    ) : (
+      <>
+        {renderRoleEditor(userBatch, compact)}
+        {userBatch.role !== "super_admin" && (
+          <div className={`flex items-center ${compact ? "" : "justify-end"} gap-2 flex-wrap`}>
+            {userBatch.status === "invited" && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleResendInvite(userBatch.userId, userBatch.batchId)}
+                  disabled={isPending}
+                >
+                  Resend Invite
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCancelInvite(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
+                  disabled={isPending}
+                >
+                  Cancel Invite
+                </Button>
+              </>
+            )}
+            {userBatch.user.status === "inactive" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleReactivateUser(userBatch.userId, userBatch.batchId)}
+                disabled={isPending}
+              >
+                Reactivate
+              </Button>
+            ) : userBatch.status === "dropped_out" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRestoreBatchUser(userBatch.userId, userBatch.batchId)}
+                disabled={isPending}
+              >
+                Restore Batch
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDropoutUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
+                  disabled={isPending || userBatch.status !== "active"}
+                >
+                  Dropout
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDeactivateUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user))}
+                  disabled={isPending}
+                >
+                  Deactivate
+                </Button>
+              </>
+            )}
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => openRemoveConfirm(userBatch)}
+              disabled={isPending}
+            >
+              Remove
+            </Button>
+          </div>
+        )}
+      </>
+    )
   );
 
   const openRemoveConfirm = (userBatch: BatchUser) => {
@@ -670,7 +823,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
             Loading users...
           </p>
         </div>
-      ) : users.length === 0 ? (
+      ) : displayUsers.length === 0 ? (
         <EmptyState
           title={isAllUsersView ? "No users found" : "No users in this batch"}
           description={isAllUsersView ? "No batch memberships found yet" : "Invite users to get started"}
@@ -690,7 +843,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
               </p>
             </div>
             <div className="md:hidden space-y-4">
-              {users.map((userBatch) => (
+              {displayUsers.map((userBatch) => (
                 <div
                   key={userBatch.id}
                   className="p-4 rounded-lg bg-white space-y-4"
@@ -722,14 +875,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   
                   <div className="flex items-center justify-between gap-2">
                     {renderRoleBadges(userBatch)}
-                    <div className="flex items-center gap-2">
-                        <Badge variant={userBatch.status === "active" ? "success" : userBatch.status === "dropped_out" ? "default" : "warning"}>
-                          {userBatch.status}
-                        </Badge>
-                      {userBatch.user.status === "inactive" && (
-                        <Badge variant="error">Deactivated</Badge>
-                      )}
-                    </div>
+                    {renderStatusBadges(userBatch)}
                   </div>
 
                   <div className="text-sm" style={{ color: "var(--color-foreground-secondary)" }}>
@@ -737,77 +883,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   </div>
 
                   <div className="space-y-3 pt-3 border-t" style={{ borderColor: "var(--color-card-border)" }}>
-                    {renderRoleEditor(userBatch, true)}
-                    {userBatch.role !== "super_admin" && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                    {userBatch.status === "invited" && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleResendInvite(userBatch.userId, userBatch.batchId)}
-                          disabled={isPending}
-                        >
-                          Resend Invite
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCancelInvite(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
-                          disabled={isPending}
-                        >
-                          Cancel Invite
-                        </Button>
-                      </>
-                    )}
-                        {userBatch.user.status === "inactive" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                        onClick={() => handleReactivateUser(userBatch.userId, userBatch.batchId)}
-                        disabled={isPending}
-                      >
-                            Reactivate
-                          </Button>
-                        ) : userBatch.status === "dropped_out" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRestoreBatchUser(userBatch.userId, userBatch.batchId)}
-                            disabled={isPending}
-                          >
-                            Restore Batch
-                          </Button>
-                        ) : (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDropoutUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
-                              disabled={isPending || userBatch.status !== "active"}
-                            >
-                              Dropout
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => handleDeactivateUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user))}
-                              disabled={isPending}
-                            >
-                              Deactivate
-                            </Button>
-                          </>
-                        )}
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => openRemoveConfirm(userBatch)}
-                      disabled={isPending}
-                    >
-                      Remove
-                    </Button>
-                      </div>
-                    )}
+                    {renderMembershipActions(userBatch, true)}
                   </div>
                 </div>
               ))}
@@ -842,7 +918,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                 </tr>
               </thead>
               <tbody>
-                {users.map((userBatch) => (
+                {displayUsers.map((userBatch) => (
                   <tr
                     key={userBatch.id}
                     style={{ borderBottom: "1px solid var(--color-card-border)" }}
@@ -876,14 +952,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                       {renderRoleBadges(userBatch)}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={userBatch.status === "active" ? "success" : userBatch.status === "dropped_out" ? "default" : "warning"}>
-                          {userBatch.status}
-                        </Badge>
-                        {userBatch.user.status === "inactive" && (
-                          <Badge variant="error">Deactivated</Badge>
-                        )}
-                      </div>
+                      {renderStatusBadges(userBatch)}
                     </td>
                     <td className="py-3 px-4">
                       <span style={{ color: "var(--color-foreground-secondary)", fontSize: "14px" }}>
@@ -892,77 +961,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex flex-col items-end gap-2">
-                        {renderRoleEditor(userBatch)}
-                        {userBatch.role !== "super_admin" && (
-                          <div className="flex items-center justify-end gap-2 flex-wrap">
-                        {userBatch.status === "invited" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleResendInvite(userBatch.userId, userBatch.batchId)}
-                              disabled={isPending}
-                            >
-                              Resend Invite
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCancelInvite(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
-                              disabled={isPending}
-                            >
-                              Cancel Invite
-                            </Button>
-                          </>
-                        )}
-                    {userBatch.user.status === "inactive" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                            onClick={() => handleReactivateUser(userBatch.userId, userBatch.batchId)}
-                            disabled={isPending}
-                          >
-                        Reactivate
-                      </Button>
-                    ) : userBatch.status === "dropped_out" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRestoreBatchUser(userBatch.userId, userBatch.batchId)}
-                        disabled={isPending}
-                      >
-                        Restore Batch
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDropoutUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user), userBatch.batch.name)}
-                          disabled={isPending || userBatch.status !== "active"}
-                        >
-                          Dropout
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => handleDeactivateUser(userBatch.userId, userBatch.batchId, getDisplayName(userBatch.user))}
-                          disabled={isPending}
-                        >
-                          Deactivate
-                        </Button>
-                      </>
-                    )}
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => openRemoveConfirm(userBatch)}
-                          disabled={isPending}
-                        >
-                          Remove
-                        </Button>
-                          </div>
-                        )}
+                        {renderMembershipActions(userBatch)}
                       </div>
                     </td>
                   </tr>
