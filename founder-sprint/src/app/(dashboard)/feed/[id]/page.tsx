@@ -1,7 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/permissions";
 import { getPostById, getConversationParticipants } from "@/actions/post-detail";
-import { checkIsBookmarked } from "@/actions/bookmark";
 import { PostDetailClient } from "./PostDetailClient";
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -17,7 +16,6 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
 
   const isLiked = post.likes.some((like: { userId: string }) => like.userId === user.id);
   const isBookmarked = post.bookmarks.length > 0;
-  const isAdmin = user.role === "super_admin" || user.role === "admin";
     return (
     <div>
       <div className="lg:grid lg:grid-cols-[1fr_280px] lg:gap-6">
@@ -26,7 +24,6 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
           currentUser={user}
           isLiked={isLiked}
           isBookmarked={isBookmarked}
-          isAdmin={isAdmin}
           participants={participants}
         />
       </div>
