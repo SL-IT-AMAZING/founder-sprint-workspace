@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/permissions";
+import { canManageCompanyFromMembers } from "@/lib/company-permissions";
 import { getCompanyBySlug, getRelatedCompanies } from "@/actions/company";
 import Link from "next/link";
 import MessageCompanyButton from "./MessageCompanyButton";
@@ -84,7 +85,7 @@ export default async function CompanyProfilePage({
   // Get first founder's ID for messaging
   const firstFounderId = founders.length > 0 ? founders[0].user.id : null;
 
-  const userIsAdmin = isAdmin(user.role);
+  const userCanManageCompany = canManageCompanyFromMembers(user, company.members);
   return (
     <div
       style={{
@@ -190,9 +191,9 @@ export default async function CompanyProfilePage({
                       Visit Website
                     </a>
                   )}
-                  {userIsAdmin && (
+                  {userCanManageCompany && (
                     <Link
-                      href={`/admin/companies/${company.id}/edit`}
+                      href={`/companies/${company.slug}/manage`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",

@@ -22,6 +22,8 @@ interface CompanyFormProps {
   };
   batches?: { id: string; name: string }[];
   initialBatchIds?: string[];
+  canManageBatches?: boolean;
+  successRedirect?: "adminCompanies" | "companyProfile";
 }
 
 function slugify(value: string): string {
@@ -34,7 +36,13 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function CompanyForm({ initialData, batches = [], initialBatchIds = [] }: CompanyFormProps) {
+export function CompanyForm({
+  initialData,
+  batches = [],
+  initialBatchIds = [],
+  canManageBatches = true,
+  successRedirect = "adminCompanies",
+}: CompanyFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [name, setName] = useState(initialData?.name || "");
@@ -56,6 +64,9 @@ export function CompanyForm({ initialData, batches = [], initialBatchIds = [] }:
       const formData = new FormData();
       formData.append("file", file);
       formData.append("bucket", "company-logos");
+      if (initialData?.id) {
+        formData.append("companyId", initialData.id);
+      }
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -104,7 +115,7 @@ export function CompanyForm({ initialData, batches = [], initialBatchIds = [] }:
         : await createCompany(formData);
 
       if (result.success) {
-        router.push("/admin/companies");
+        router.push(successRedirect === "companyProfile" ? `/companies/${result.data.slug}` : "/admin/companies");
         router.refresh();
       } else {
         setError(result.error);
@@ -331,7 +342,7 @@ export function CompanyForm({ initialData, batches = [], initialBatchIds = [] }:
           </div>
 
           {/* Batch Assignment */}
-          {batches.length > 0 && (
+          {canManageBatches && batches.length > 0 && (
             <div>
               <label
                 style={{

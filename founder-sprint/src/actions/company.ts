@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin, isFounder } from "@/lib/permissions";
+import { requireCompanyManager } from "@/lib/company-permissions";
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 import { z } from "zod";
@@ -118,6 +119,7 @@ export async function getCompanyBySlug(slug: string): Promise<ActionResult<{
     where: { slug },
     include: {
       members: {
+        where: { isCurrent: true },
         include: {
           user: {
             select: {
@@ -129,7 +131,7 @@ export async function getCompanyBySlug(slug: string): Promise<ActionResult<{
             },
           },
         },
-        orderBy: [{ isCurrent: "desc" }, { createdAt: "asc" }],
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -219,7 +221,7 @@ export async function updateCompany(
   logoUrl: string | null;
   tags: string[];
 }>> {
-  const auth = await requireAdminUser();
+  const auth = await requireCompanyManager(id);
   if (!auth.success) return auth;
 
   const existingCompany = await prisma.company.findUnique({ where: { id }, select: { id: true, slug: true } });
@@ -265,22 +267,26 @@ export async function updateCompany(
 
   // Sync batch assignments (delete all, re-create)
   const batchIdsRaw = formData.get("batchIds") as string | null;
-  await prisma.companyBatch.deleteMany({ where: { companyId: id } });
-  if (batchIdsRaw) {
-    const batchIds = batchIdsRaw.split(",").filter(Boolean);
-    if (batchIds.length > 0) {
-      await prisma.companyBatch.createMany({
-        data: batchIds.map((batchId) => ({
-          companyId: id,
-          batchId,
-        })),
-        skipDuplicates: true,
-      });
+  if (auth.isAdmin && batchIdsRaw !== null) {
+    await prisma.companyBatch.deleteMany({ where: { companyId: id } });
+    if (batchIdsRaw) {
+      const batchIds = batchIdsRaw.split(",").filter(Boolean);
+      if (batchIds.length > 0) {
+        await prisma.companyBatch.createMany({
+          data: batchIds.map((batchId) => ({
+            companyId: id,
+            batchId,
+          })),
+          skipDuplicates: true,
+        });
+      }
     }
   }
   revalidatePath("/companies");
   revalidatePath(`/companies/${existingCompany.slug}`);
+  revalidatePath(`/companies/${existingCompany.slug}/manage`);
   revalidatePath(`/companies/${company.slug}`);
+  revalidatePath(`/companies/${company.slug}/manage`);
   revalidatePath("/admin/companies");
 
   return { success: true, data: company };
@@ -297,6 +303,7 @@ export async function deleteCompany(id: string): Promise<ActionResult> {
 
   revalidatePath("/companies");
   revalidatePath(`/companies/${existingCompany.slug}`);
+  revalidatePath(`/companies/${existingCompany.slug}/manage`);
   revalidatePath("/admin/companies");
 
   return { success: true, data: undefined };
@@ -308,9 +315,6 @@ export async function addCompanyMember(
   role?: string,
   title?: string
 ): Promise<ActionResult<{ id: string }>> {
-  const auth = await requireAdminUser();
-  if (!auth.success) return auth;
-
   const parsed = CompanyMemberInputSchema.safeParse({
     companyId,
     userId,
@@ -321,6 +325,9 @@ export async function addCompanyMember(
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
+
+  const auth = await requireCompanyManager(parsed.data.companyId);
+  if (!auth.success) return auth;
 
   const [company, user, existingMembership] = await Promise.all([
     prisma.company.findUnique({
@@ -363,15 +370,13 @@ export async function addCompanyMember(
 
   revalidatePath("/companies");
   revalidatePath(`/companies/${company.slug}`);
+  revalidatePath(`/companies/${company.slug}/manage`);
   revalidatePath("/admin/companies");
 
   return { success: true, data: membership };
 }
 
 export async function removeCompanyMember(id: string): Promise<ActionResult> {
-  const auth = await requireAdminUser();
-  if (!auth.success) return auth;
-
   const membership = await prisma.companyMember.findUnique({
     where: { id },
     include: {
@@ -384,6 +389,9 @@ export async function removeCompanyMember(id: string): Promise<ActionResult> {
     },
   });
   if (!membership) return { success: false, error: "Company member not found" };
+
+  const auth = await requireCompanyManager(membership.companyId);
+  if (!auth.success) return auth;
 
   await prisma.companyMember.delete({ where: { id } });
 
@@ -400,6 +408,7 @@ export async function removeCompanyMember(id: string): Promise<ActionResult> {
 
   revalidatePath("/companies");
   revalidatePath(`/companies/${membership.company.slug}`);
+  revalidatePath(`/companies/${membership.company.slug}/manage`);
   revalidatePath("/admin/companies");
 
   return { success: true, data: undefined };
@@ -428,6 +437,7 @@ export async function getRelatedCompanies(
       id: true,
       industry: true,
       members: {
+        where: { isCurrent: true },
         select: {
           user: {
             select: {
@@ -461,6 +471,7 @@ export async function getRelatedCompanies(
     relatedConditions.push({
       members: {
         some: {
+          isCurrent: true,
           user: {
             userBatches: {
               some: {
@@ -490,7 +501,7 @@ export async function getRelatedCompanies(
       industry: true,
       logoUrl: true,
       description: true,
-      _count: { select: { members: true } },
+      _count: { select: { members: { where: { isCurrent: true } } } },
     },
     orderBy: [{ name: "asc" }],
     take: normalizedLimit,
@@ -523,7 +534,7 @@ export async function getCompaniesForSelect(): Promise<Array<{
     select: {
       id: true,
       name: true,
-      _count: { select: { members: true } },
+      _count: { select: { members: { where: { isCurrent: true } } } },
     },
     orderBy: { name: "asc" },
   });

@@ -65,6 +65,8 @@ export async function POST(
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const bucket = formData.get("bucket") as string;
+    const companyIdRaw = formData.get("companyId");
+    const companyId = typeof companyIdRaw === "string" && companyIdRaw.trim() ? companyIdRaw.trim() : null;
 
     if (!file) {
       return NextResponse.json(
@@ -138,10 +140,37 @@ export async function POST(
 
     if (config.adminOnly) {
       if (dbUser.role !== "admin" && dbUser.role !== "super_admin") {
-        return NextResponse.json(
-          { success: false, error: "Admin access required", code: "FORBIDDEN" },
-          { status: 403 }
-        );
+        const canManageCompanyLogo =
+          bucket === "company-logos" &&
+          companyId &&
+          (await prisma.companyMember.findFirst({
+            where: {
+              companyId,
+              userId: dbUser.id,
+              isCurrent: true,
+              user: {
+                OR: [
+                  { role: { in: ["founder", "co_founder"] } },
+                  {
+                    userBatches: {
+                      some: {
+                        status: "active",
+                        role: { in: ["founder", "co_founder"] },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+            select: { id: true },
+          }));
+
+        if (!canManageCompanyLogo) {
+          return NextResponse.json(
+            { success: false, error: "Admin or company founder access required", code: "FORBIDDEN" },
+            { status: 403 }
+          );
+        }
       }
     } else {
       const activeMembership = await prisma.userBatch.findFirst({

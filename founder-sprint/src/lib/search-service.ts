@@ -193,7 +193,7 @@ export async function searchCompanies(
         COUNT(DISTINCT cm.user_id) as "memberCount",
         ts_rank(c.search_vector, plainto_tsquery('english', ${trimmedQuery})) as rank
       FROM companies c
-      LEFT JOIN company_members cm ON cm.company_id = c.id
+      LEFT JOIN company_members cm ON cm.company_id = c.id AND cm.is_current = true
       WHERE c.search_vector @@ plainto_tsquery('english', ${trimmedQuery})
       GROUP BY c.id, c.name, c.slug, c.description, c.industry, c.logo_url, c.search_vector
       ORDER BY rank DESC, c.name ASC
@@ -226,7 +226,7 @@ export async function searchCompanies(
         logoUrl: true,
         _count: {
           select: {
-            members: true,
+            members: { where: { isCurrent: true } },
           },
         },
       },

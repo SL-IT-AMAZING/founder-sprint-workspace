@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { canManageCompanyFromMembers } from "@/lib/company-permissions";
 import { prisma } from "@/lib/prisma";
 import { getBatches } from "@/actions/batch";
 import { CompanyForm } from "../../new/CompanyForm";
@@ -18,10 +19,6 @@ export default async function EditCompanyPage({ params }: EditCompanyPageProps) 
     redirect("/login");
   }
   
-  if (!isAdmin(user.role)) {
-    redirect("/dashboard");
-  }
-
   const { id } = await params;
 
   const [company, allBatches] = await Promise.all([
@@ -53,6 +50,12 @@ export default async function EditCompanyPage({ params }: EditCompanyPageProps) 
     notFound();
   }
 
+  if (!canManageCompanyFromMembers(user, company.members)) {
+    redirect("/dashboard");
+  }
+
+  const userIsAdmin = isAdmin(user);
+
   return (
     <div className="space-y-6">
       <div>
@@ -77,6 +80,7 @@ export default async function EditCompanyPage({ params }: EditCompanyPageProps) 
         }}
         batches={allBatches.map((b) => ({ id: b.id, name: b.name }))}
         initialBatchIds={company.batches.map((cb) => cb.batchId)}
+        canManageBatches={userIsAdmin}
       />
 
       <MemberManager 
