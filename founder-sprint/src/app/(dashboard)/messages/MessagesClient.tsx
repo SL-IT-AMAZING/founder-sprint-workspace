@@ -246,9 +246,16 @@ export default function MessagesClient({
     await handleSelectConversation(result.data.conversationId);
   };
 
+  const handleBackToConversations = () => {
+    setSelectedConversationId(null);
+    setConversationDetail(null);
+    setMessages([]);
+    router.push("/messages");
+  };
+
   return (
-    <div className="flex" style={{ height: "calc(100vh - 56px)" }}>
-      <div style={{ width: "320px", borderRight: "1px solid #e0e0e0" }}>
+    <div className={`messages-shell ${selectedConversationId ? "messages-shell--has-selection" : ""}`}>
+      <div className="messages-list-pane">
         <ConversationList
           conversations={searchResults ?? conversations}
           currentUserId={currentUserId}
@@ -267,7 +274,7 @@ export default function MessagesClient({
           searchQuery={searchQuery}
         />
       </div>
-      <div className="flex" style={{ flex: 1 }}>
+      <div className="messages-thread-pane">
         <ConversationThread
           conversationId={selectedConversationId}
           conversationDetail={conversationDetail}
@@ -275,6 +282,7 @@ export default function MessagesClient({
           currentUserId={currentUserId}
           onSendMessage={handleSendMessage}
           isLoading={messagesLoading}
+          onBack={handleBackToConversations}
         />
       </div>
 
@@ -309,6 +317,55 @@ export default function MessagesClient({
           currentUserId={currentUserId}
         />
       )}
+      <style>{`
+        .messages-shell {
+          display: flex;
+          height: calc(100dvh - 48px);
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .messages-list-pane {
+          width: 320px;
+          min-width: 320px;
+          border-right: 1px solid #e0e0e0;
+        }
+
+        .messages-thread-pane {
+          display: flex;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .messages-mobile-back {
+          display: none;
+        }
+
+        @media (max-width: 767px) {
+          .messages-list-pane {
+            width: 100%;
+            min-width: 0;
+            border-right: none;
+          }
+
+          .messages-thread-pane {
+            display: none;
+            width: 100%;
+          }
+
+          .messages-shell--has-selection .messages-list-pane {
+            display: none;
+          }
+
+          .messages-shell--has-selection .messages-thread-pane {
+            display: flex;
+          }
+
+          .messages-mobile-back {
+            display: inline-flex;
+          }
+        }
+      `}</style>
     </div>
   );
 }
