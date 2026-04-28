@@ -425,6 +425,7 @@ function MenuDropdown({ items }: { items: Array<{ label: string; onClick: () => 
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
+  id,
   author,
   content,
   mentions = [],
@@ -456,26 +457,52 @@ export const PostCard: React.FC<PostCardProps> = ({
     ...(active ? styles.actionBtnActive : {}),
     ...(disabled ? styles.actionBtnDisabled : {}),
   });
+  const isCardClickable = variant === 'feed' && Boolean(onComment);
+  const shouldIgnoreCardClick = (target: EventTarget | null) =>
+    target instanceof Element &&
+    Boolean(target.closest('a, button, input, textarea, select, label, [role="button"], [role="dialog"], [data-post-card-ignore-click="true"]'));
+  const handleCardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isCardClickable || shouldIgnoreCardClick(event.target)) return;
+    onComment?.();
+  };
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!isCardClickable || event.target !== event.currentTarget) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onComment?.();
+    }
+  };
+  const handleAuthorClick = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    onAuthorClick?.();
+  };
 
   return (
-    <div style={styles.card}>
+    <div
+      style={{ ...styles.card, cursor: isCardClickable ? 'pointer' : undefined }}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role={isCardClickable ? 'link' : undefined}
+      tabIndex={isCardClickable ? 0 : undefined}
+      aria-label={isCardClickable ? `Open post ${id} comments` : undefined}
+    >
       <div style={styles.header}>
         {author.avatarUrl ? (
           <img
             src={author.avatarUrl}
             alt={author.name}
             style={styles.avatar}
-            onClick={onAuthorClick}
+            onClick={handleAuthorClick}
           />
         ) : (
-          <div style={styles.avatarPlaceholder} onClick={onAuthorClick}>
+          <div style={styles.avatarPlaceholder} onClick={handleAuthorClick}>
             {author.name.charAt(0).toUpperCase()}
           </div>
         )}
 
         <div style={styles.headerInfo}>
           <div style={styles.headerTopRow}>
-            <span style={styles.authorName} onClick={onAuthorClick}>
+            <span style={styles.authorName} onClick={handleAuthorClick} data-post-card-ignore-click="true">
               {author.name}
             </span>
             {author.batch && (
@@ -510,7 +537,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         )}
       </div>
 
-      <PostImageGrid images={images} />
+      <PostImageGrid images={images} onImageClick={isCardClickable ? onComment : undefined} />
 
       {linkPreview && (
         <a href={linkPreview.url} target="_blank" rel="noopener noreferrer" style={styles.linkPreview}>
@@ -543,7 +570,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           style={getActionButtonStyle(isLiked, !onLike)}
-          onClick={onLike}
+          onClick={(event) => {
+            event.stopPropagation();
+            onLike?.();
+          }}
           disabled={!onLike}
           aria-label={isLiked ? 'Unlike post' : 'Like post'}
         >
@@ -554,7 +584,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           style={getActionButtonStyle(false, !onComment)}
-          onClick={onComment}
+          onClick={(event) => {
+            event.stopPropagation();
+            onComment?.();
+          }}
           disabled={!onComment}
           aria-label="View comments"
         >
@@ -565,7 +598,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           style={getActionButtonStyle(isShareCopied, !onShare)}
-          onClick={onShare}
+          onClick={(event) => {
+            event.stopPropagation();
+            onShare?.();
+          }}
           disabled={!onShare}
           aria-label={isShareCopied ? 'Link copied' : 'Share post'}
           aria-live="polite"
@@ -577,7 +613,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           style={getActionButtonStyle(isBookmarked, !onBookmark)}
-          onClick={onBookmark}
+          onClick={(event) => {
+            event.stopPropagation();
+            onBookmark?.();
+          }}
           disabled={!onBookmark}
           aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark post'}
         >
