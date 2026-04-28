@@ -542,7 +542,6 @@ export const PostCard: React.FC<PostCardProps> = ({
       <PostImageGrid
         images={images}
         displaySize={imageDisplaySize}
-        onImageClick={isCardClickable ? onComment : undefined}
       />
 
       {linkPreview && (
