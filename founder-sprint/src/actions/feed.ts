@@ -18,12 +18,13 @@ import { getPostImageStoragePath } from "@/lib/storage-utils";
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
 const CreatePostSchema = z.object({
-  content: z.string().min(1).max(3000),
+  content: z.string().max(3000),
   groupId: z.string().optional().or(z.literal("")),
   category: z.string().optional().or(z.literal("")),
   linkPreview: z.string().optional(),
   imagePaths: z.string().optional(),
   imageUrls: z.string().optional(),
+  imageDisplaySize: z.enum(["small", "medium", "large"]).default("medium"),
   mentions: z.string().optional(),
 });
 
@@ -143,6 +144,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     linkPreview: formData.get("linkPreview") || undefined,
     imagePaths: formData.get("imagePaths") || undefined,
     imageUrls: formData.get("imageUrls") || undefined,
+    imageDisplaySize: formData.get("imageDisplaySize") || undefined,
     mentions: formData.get("mentions") || undefined,
   });
 
@@ -215,6 +217,10 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
       return { success: false, error: "Too many images in post payload" };
     }
 
+    if (parsed.data.content.trim().length === 0 && imageUrls.length === 0) {
+      return { success: false, error: "Post needs text or an image" };
+    }
+
     const accessibleMentionUserIds = await getAccessibleActiveUserIds(
       user,
       [...new Set(mentions.map((mention) => mention.userId))]
@@ -252,6 +258,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
         groupId: parsed.data.groupId || null,
         category: parsed.data.category || null,
         linkPreview: parsedLinkPreview,
+        imageDisplaySize: parsed.data.imageDisplaySize,
         ...(imageUrls.length > 0
           ? {
               images: {
@@ -845,6 +852,7 @@ export async function getPost(id: string) {
 
 const UpdatePostSchema = z.object({
   content: z.string().min(1).max(3000),
+  imageDisplaySize: z.enum(["small", "medium", "large"]).optional(),
 });
 
 export async function updatePost(
@@ -856,6 +864,7 @@ export async function updatePost(
 
   const parsed = UpdatePostSchema.safeParse({
     content: formData.get("content"),
+    imageDisplaySize: formData.get("imageDisplaySize") || undefined,
   });
 
   if (!parsed.success) {
@@ -883,6 +892,7 @@ export async function updatePost(
     where: { id: postId },
     data: { 
       content: parsed.data.content,
+      ...(parsed.data.imageDisplaySize ? { imageDisplaySize: parsed.data.imageDisplaySize } : {}),
     },
   });
 

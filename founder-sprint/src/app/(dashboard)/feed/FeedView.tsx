@@ -33,6 +33,7 @@ interface PostImage {
 interface Post {
   id: string;
   content: string;
+  imageDisplaySize?: string | null;
   isPinned: boolean;
   isHidden?: boolean;
   batchId?: string;
@@ -357,6 +358,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 formData.append("mentions", JSON.stringify(data.mentions));
               }
               if (data.linkPreview) formData.append("linkPreview", JSON.stringify(data.linkPreview));
+              formData.append("imageDisplaySize", data.imageDisplaySize);
               if (data.files.length > 0) {
                 const uploadResult = await uploadPostImages(data.files);
                 if (!uploadResult.success) {
@@ -419,6 +421,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                 }}
                 content={post.content}
                 images={post.images}
+                imageDisplaySize={post.imageDisplaySize}
                 postedAt={formatRelativeTime(post.createdAt)}
                 likes={post._count.likes + (likedIds.has(post.id) ? 1 : 0) - (serverLikedIds.has(post.id) ? 1 : 0)}
                 comments={post._count.comments}
@@ -483,7 +486,7 @@ export function FeedView({ posts, archivedPosts = [], currentUser, isAdmin = fal
                   </div>
                 </div>
                 <p style={{ whiteSpace: "pre-wrap" }}>{post.content}</p>
-                <PostImageGrid images={post.images} />
+                <PostImageGrid images={post.images} displaySize={post.imageDisplaySize} />
                 <div className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
                   {post._count.likes} likes · {post._count.comments} comments
                 </div>

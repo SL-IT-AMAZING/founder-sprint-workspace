@@ -2,11 +2,48 @@
 
 import { useEffect, useState } from "react";
 
+export type PostImageDisplaySize = "small" | "medium" | "large";
+
 interface PostImageGridProps {
   images: Array<{ id?: string; imageUrl: string }>;
+  displaySize?: string | null;
+  onImageClick?: () => void;
 }
 
-export function PostImageGrid({ images }: PostImageGridProps) {
+const IMAGE_DISPLAY_SIZE_STYLES: Record<
+  PostImageDisplaySize,
+  {
+    singleMaxWidth: string;
+    singleMaxHeight: string;
+    pairHeight: string;
+    railWidth: string;
+  }
+> = {
+  small: {
+    singleMaxWidth: "min(100%, 340px)",
+    singleMaxHeight: "240px",
+    pairHeight: "clamp(110px, 18vw, 170px)",
+    railWidth: "clamp(130px, 22vw, 180px)",
+  },
+  medium: {
+    singleMaxWidth: "min(100%, 520px)",
+    singleMaxHeight: "320px",
+    pairHeight: "clamp(140px, 24vw, 220px)",
+    railWidth: "clamp(160px, 28vw, 220px)",
+  },
+  large: {
+    singleMaxWidth: "100%",
+    singleMaxHeight: "520px",
+    pairHeight: "clamp(180px, 32vw, 300px)",
+    railWidth: "clamp(220px, 34vw, 280px)",
+  },
+};
+
+export function PostImageGrid({
+  images,
+  displaySize = "medium",
+  onImageClick,
+}: PostImageGridProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
 
   const hasMultipleImages = images.length > 1;
@@ -52,6 +89,11 @@ export function PostImageGrid({ images }: PostImageGridProps) {
   const isSingle = images.length === 1;
   const isPair = images.length === 2;
   const isRail = images.length >= 3;
+  const normalizedDisplaySize: PostImageDisplaySize =
+    displaySize === "small" || displaySize === "medium" || displaySize === "large"
+      ? displaySize
+      : "medium";
+  const sizeStyles = IMAGE_DISPLAY_SIZE_STYLES[normalizedDisplaySize];
 
   return (
     <div
@@ -61,6 +103,7 @@ export function PostImageGrid({ images }: PostImageGridProps) {
         gridTemplateColumns: isPair ? "repeat(2, minmax(0, 1fr))" : "1fr",
         gap: "10px",
         marginTop: "12px",
+        justifyItems: isSingle ? "start" : undefined,
         overflowX: isRail ? "auto" : undefined,
         overflowY: isRail ? "hidden" : undefined,
         paddingBottom: isRail ? "2px" : undefined,
@@ -73,10 +116,20 @@ export function PostImageGrid({ images }: PostImageGridProps) {
           key={image.id || image.imageUrl}
           role="button"
           tabIndex={0}
-          onClick={() => setActiveImageIndex(index)}
+          onClick={() => {
+            if (onImageClick) {
+              onImageClick();
+              return;
+            }
+            setActiveImageIndex(index);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
+              if (onImageClick) {
+                onImageClick();
+                return;
+              }
               setActiveImageIndex(index);
             }
           }}
@@ -84,12 +137,12 @@ export function PostImageGrid({ images }: PostImageGridProps) {
             borderRadius: "12px",
             overflow: "hidden",
             border: "1px solid #E8E1D4",
-            backgroundColor: "#F6F2EA",
+            backgroundColor: isSingle ? "transparent" : "#F6F2EA",
             cursor: "zoom-in",
-            aspectRatio: isSingle || isRail ? "16 / 10" : undefined,
-            height: isPair ? "clamp(180px, 32vw, 300px)" : undefined,
-            maxHeight: isSingle ? "420px" : undefined,
-            width: isRail ? "clamp(220px, 34vw, 280px)" : undefined,
+            aspectRatio: isSingle ? undefined : isRail ? "16 / 10" : undefined,
+            height: isPair ? sizeStyles.pairHeight : undefined,
+            maxWidth: isSingle ? "100%" : undefined,
+            width: isSingle ? "fit-content" : isRail ? sizeStyles.railWidth : undefined,
             flex: isRail ? "0 0 auto" : undefined,
             scrollSnapAlign: isRail ? "start" : undefined,
           }}
@@ -99,9 +152,11 @@ export function PostImageGrid({ images }: PostImageGridProps) {
             alt={`Post image ${index + 1}`}
             style={{
               display: "block",
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
+              width: isSingle ? "auto" : "100%",
+              height: isSingle ? "auto" : "100%",
+              maxWidth: isSingle ? sizeStyles.singleMaxWidth : undefined,
+              maxHeight: isSingle ? sizeStyles.singleMaxHeight : undefined,
+              objectFit: isSingle ? "contain" : "cover",
               objectPosition: "center",
             }}
           />
