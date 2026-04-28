@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 
 interface PostImageGridProps {
   images: Array<{ id?: string; imageUrl: string }>;
+  onImageClick?: () => void;
 }
 
-export function PostImageGrid({ images }: PostImageGridProps) {
+export function PostImageGrid({ images, onImageClick }: PostImageGridProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
 
   const hasMultipleImages = images.length > 1;
@@ -73,10 +74,20 @@ export function PostImageGrid({ images }: PostImageGridProps) {
           key={image.id || image.imageUrl}
           role="button"
           tabIndex={0}
-          onClick={() => setActiveImageIndex(index)}
+          onClick={() => {
+            if (onImageClick) {
+              onImageClick();
+              return;
+            }
+            setActiveImageIndex(index);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
+              if (onImageClick) {
+                onImageClick();
+                return;
+              }
               setActiveImageIndex(index);
             }
           }}
