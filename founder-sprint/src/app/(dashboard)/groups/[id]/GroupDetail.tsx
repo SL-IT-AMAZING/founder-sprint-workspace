@@ -35,6 +35,7 @@ interface PostImage {
 interface Post {
   id: string;
   content: string;
+  imageDisplaySize?: string | null;
   isPinned: boolean;
   createdAt: Date;
   author: User;
@@ -248,7 +249,7 @@ export function GroupDetail({ group, currentUserId, currentUser, isAdmin }: Grou
                 <p style={{ whiteSpace: "pre-wrap" }}>
                   {renderPostContentWithMentions(post.content, post.mentions || [])}
                 </p>
-                <PostImageGrid images={post.images} />
+                <PostImageGrid images={post.images} displaySize={post.imageDisplaySize} />
 
                 {/* Post Actions */}
                 <div className="flex flex-wrap items-center gap-4 pt-2 border-t" style={{ borderColor: "var(--color-card-border)" }}>

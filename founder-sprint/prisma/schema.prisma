@@ -553,6 +553,7 @@ model Post {
   category    String?  @db.VarChar(50)
   viewCount   Int      @default(0) @map("view_count")
   linkPreview Json?    @map("link_preview")
+  imageDisplaySize String @default("medium") @map("image_display_size") @db.VarChar(20)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

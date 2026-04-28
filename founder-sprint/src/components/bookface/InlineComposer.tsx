@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { MentionTextarea, type ComposerMention } from '@/components/feed/MentionTextarea';
 import { PostImagePicker } from '@/components/feed/PostImagePicker';
+import { validatePostImageFiles } from '@/lib/post-images';
 
 export interface InlineComposerProps {
   currentUser: {
@@ -14,6 +15,7 @@ export interface InlineComposerProps {
     category?: string;
     mentions: ComposerMention[];
     files: File[];
+    imageDisplaySize: 'small' | 'medium' | 'large';
     linkPreview?: { url: string; title: string; description?: string; imageUrl?: string; domain: string } | null;
   }) => Promise<{ success: boolean; error?: string }>;
   isPending?: boolean;
@@ -27,6 +29,11 @@ const CATEGORIES = [
 ];
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/;
+const IMAGE_SIZE_OPTIONS = [
+  { id: 'small', label: 'Small' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'large', label: 'Large' },
+] as const;
 
 const getInitials = (name: string | null): string => {
   if (!name) return "?";
@@ -59,7 +66,10 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>('general');
+  const [imageDisplaySize, setImageDisplaySize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
   const composerRef = useRef<HTMLDivElement>(null);
+  const dragDepthRef = useRef(0);
 
   const hasUrl = URL_REGEX.test(content);
 
@@ -72,7 +82,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!content.trim() || isPending) return;
+    if ((!content.trim() && selectedFiles.length === 0) || isPending) return;
 
     setSubmitError(null);
 
@@ -81,6 +91,7 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
       category: selectedCategory,
       mentions,
       files: selectedFiles,
+      imageDisplaySize,
       linkPreview: null,
     });
 
@@ -92,15 +103,92 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
     setContent('');
     setMentions([]);
     setSelectedFiles([]);
+    setImageDisplaySize('medium');
     setSelectedCategory('general');
     setIsExpanded(false);
     setSubmitError(null);
-  }, [content, selectedCategory, mentions, selectedFiles, isPending, onSubmit]);
+  }, [content, selectedCategory, mentions, selectedFiles, imageDisplaySize, isPending, onSubmit]);
+
+  const appendImageFiles = useCallback((incomingFiles: File[]) => {
+    const imageFiles = incomingFiles.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    const selectedKeys = new Set(
+      selectedFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+    );
+    const uniqueFiles = imageFiles.filter((file) => {
+      const key = `${file.name}-${file.size}-${file.lastModified}`;
+      if (selectedKeys.has(key)) return false;
+      selectedKeys.add(key);
+      return true;
+    });
+
+    if (uniqueFiles.length === 0) {
+      setSubmitError('These photos are already selected.');
+      return;
+    }
+
+    const validationError = validatePostImageFiles(uniqueFiles, selectedFiles.length);
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
+
+    setSubmitError(null);
+    setSelectedFiles((currentFiles) => [...currentFiles, ...uniqueFiles]);
+  }, [selectedFiles]);
+
+  const resetImageDragState = useCallback(() => {
+    dragDepthRef.current = 0;
+    setIsDraggingImages(false);
+  }, []);
+
+  const handleImageDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isPending) return;
+    dragDepthRef.current += 1;
+    setIsDraggingImages(true);
+  }, [isPending]);
+
+  const handleImageDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isPending) event.dataTransfer.dropEffect = 'copy';
+  }, [isPending]);
+
+  const handleImageDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isPending) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingImages(false);
+  }, [isPending]);
+
+  const handleImageDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    resetImageDragState();
+    if (isPending) return;
+    appendImageFiles(Array.from(event.dataTransfer.files || []));
+  }, [appendImageFiles, isPending, resetImageDragState]);
+
+  const handleImagePaste = useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (isPending) return;
+    const pastedImages = Array.from(event.clipboardData.files || []).filter((file) =>
+      file.type.startsWith('image/')
+    );
+    if (pastedImages.length === 0) return;
+
+    event.preventDefault();
+    appendImageFiles(pastedImages);
+  }, [appendImageFiles, isPending]);
 
   const handleCancel = useCallback(() => {
     setContent('');
     setMentions([]);
     setSelectedFiles([]);
+    setImageDisplaySize('medium');
     setSelectedCategory('general');
     setSubmitError(null);
     setIsExpanded(false);
@@ -169,7 +257,15 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
         {renderAvatar()}
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div ref={composerRef}>
+          <div
+            ref={composerRef}
+            onDragEnter={handleImageDragEnter}
+            onDragOver={handleImageDragOver}
+            onDragLeave={handleImageDragLeave}
+            onDrop={handleImageDrop}
+            onPaste={handleImagePaste}
+            style={{ position: 'relative' }}
+          >
             <MentionTextarea
               value={content}
               mentions={mentions}
@@ -179,6 +275,28 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
               disabled={isPending}
               rows={5}
             />
+            {isDraggingImages && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '10px',
+                  border: '1px dashed #8B7E68',
+                  backgroundColor: 'rgba(247, 242, 232, 0.96)',
+                  color: '#2F2C26',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  pointerEvents: 'none',
+                }}
+              >
+                Drop photos here
+              </div>
+            )}
           </div>
 
           {hasUrl && (
@@ -202,6 +320,55 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
             onChange={setSelectedFiles}
             disabled={isPending}
           />
+
+          {selectedFiles.length > 0 && (
+            <div
+              style={{
+                marginTop: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span
+                style={{
+                  color: '#7A7468',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                Image size
+              </span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {IMAGE_SIZE_OPTIONS.map((option) => {
+                  const isActive = imageDisplaySize === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setImageDisplaySize(option.id)}
+                      disabled={isPending}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '999px',
+                        border: isActive ? '1px solid #2F2C26' : '1px solid #DDD4C4',
+                        backgroundColor: isActive ? '#2F2C26' : '#FFFFFF',
+                        color: isActive ? '#FFFFFF' : '#6E675B',
+                        cursor: isPending ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        opacity: isPending ? 0.6 : 1,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {submitError && (
             <div
@@ -276,16 +443,16 @@ export const InlineComposer: React.FC<InlineComposerProps> = ({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!content.trim() || isPending}
+                disabled={(!content.trim() && selectedFiles.length === 0) || isPending}
                 style={{
                   padding: '8px 14px',
                   borderRadius: '999px',
                   border: 'none',
-                  backgroundColor: !content.trim() || isPending ? '#D3CBBE' : '#2F2C26',
+                  backgroundColor: (!content.trim() && selectedFiles.length === 0) || isPending ? '#D3CBBE' : '#2F2C26',
                   color: '#FFFFFF',
                   fontSize: '13px',
                   fontWeight: 600,
-                  cursor: !content.trim() || isPending ? 'not-allowed' : 'pointer',
+                  cursor: (!content.trim() && selectedFiles.length === 0) || isPending ? 'not-allowed' : 'pointer',
                 }}
               >
                 {isPending ? 'Posting...' : 'Post'}

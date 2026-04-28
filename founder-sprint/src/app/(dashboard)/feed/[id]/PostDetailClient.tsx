@@ -24,6 +24,7 @@ interface PostDetail {
   category: string | null;
   viewCount: number;
   isPinned: boolean;
+  imageDisplaySize?: string | null;
   createdAt: Date;
   author: { id: string; name: string | null; email: string; profileImage: string | null; headline: string | null };
   images: Array<{ id: string; imageUrl: string }>;
@@ -575,6 +576,7 @@ export function PostDetailClient({
           content={post.content}
           mentions={post.mentions}
           images={post.images}
+          imageDisplaySize={post.imageDisplaySize}
           linkPreview={post.linkPreview as { url: string; title: string; description?: string; imageUrl?: string; domain: string } | undefined}
           postedAt={formatRelativeTime(post.createdAt)}
           likes={likeCount}

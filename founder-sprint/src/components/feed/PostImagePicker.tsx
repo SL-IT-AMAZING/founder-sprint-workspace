@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable @next/next/no-img-element -- composer previews use local blob URLs before upload. */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   POST_IMAGE_ALLOWED_TYPES,
   POST_IMAGE_MAX_FILES,
@@ -31,11 +33,26 @@ export function PostImagePicker({
     };
   }, [previewUrls]);
 
-  const handleSelectFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextFiles = Array.from(event.target.files || []);
+  const appendFiles = useCallback((incomingFiles: File[]) => {
+    const nextFiles = incomingFiles;
     if (nextFiles.length === 0) return;
 
-    const validationError = validatePostImageFiles(nextFiles, files.length);
+    const selectedKeys = new Set(
+      files.map((file) => `${file.name}-${file.size}-${file.lastModified}`)
+    );
+    const uniqueFiles = nextFiles.filter((file) => {
+      const key = `${file.name}-${file.size}-${file.lastModified}`;
+      if (selectedKeys.has(key)) return false;
+      selectedKeys.add(key);
+      return true;
+    });
+
+    if (uniqueFiles.length === 0) {
+      setError("These photos are already selected.");
+      return;
+    }
+
+    const validationError = validatePostImageFiles(uniqueFiles, files.length);
     if (validationError) {
       setError(validationError);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -43,8 +60,12 @@ export function PostImagePicker({
     }
 
     setError(null);
-    onChange([...files, ...nextFiles]);
+    onChange([...files, ...uniqueFiles]);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [files, onChange]);
+
+  const handleSelectFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    appendFiles(Array.from(event.target.files || []));
   };
 
   const handleRemove = (index: number) => {
@@ -55,7 +76,14 @@ export function PostImagePicker({
   const hasFiles = files.length > 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: hasFiles ? "12px" : "8px", marginTop: "10px" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: hasFiles ? "12px" : "8px",
+        marginTop: "10px",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -65,6 +93,23 @@ export function PostImagePicker({
           flexWrap: "wrap",
         }}
       >
+        {hasFiles ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "6px 10px",
+              borderRadius: "999px",
+              border: "1px solid #E7DFCF",
+              backgroundColor: "#F7F2E8",
+              color: "#7A7468",
+              fontSize: "12px",
+              fontWeight: 600,
+            }}
+          >
+            {files.length}/{POST_IMAGE_MAX_FILES} selected
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -102,24 +147,6 @@ export function PostImagePicker({
           </svg>
           Add photos
         </button>
-
-        {hasFiles ? (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "6px 10px",
-              borderRadius: "999px",
-              border: "1px solid #E7DFCF",
-              backgroundColor: "#F7F2E8",
-              color: "#7A7468",
-              fontSize: "12px",
-              fontWeight: 600,
-            }}
-          >
-            {files.length}/{POST_IMAGE_MAX_FILES} selected
-          </span>
-        ) : null}
       </div>
 
       <input
@@ -150,12 +177,13 @@ export function PostImagePicker({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))",
-            gap: "10px",
+            gridTemplateColumns: "repeat(auto-fill, minmax(68px, 84px))",
+            gap: "8px",
             padding: "10px",
             borderRadius: "12px",
             border: "1px solid #ECE3D5",
             backgroundColor: "#FBF8F2",
+            alignItems: "start",
           }}
         >
           {previewUrls.map((previewUrl, index) => (
@@ -168,6 +196,7 @@ export function PostImagePicker({
                 border: "1px solid #E7DFCF",
                 backgroundColor: "#F6F2EA",
                 aspectRatio: "1 / 1",
+                width: "100%",
               }}
             >
               <img

@@ -27,6 +27,7 @@ export interface PostCardProps {
   content: string;
   mentions?: RenderablePostMention[];
   images?: Array<{ id?: string; imageUrl: string }>;
+  imageDisplaySize?: string | null;
   linkPreview?: LinkPreview;
   tags?: string[];
   postedAt: string;
@@ -430,6 +431,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   content,
   mentions = [],
   images = [],
+  imageDisplaySize = 'medium',
   linkPreview,
   tags,
   postedAt,
@@ -537,7 +539,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         )}
       </div>
 
-      <PostImageGrid images={images} onImageClick={isCardClickable ? onComment : undefined} />
+      <PostImageGrid
+        images={images}
+        displaySize={imageDisplaySize}
+      />
 
       {linkPreview && (
         <a href={linkPreview.url} target="_blank" rel="noopener noreferrer" style={styles.linkPreview}>
