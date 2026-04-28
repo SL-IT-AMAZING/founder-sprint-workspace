@@ -18,6 +18,7 @@ interface ConversationThreadProps {
     attachments: MessageAttachmentInput[]
   ) => boolean | Promise<boolean>;
   isLoading: boolean;
+  onBack?: () => void;
 }
 
 export default function ConversationThread({
@@ -27,6 +28,7 @@ export default function ConversationThread({
   currentUserId,
   onSendMessage,
   isLoading,
+  onBack,
 }: ConversationThreadProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -142,6 +144,32 @@ export default function ConversationThread({
           backgroundColor: "#FFFFFF",
         }}
       >
+        {onBack && (
+          <button
+            type="button"
+            className="messages-mobile-back"
+            onClick={onBack}
+            aria-label="Back to conversations"
+            style={{
+              width: "36px",
+              height: "36px",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              background: "transparent",
+              color: "#2F2C26",
+              cursor: "pointer",
+              padding: 0,
+              marginLeft: "-8px",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+
         {/* Avatar */}
         {conversationDetail?.isGroup ? (
           <GroupAvatar
