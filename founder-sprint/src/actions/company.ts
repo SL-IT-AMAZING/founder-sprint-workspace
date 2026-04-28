@@ -326,7 +326,7 @@ export async function addCompanyMember(
     return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
   }
 
-  const auth = await requireCompanyManager(parsed.data.companyId);
+  const auth = await requireAdminUser();
   if (!auth.success) return auth;
 
   const [company, user, existingMembership] = await Promise.all([
@@ -390,7 +390,7 @@ export async function removeCompanyMember(id: string): Promise<ActionResult> {
   });
   if (!membership) return { success: false, error: "Company member not found" };
 
-  const auth = await requireCompanyManager(membership.companyId);
+  const auth = await requireAdminUser();
   if (!auth.success) return auth;
 
   await prisma.companyMember.delete({ where: { id } });

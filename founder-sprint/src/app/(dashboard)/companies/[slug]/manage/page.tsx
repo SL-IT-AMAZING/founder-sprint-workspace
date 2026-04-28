@@ -60,7 +60,7 @@ export default async function ManageCompanyPage({ params }: ManageCompanyPagePro
         <div>
           <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Manage Company</h1>
           <p className="text-sm mt-1" style={{ color: "#666" }}>
-            Update company information and manage team members
+            {userIsAdmin ? "Update company information and manage team members" : "Update company profile information"}
           </p>
         </div>
         <Link href={`/companies/${company.slug}`} className="text-sm underline" style={{ color: "#2F2C26" }}>
@@ -87,21 +87,30 @@ export default async function ManageCompanyPage({ params }: ManageCompanyPagePro
         successRedirect="companyProfile"
       />
 
-      <MemberManager
-        companyId={company.id}
-        members={company.members.map((member) => ({
-          id: member.id,
-          role: member.role,
-          title: member.title,
-          isCurrent: member.isCurrent,
-          user: {
-            id: member.user.id,
-            name: member.user.name,
-            email: member.user.email,
-            profileImage: member.user.profileImage,
-          },
-        }))}
-      />
+      {userIsAdmin ? (
+        <MemberManager
+          companyId={company.id}
+          members={company.members.map((member) => ({
+            id: member.id,
+            role: member.role,
+            title: member.title,
+            isCurrent: member.isCurrent,
+            user: {
+              id: member.user.id,
+              name: member.user.name,
+              email: member.user.email,
+              profileImage: member.user.profileImage,
+            },
+          }))}
+        />
+      ) : (
+        <div className="card" style={{ maxWidth: "800px" }}>
+          <h2 className="text-lg font-semibold mb-2">Team Members</h2>
+          <p className="text-sm" style={{ color: "#666" }}>
+            Team membership changes are handled by admins. Use the company request flow if you need to leave this company or join a different one.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
