@@ -726,7 +726,8 @@ model Company {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   members     CompanyMember[]
-  changeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestCurrentCompany")
+  currentChangeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestCurrentCompany")
+  targetChangeRequests CompanyChangeRequest[] @relation("CompanyChangeRequestTargetCompany")
   batches     CompanyBatch[]
   officeHourSlots OfficeHourSlot[]
 
@@ -776,6 +777,7 @@ model CompanyChangeRequest {
   userId                 String   @map("user_id") @db.Uuid
   batchId                String?  @map("batch_id") @db.Uuid
   currentCompanyId       String?  @map("current_company_id") @db.Uuid
+  targetCompanyId        String?  @map("target_company_id") @db.Uuid
   targetType             String   @map("target_type") @db.VarChar(32)
   requestedCompanyName   String?  @map("requested_company_name") @db.VarChar(200)
   requestedDescription   String?  @map("requested_description") @db.Text
@@ -791,12 +793,14 @@ model CompanyChangeRequest {
   user          User     @relation("CompanyChangeRequestRequester", fields: [userId], references: [id], onDelete: Cascade)
   batch         Batch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
   currentCompany Company? @relation("CompanyChangeRequestCurrentCompany", fields: [currentCompanyId], references: [id], onDelete: SetNull)
+  targetCompany Company? @relation("CompanyChangeRequestTargetCompany", fields: [targetCompanyId], references: [id], onDelete: SetNull)
   reviewedBy    User?    @relation("CompanyChangeRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   promotedUser  User?    @relation("CompanyChangeRequestPromotedUser", fields: [promotedUserId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([batchId, status])
   @@index([currentCompanyId])
+  @@index([targetCompanyId])
   @@map("company_change_requests")
 }
 

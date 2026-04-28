@@ -6,7 +6,7 @@ export type PostImageDisplaySize = "small" | "medium" | "large";
 
 interface PostImageGridProps {
   images: Array<{ id?: string; imageUrl: string }>;
-  displaySize?: string | null;
+  displaySize?: PostImageDisplaySize | null;
 }
 
 const IMAGE_DISPLAY_SIZE_STYLES: Record<

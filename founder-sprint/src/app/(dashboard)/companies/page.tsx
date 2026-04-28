@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser, isAdmin } from "@/lib/permissions";
+import { getCurrentUser, isAdmin, isFounder } from "@/lib/permissions";
 import { getCompaniesDirectory } from "@/actions/directory";
+import { getMyCompanyRequestContext } from "@/actions/company";
+import { NewCompanyRequestButton } from "./NewCompanyRequestButton";
 import { SearchBar } from "./SearchBar";
 
 export const revalidate = 30;
@@ -19,13 +21,15 @@ export default async function CompaniesPage({
   const industry = params.industry || "";
   const page = Math.max(1, parseInt(params.page || "1", 10));
 
-  const companiesResult = await getCompaniesDirectory({
-
-    search: search || undefined,
-    industry: industry || undefined,
-    page,
-    limit: 20,
-  });
+  const [companiesResult, requestContextResult] = await Promise.all([
+    getCompaniesDirectory({
+      search: search || undefined,
+      industry: industry || undefined,
+      page,
+      limit: 20,
+    }),
+    isFounder(user.role) ? getMyCompanyRequestContext() : Promise.resolve(null),
+  ]);
 
   if (!companiesResult.success) {
     return (
@@ -35,7 +39,7 @@ export default async function CompaniesPage({
     );
   }
 
-  const { companies, total, hasMore } = companiesResult.data;
+  const { companies, total } = companiesResult.data;
   const totalPages = Math.ceil(total / 20);
 
   const buildUrl = (newPage: number) => {
@@ -73,6 +77,19 @@ export default async function CompaniesPage({
   };
 
   const userIsAdmin = isAdmin(user.role);
+  const userIsFounder = isFounder(user.role);
+  const requestContext = requestContextResult?.success ? requestContextResult.data : null;
+  const currentCompany = requestContext?.currentCompany || null;
+  const latestPendingRequest = requestContext?.latestPendingRequest || null;
+  const canRequestCompany = userIsFounder && !currentCompany;
+  const pendingRequestName =
+    latestPendingRequest?.targetType === "join_company"
+      ? latestPendingRequest.targetCompany?.name || "join company"
+      : latestPendingRequest?.targetType === "new_company"
+        ? latestPendingRequest.requestedCompanyName || "new company"
+        : latestPendingRequest?.targetType === "leave_company"
+          ? "leave company"
+          : null;
 
   return (
     <div>
@@ -134,7 +151,57 @@ export default async function CompaniesPage({
             </Link>
           </div>
         )}
+        {!userIsAdmin && userIsFounder && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {currentCompany ? (
+              <Link
+                href={`/companies/${currentCompany.slug}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  borderRadius: "9px",
+                  backgroundColor: "#f5f5f5",
+                  color: "#2F2C26",
+                  border: "1px solid #e0e0e0",
+                  textDecoration: "none",
+                }}
+              >
+                Current company: {currentCompany.name}
+              </Link>
+            ) : (
+              <NewCompanyRequestButton batchId={user.batchId} disabled={!!latestPendingRequest} />
+            )}
+            {latestPendingRequest && (
+              <Link href="/settings" style={{ width: "100%", fontSize: 13, color: "#666666", textAlign: "right" }}>
+                Pending request: {pendingRequestName}. Manage it in Settings.
+              </Link>
+            )}
+          </div>
+        )}
       </div>
+
+      {canRequestCompany && (
+        <div
+          style={{
+            backgroundColor: "#FFFBEB",
+            border: "1px solid #FDE68A",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "20px",
+            color: "#2F2C26",
+          }}
+        >
+          <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "4px" }}>
+            Looking for your company?
+          </div>
+          <p style={{ fontSize: "14px", color: "#666666", margin: 0 }}>
+            Open an existing company profile to request to join it. If your company is not listed, use “Request new company.”
+          </p>
+        </div>
+      )}
 
       <SearchBar initialSearch={search} />
 

@@ -587,6 +587,12 @@ const CreateNewCompanyRequestSchema = z.object({
   note: z.string().max(1000).optional(),
 });
 
+const CreateJoinCompanyRequestSchema = z.object({
+  targetCompanyId: z.string().uuid(),
+  batchId: z.string().uuid().optional(),
+  note: z.string().max(1000).optional(),
+});
+
 const ResolveCompanyRequestSchema = z.object({
   requestId: z.string().uuid(),
   resolutionType: z.enum(["promote_one", "convert_all"]).optional(),
@@ -639,6 +645,27 @@ async function createAdminNotifications(userIds: string[], type: string, entityI
   });
 }
 
+function getCompanyMemberRole(role?: string | null) {
+  return role === "co_founder"
+    ? { role: "co_founder", title: "Co-founder" }
+    : { role: "founder", title: "Founder" };
+}
+
+async function findCurrentCompanyMembership(userId: string) {
+  return prisma.companyMember.findFirst({
+    where: { userId, isCurrent: true },
+    include: { company: { select: { id: true, name: true, slug: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+async function findPendingCompanyChangeRequest(userId: string) {
+  return prisma.companyChangeRequest.findFirst({
+    where: { userId, status: "pending" },
+    select: { id: true, targetType: true },
+  });
+}
+
 export async function createCompanyLeaveRequest(input: { currentCompanyId: string; batchId?: string; note?: string }): Promise<ActionResult<{ id: string }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -653,16 +680,8 @@ export async function createCompanyLeaveRequest(input: { currentCompanyId: strin
   });
   if (!membership) return { success: false, error: "Current company membership not found" };
 
-  const duplicate = await prisma.companyChangeRequest.findFirst({
-    where: {
-      userId: user.id,
-      currentCompanyId: parsed.data.currentCompanyId,
-      targetType: "leave_company",
-      status: "pending",
-    },
-    select: { id: true },
-  });
-  if (duplicate) return { success: false, error: "A leave-company request is already pending" };
+  const duplicate = await findPendingCompanyChangeRequest(user.id);
+  if (duplicate) return { success: false, error: "A company change request is already pending" };
 
   const dependentCoFounders = user.role === "founder" && parsed.data.batchId
     ? await prisma.userBatch.findMany({
@@ -696,6 +715,7 @@ export async function createCompanyLeaveRequest(input: { currentCompanyId: strin
   );
 
   revalidatePath("/settings");
+  revalidatePath("/companies");
   revalidatePath("/admin/companies");
   return { success: true, data: request };
 }
@@ -708,21 +728,18 @@ export async function createNewCompanyRequest(input: { currentCompanyId?: string
   const parsed = CreateNewCompanyRequestSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
 
-  const duplicate = await prisma.companyChangeRequest.findFirst({
-    where: {
-      userId: user.id,
-      targetType: "new_company",
-      status: "pending",
-    },
-    select: { id: true },
-  });
-  if (duplicate) return { success: false, error: "A new-company request is already pending" };
+  const [currentMembership, duplicate] = await Promise.all([
+    findCurrentCompanyMembership(user.id),
+    findPendingCompanyChangeRequest(user.id),
+  ]);
+  if (currentMembership) return { success: false, error: "You already belong to a company. Leave your current company before requesting a new one." };
+  if (duplicate) return { success: false, error: "A company change request is already pending" };
 
   const request = await prisma.companyChangeRequest.create({
     data: {
       userId: user.id,
       batchId: parsed.data.batchId || null,
-      currentCompanyId: parsed.data.currentCompanyId || null,
+      currentCompanyId: null,
       targetType: "new_company",
       requestedCompanyName: parsed.data.requestedCompanyName,
       requestedDescription: parsed.data.requestedDescription || null,
@@ -741,6 +758,53 @@ export async function createNewCompanyRequest(input: { currentCompanyId?: string
   );
 
   revalidatePath("/settings");
+  revalidatePath("/companies");
+  revalidatePath("/admin/companies");
+  return { success: true, data: request };
+}
+
+export async function createJoinCompanyRequest(input: { targetCompanyId: string; batchId?: string; note?: string }): Promise<ActionResult<{ id: string }>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+  if (!isFounder(user.role)) return { success: false, error: "Only founders can request company changes" };
+
+  const parsed = CreateJoinCompanyRequestSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || "Invalid input" };
+
+  const [targetCompany, currentMembership, duplicate] = await Promise.all([
+    prisma.company.findUnique({ where: { id: parsed.data.targetCompanyId }, select: { id: true, name: true, slug: true } }),
+    findCurrentCompanyMembership(user.id),
+    findPendingCompanyChangeRequest(user.id),
+  ]);
+
+  if (!targetCompany) return { success: false, error: "Company not found" };
+  if (currentMembership) return { success: false, error: "You already belong to a company. Leave your current company before requesting to join another one." };
+  if (duplicate) return { success: false, error: "A company change request is already pending" };
+
+  const request = await prisma.companyChangeRequest.create({
+    data: {
+      userId: user.id,
+      batchId: parsed.data.batchId || null,
+      currentCompanyId: null,
+      targetCompanyId: targetCompany.id,
+      targetType: "join_company",
+      note: parsed.data.note || null,
+    },
+    select: { id: true },
+  });
+
+  const adminUserIds = await getAdminNotificationUserIds(parsed.data.batchId);
+  await createAdminNotifications(
+    adminUserIds,
+    "company_request_join",
+    request.id,
+    "Company join request",
+    `${user.name || user.email} requested to join ${targetCompany.name}.`
+  );
+
+  revalidatePath("/settings");
+  revalidatePath("/companies");
+  revalidatePath(`/companies/${targetCompany.slug}`);
   revalidatePath("/admin/companies");
   return { success: true, data: request };
 }
@@ -749,6 +813,7 @@ export async function getMyCompanyChangeRequests(): Promise<ActionResult<Array<{
   id: string;
   targetType: string;
   requestedCompanyName: string | null;
+  targetCompany: { id: string; name: string; slug: string } | null;
   status: string;
   hasDependentCoFounders: boolean;
   createdAt: Date;
@@ -757,10 +822,54 @@ export async function getMyCompanyChangeRequests(): Promise<ActionResult<Array<{
   if (!user) return { success: false, error: "Not authenticated" };
   const requests = await prisma.companyChangeRequest.findMany({
     where: { userId: user.id },
-    select: { id: true, targetType: true, requestedCompanyName: true, status: true, hasDependentCoFounders: true, createdAt: true },
+    select: {
+      id: true,
+      targetType: true,
+      requestedCompanyName: true,
+      targetCompany: { select: { id: true, name: true, slug: true } },
+      status: true,
+      hasDependentCoFounders: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: "desc" },
   });
   return { success: true, data: requests };
+}
+
+export async function getMyCompanyRequestContext(): Promise<ActionResult<{
+  currentCompany: { id: string; name: string; slug: string } | null;
+  latestPendingRequest: {
+    id: string;
+    targetType: string;
+    requestedCompanyName: string | null;
+    targetCompany: { id: string; name: string; slug: string } | null;
+    status: string;
+  } | null;
+}>> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+  const [currentMembership, latestPendingRequest] = await Promise.all([
+    findCurrentCompanyMembership(user.id),
+    prisma.companyChangeRequest.findFirst({
+      where: { userId: user.id, status: "pending" },
+      select: {
+        id: true,
+        targetType: true,
+        requestedCompanyName: true,
+        status: true,
+        targetCompany: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      currentCompany: currentMembership?.company || null,
+      latestPendingRequest,
+    },
+  };
 }
 
 export async function getCompanyChangeRequestsForAdmin(): Promise<ActionResult<Array<{
@@ -776,6 +885,7 @@ export async function getCompanyChangeRequestsForAdmin(): Promise<ActionResult<A
   requester: { id: string; name: string | null; email: string; };
   batch: { id: string; name: string; } | null;
   currentCompany: { id: string; name: string; } | null;
+  targetCompany: { id: string; name: string; slug: string; } | null;
   dependentCoFounders: Array<{ id: string; name: string | null; email: string }>;
 }>>> {
   const auth = await requireAdminUser();
@@ -787,6 +897,7 @@ export async function getCompanyChangeRequestsForAdmin(): Promise<ActionResult<A
       user: { select: { id: true, name: true, email: true } },
       batch: { select: { id: true, name: true } },
       currentCompany: { select: { id: true, name: true } },
+      targetCompany: { select: { id: true, name: true, slug: true } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -813,6 +924,7 @@ export async function getCompanyChangeRequestsForAdmin(): Promise<ActionResult<A
       requester: request.user,
       batch: request.batch,
       currentCompany: request.currentCompany,
+      targetCompany: request.targetCompany,
       dependentCoFounders,
     });
   }
@@ -852,74 +964,113 @@ export async function approveCompanyChangeRequest(input: { requestId: string; re
   if (!isAdmin(adminUser.role)) return { success: false, error: "Not authorized" };
   const parsed = ResolveCompanyRequestSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || 'Invalid input' };
-  const request = await prisma.companyChangeRequest.findUnique({ where: { id: parsed.data.requestId }, include: { user: { select: { id: true, name: true } } } });
+
+  const request = await prisma.companyChangeRequest.findUnique({
+    where: { id: parsed.data.requestId },
+    include: {
+      user: { select: { id: true, name: true, role: true } },
+      targetCompany: { select: { id: true, name: true, slug: true } },
+    },
+  });
   if (!request || request.status !== 'pending') return { success: false, error: 'Pending request not found' };
 
-  if (request.targetType === 'leave_company') {
-    if (!request.currentCompanyId) return { success: false, error: 'Current company missing' };
-    if (request.hasDependentCoFounders && !parsed.data.resolutionType) {
-      return { success: false, error: 'Resolution is required before approving this founder departure' };
-    }
-
-    const currentMembership = await prisma.companyMember.findFirst({ where: { companyId: request.currentCompanyId, userId: request.userId, isCurrent: true }, select: { id: true } });
-    if (currentMembership) {
-      await prisma.companyMember.update({ where: { id: currentMembership.id }, data: { isCurrent: false, endDate: new Date() } });
-    }
-
-    if (request.batchId) {
-      const requesterBatchMembership = await prisma.userBatch.findFirst({ where: { userId: request.userId, batchId: request.batchId, status: 'active' } });
-      if (requesterBatchMembership?.role === 'co_founder') {
-        await prisma.userBatch.update({ where: { id: requesterBatchMembership.id }, data: { role: 'founder', founderId: null } });
+  try {
+    if (request.targetType === 'leave_company') {
+      if (!request.currentCompanyId) return { success: false, error: 'Current company missing' };
+      if (request.hasDependentCoFounders && !parsed.data.resolutionType) {
+        return { success: false, error: 'Resolution is required before approving this founder departure' };
       }
 
-      if (requesterBatchMembership?.role === 'founder' && request.hasDependentCoFounders) {
-        const dependents = await prisma.userBatch.findMany({ where: { batchId: request.batchId, founderId: request.userId, status: 'active', role: 'co_founder' } });
-        if (parsed.data.resolutionType === 'promote_one') {
-          if (!parsed.data.promotedUserId) return { success: false, error: 'Select a co-founder to promote' };
-          const promoted = dependents.find((dep) => dep.userId === parsed.data.promotedUserId);
-          if (!promoted) return { success: false, error: 'Selected co-founder not found' };
-          await prisma.userBatch.update({ where: { id: promoted.id }, data: { role: 'founder', founderId: null } });
-          const remainingIds = dependents.filter((dep) => dep.userId !== parsed.data.promotedUserId).map((dep) => dep.id);
-          if (remainingIds.length) {
-            await prisma.userBatch.updateMany({ where: { id: { in: remainingIds } }, data: { founderId: parsed.data.promotedUserId } });
+      const currentMembership = await prisma.companyMember.findFirst({ where: { companyId: request.currentCompanyId, userId: request.userId, isCurrent: true }, select: { id: true } });
+      if (currentMembership) {
+        await prisma.companyMember.update({ where: { id: currentMembership.id }, data: { isCurrent: false, endDate: new Date() } });
+      }
+
+      if (request.batchId) {
+        const requesterBatchMembership = await prisma.userBatch.findFirst({ where: { userId: request.userId, batchId: request.batchId, status: 'active' } });
+        if (requesterBatchMembership?.role === 'co_founder') {
+          await prisma.userBatch.update({ where: { id: requesterBatchMembership.id }, data: { role: 'founder', founderId: null } });
+        }
+
+        if (requesterBatchMembership?.role === 'founder' && request.hasDependentCoFounders) {
+          const dependents = await prisma.userBatch.findMany({ where: { batchId: request.batchId, founderId: request.userId, status: 'active', role: 'co_founder' } });
+          if (parsed.data.resolutionType === 'promote_one') {
+            if (!parsed.data.promotedUserId) return { success: false, error: 'Select a co-founder to promote' };
+            const promoted = dependents.find((dep) => dep.userId === parsed.data.promotedUserId);
+            if (!promoted) return { success: false, error: 'Selected co-founder not found' };
+            await prisma.userBatch.update({ where: { id: promoted.id }, data: { role: 'founder', founderId: null } });
+            const remainingIds = dependents.filter((dep) => dep.userId !== parsed.data.promotedUserId).map((dep) => dep.id);
+            if (remainingIds.length) {
+              await prisma.userBatch.updateMany({ where: { id: { in: remainingIds } }, data: { founderId: parsed.data.promotedUserId } });
+            }
+          } else if (parsed.data.resolutionType === 'convert_all') {
+            await prisma.userBatch.updateMany({ where: { id: { in: dependents.map((dep) => dep.id) } }, data: { role: 'founder', founderId: null } });
           }
-        } else if (parsed.data.resolutionType === 'convert_all') {
-          await prisma.userBatch.updateMany({ where: { id: { in: dependents.map((dep) => dep.id) } }, data: { role: 'founder', founderId: null } });
         }
       }
-    }
 
-    await syncUserCompanyName(request.userId);
-  }
+      await syncUserCompanyName(request.userId);
+    } else if (request.targetType === 'new_company') {
+      if (!request.requestedCompanyName) return { success: false, error: 'Requested company name missing' };
 
-  if (request.targetType === 'new_company') {
-    if (!request.requestedCompanyName) return { success: false, error: 'Requested company name missing' };
-    const slug = request.requestedCompanyName.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const existing = await prisma.company.findUnique({ where: { slug }, select: { id: true } });
-    if (existing) return { success: false, error: 'Company slug already exists' };
+      const slug = request.requestedCompanyName.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      const existing = await prisma.company.findUnique({ where: { slug }, select: { id: true } });
+      if (existing) return { success: false, error: 'Company slug already exists' };
 
-    if (request.currentCompanyId) {
-      await prisma.companyMember.updateMany({ where: { companyId: request.currentCompanyId, userId: request.userId, isCurrent: true }, data: { isCurrent: false, endDate: new Date() } });
-    }
+      const memberRole = getCompanyMemberRole(request.user.role);
+      await prisma.$transaction(async (tx) => {
+        const freshRequest = await tx.companyChangeRequest.findUnique({ where: { id: request.id }, select: { status: true } });
+        if (!freshRequest || freshRequest.status !== 'pending') throw new Error('Pending request not found');
+        const activeMembership = await tx.companyMember.findFirst({ where: { userId: request.userId, isCurrent: true }, select: { id: true } });
+        if (activeMembership) throw new Error('Requester already belongs to a company');
 
-    const company = await prisma.company.create({ data: { name: request.requestedCompanyName, slug, description: request.requestedDescription || null } });
-    if (request.batchId) {
-      await prisma.companyBatch.create({ data: { companyId: company.id, batchId: request.batchId } });
+        const company = await tx.company.create({ data: { name: request.requestedCompanyName!, slug, description: request.requestedDescription || null } });
+        if (request.batchId) {
+          await tx.companyBatch.create({ data: { companyId: company.id, batchId: request.batchId } });
+        }
+        await tx.companyMember.create({ data: { companyId: company.id, userId: request.userId, isCurrent: true, ...memberRole } });
+        if (request.batchId) {
+          const requesterBatchMembership = await tx.userBatch.findFirst({ where: { userId: request.userId, batchId: request.batchId, status: 'active' } });
+          if (requesterBatchMembership?.role === 'co_founder') {
+            await tx.userBatch.update({ where: { id: requesterBatchMembership.id }, data: { role: 'founder', founderId: null } });
+          }
+        }
+        await tx.user.update({ where: { id: request.userId }, data: { company: company.name } });
+      });
+    } else if (request.targetType === 'join_company') {
+      if (!request.targetCompanyId || !request.targetCompany) return { success: false, error: 'Target company missing' };
+
+      const memberRole = getCompanyMemberRole(request.user.role);
+      await prisma.$transaction(async (tx) => {
+        const freshRequest = await tx.companyChangeRequest.findUnique({ where: { id: request.id }, select: { status: true } });
+        if (!freshRequest || freshRequest.status !== 'pending') throw new Error('Pending request not found');
+        const targetCompany = await tx.company.findUnique({ where: { id: request.targetCompanyId! }, select: { id: true, name: true } });
+        if (!targetCompany) throw new Error('Target company missing');
+        const activeMembership = await tx.companyMember.findFirst({ where: { userId: request.userId, isCurrent: true }, select: { id: true } });
+        if (activeMembership) throw new Error('Requester already belongs to a company');
+        await tx.companyMember.create({ data: { companyId: targetCompany.id, userId: request.userId, isCurrent: true, ...memberRole } });
+        if (request.batchId) {
+          await tx.companyBatch.upsert({
+            where: { companyId_batchId: { companyId: targetCompany.id, batchId: request.batchId } },
+            create: { companyId: targetCompany.id, batchId: request.batchId },
+            update: {},
+          });
+        }
+        await tx.user.update({ where: { id: request.userId }, data: { company: targetCompany.name } });
+      });
+    } else {
+      return { success: false, error: 'Unknown company request type' };
     }
-    await prisma.companyMember.create({ data: { companyId: company.id, userId: request.userId, isCurrent: true } });
-    if (request.batchId) {
-      const requesterBatchMembership = await prisma.userBatch.findFirst({ where: { userId: request.userId, batchId: request.batchId, status: 'active' } });
-      if (requesterBatchMembership?.role === 'co_founder') {
-        await prisma.userBatch.update({ where: { id: requesterBatchMembership.id }, data: { role: 'founder', founderId: null } });
-      }
-    }
-    await syncUserCompanyName(request.userId);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to approve company request' };
   }
 
   await prisma.companyChangeRequest.update({ where: { id: request.id }, data: { status: 'approved', reviewedById: adminUser.id, reviewedAt: new Date(), resolutionType: parsed.data.resolutionType || request.resolutionType, promotedUserId: parsed.data.promotedUserId || null } });
   await prisma.notification.create({ data: { type: 'company_request_approved', userId: request.userId, entityId: request.id, title: 'Company request approved', message: 'Your company request was approved.' } });
   revalidatePath('/admin/companies');
   revalidatePath('/settings');
+  revalidatePath('/companies');
+  if (request.targetCompany?.slug) revalidatePath(`/companies/${request.targetCompany.slug}`);
   revalidateTag('current-user');
   return { success: true, data: undefined };
 }

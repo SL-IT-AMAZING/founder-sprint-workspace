@@ -87,7 +87,7 @@ export default async function SettingsPage({
             />
           </SettingsSectionCard>
 
-          <SettingsSectionCard title="Company Requests">
+          <SettingsSectionCard title="Company Management">
             <CompanyRequestPanel
               currentCompanyId={profile?.companyMemberships?.find((m) => m.isCurrent)?.company.id || null}
               currentCompanyName={profile?.companyMemberships?.find((m) => m.isCurrent)?.company.name || user.company || null}
