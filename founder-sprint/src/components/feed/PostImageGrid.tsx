@@ -7,7 +7,6 @@ export type PostImageDisplaySize = "small" | "medium" | "large";
 interface PostImageGridProps {
   images: Array<{ id?: string; imageUrl: string }>;
   displaySize?: string | null;
-  onImageClick?: () => void;
 }
 
 const IMAGE_DISPLAY_SIZE_STYLES: Record<
@@ -42,7 +41,6 @@ const IMAGE_DISPLAY_SIZE_STYLES: Record<
 export function PostImageGrid({
   images,
   displaySize = "medium",
-  onImageClick,
 }: PostImageGridProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
 
@@ -116,20 +114,14 @@ export function PostImageGrid({
           key={image.id || image.imageUrl}
           role="button"
           tabIndex={0}
-          onClick={() => {
-            if (onImageClick) {
-              onImageClick();
-              return;
-            }
+          onClick={(event) => {
+            event.stopPropagation();
             setActiveImageIndex(index);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              if (onImageClick) {
-                onImageClick();
-                return;
-              }
+              event.stopPropagation();
               setActiveImageIndex(index);
             }
           }}
@@ -168,7 +160,10 @@ export function PostImageGrid({
           role="dialog"
           aria-modal="true"
           aria-label={`Post image ${activeImageIndex + 1} of ${images.length}`}
-          onClick={() => setActiveImageIndex(null)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setActiveImageIndex(null);
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -184,7 +179,10 @@ export function PostImageGrid({
           <button
             type="button"
             aria-label="Close image preview"
-            onClick={() => setActiveImageIndex(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setActiveImageIndex(null);
+            }}
             style={{
               position: "absolute",
               top: "18px",
