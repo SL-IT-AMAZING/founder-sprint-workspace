@@ -229,11 +229,19 @@ Dashboard에서는 현재 기수 기준으로 아래 정보를 빠르게 볼 수
 Settings 화면에서 회사 관련 요청을 할 수 있습니다.
 
 ### 회사에 속해 있는 경우
-- `Leave current company`
-- `Request new company`
+- `Leave current company`만 보입니다
+- 이미 회사에 속한 상태에서는 `Request new company`가 보이지 않습니다
+- 다른 회사로 이동해야 한다면 먼저 이탈 요청을 보내거나 관리자에게 문의해야 합니다
 
 ### 회사가 없는 경우
-- `Request new company`
+- `Browse existing companies`로 Companies 화면에서 기존 회사 목록을 확인할 수 있습니다
+- 기존 회사 상세 화면에서 `Request to join company`로 합류 요청을 보낼 수 있습니다
+- 목록에 회사가 없으면 Companies 화면 또는 Settings의 Company Management에서 `Request new company`를 보낼 수 있습니다
+
+### 기존 회사 합류 요청을 하면
+- 관리자에게 검토 요청이 전달됩니다
+- 승인되면 해당 회사의 멤버로 연결됩니다
+- 이미 다른 회사에 속해 있는 경우에는 합류 요청을 바로 보낼 수 없고, 먼저 현재 회사 이탈 요청 또는 관리자 처리가 필요합니다
 
 ### 새 회사 요청을 하면
 - 관리자에게 검토 요청이 전달됩니다
@@ -267,9 +275,14 @@ Settings 화면에서 회사 관련 요청을 할 수 있습니다.
 - 특정 회사 대상만 보이도록 제한된 항목일 수 있습니다
 
 ### "새 회사 요청은 어디서 하나요?"
-- **Settings** 화면의 회사 관련 영역에서 요청할 수 있습니다
-- 회사가 없으면 `Request new company`만 보입니다
-- 회사가 있으면 `Leave current company`, `Request new company` 둘 다 보일 수 있습니다
+- 회사가 없는 경우 **Settings → Company Management**에서 요청할 수 있습니다
+- Companies 화면에서도 `Request new company`를 사용할 수 있습니다
+- 회사가 이미 있으면 `Request new company`가 보이지 않습니다
+- 회사가 있는 상태에서 회사 이동이 필요하면 `Leave current company` 또는 관리자 문의로 처리합니다
+
+### "기존 회사에 합류 요청은 어디서 하나요?"
+- 회사가 없는 Founder / Co-founder는 **Companies → 회사 상세 화면**에서 `Request to join company`를 사용할 수 있습니다
+- pending 요청이 이미 있으면 새 합류/생성 요청은 추가로 만들 수 없습니다
 
 ### "세션/이벤트 초대가 메일로 안 왔어요"
 - Gmail 스팸함을 확인해 보세요

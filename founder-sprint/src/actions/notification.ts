@@ -30,6 +30,7 @@ function getNotificationTargetPath(
       return "/settings";
     case "company_request_leave":
     case "company_request_new":
+    case "company_request_join":
     case "company_request_founder_restructure":
       return isAdminUser ? "/admin/companies" : "/settings";
     default:

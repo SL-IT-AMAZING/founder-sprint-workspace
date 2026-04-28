@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/permissions";
+import { getCurrentUser, isFounder } from "@/lib/permissions";
 import { canManageCompanyFromMembers } from "@/lib/company-permissions";
-import { getCompanyBySlug, getRelatedCompanies } from "@/actions/company";
+import { getCompanyBySlug, getMyCompanyRequestContext, getRelatedCompanies } from "@/actions/company";
 import Link from "next/link";
-import MessageCompanyButton from "./MessageCompanyButton";
+import { JoinCompanyRequestButton } from "./JoinCompanyRequestButton";
 
 export default async function CompanyProfilePage({
   params,
@@ -71,8 +71,24 @@ export default async function CompanyProfilePage({
   }
 
   const company = result.data;
-  const relatedResult = await getRelatedCompanies(company.id, 6);
+  const [relatedResult, requestContextResult] = await Promise.all([
+    getRelatedCompanies(company.id, 6),
+    isFounder(user.role) ? getMyCompanyRequestContext() : Promise.resolve(null),
+  ]);
   const relatedCompanies = relatedResult.success ? relatedResult.data : [];
+  const requestContext = requestContextResult?.success ? requestContextResult.data : null;
+  const currentCompany = requestContext?.currentCompany || null;
+  const latestPendingRequest = requestContext?.latestPendingRequest || null;
+  const isCurrentCompany = currentCompany?.id === company.id;
+  const canRequestJoin = isFounder(user.role) && !currentCompany;
+  const pendingRequestName =
+    latestPendingRequest?.targetType === "join_company"
+      ? latestPendingRequest.targetCompany?.name || "join company"
+      : latestPendingRequest?.targetType === "new_company"
+        ? latestPendingRequest.requestedCompanyName || "new company"
+        : latestPendingRequest?.targetType === "leave_company"
+          ? "leave company"
+          : null;
 
   // Separate founders from other team members
   const founders = company.members.filter(
@@ -81,10 +97,6 @@ export default async function CompanyProfilePage({
   const otherMembers = company.members.filter(
     (m) => !m.role?.toLowerCase().includes("founder") && !m.title?.toLowerCase().includes("founder")
   );
-  
-  // Get first founder's ID for messaging
-  const firstFounderId = founders.length > 0 ? founders[0].user.id : null;
-
   const userCanManageCompany = canManageCompanyFromMembers(user, company.members);
   return (
     <div
@@ -214,6 +226,46 @@ export default async function CompanyProfilePage({
                       </svg>
                       Manage Company
                     </Link>
+                  )}
+                  {isCurrentCompany && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "10px 20px",
+                        backgroundColor: "#F5F5F5",
+                        color: "#2F2C26",
+                        borderRadius: "9px",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        border: "1px solid #e0e0e0",
+                      }}
+                    >
+                      Current company
+                    </span>
+                  )}
+                  {canRequestJoin && (
+                    <JoinCompanyRequestButton
+                      targetCompanyId={company.id}
+                      targetCompanyName={company.name}
+                      batchId={user.batchId}
+                      disabled={!!latestPendingRequest}
+                    />
+                  )}
+                  {!isCurrentCompany && currentCompany && isFounder(user.role) && (
+                    <p style={{ width: "100%", fontSize: 13, color: "#666666", margin: 0 }}>
+                      You are currently assigned to{" "}
+                      <Link href={`/companies/${currentCompany.slug}`} style={{ color: "#1A1A1A" }}>
+                        {currentCompany.name}
+                      </Link>
+                      . To move companies, request to leave your current company in Settings first.
+                    </p>
+                  )}
+                  {latestPendingRequest && !currentCompany && (
+                    <p style={{ width: "100%", fontSize: 13, color: "#666666", margin: 0 }}>
+                      Pending request: {pendingRequestName}. You can manage it in{" "}
+                      <Link href="/settings" style={{ color: "#1A1A1A" }}>Settings</Link>.
+                    </p>
                   )}
                 </div>
               </div>

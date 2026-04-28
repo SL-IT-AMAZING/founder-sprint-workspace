@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { createCompanyLeaveRequest, createNewCompanyRequest, cancelCompanyChangeRequest } from "@/actions/company";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +12,7 @@ interface CompanyRequestItem {
   id: string;
   targetType: string;
   requestedCompanyName: string | null;
+  targetCompany: { id: string; name: string; slug: string } | null;
   status: string;
   hasDependentCoFounders: boolean;
   createdAt: Date;
@@ -22,6 +24,13 @@ interface CompanyRequestPanelProps {
   currentBatchId: string | null;
   currentRole: string;
   requests: CompanyRequestItem[];
+}
+
+function getRequestLabel(request: CompanyRequestItem) {
+  if (request.targetType === "leave_company") return "Leave company";
+  if (request.targetType === "new_company") return request.requestedCompanyName || "New company";
+  if (request.targetType === "join_company") return request.targetCompany?.name ? `Join ${request.targetCompany.name}` : "Join company";
+  return "Company request";
 }
 
 export function CompanyRequestPanel({ currentCompanyId, currentCompanyName, currentBatchId, currentRole, requests }: CompanyRequestPanelProps) {
@@ -49,7 +58,6 @@ export function CompanyRequestPanel({ currentCompanyId, currentCompanyName, curr
     setMessage(null);
     startTransition(async () => {
       const result = await createNewCompanyRequest({
-        currentCompanyId: currentCompanyId || undefined,
         batchId: currentBatchId || undefined,
         requestedCompanyName: (formData.get("requestedCompanyName") as string) || "",
         requestedDescription: (formData.get("requestedDescription") as string) || undefined,
@@ -72,18 +80,32 @@ export function CompanyRequestPanel({ currentCompanyId, currentCompanyName, curr
   return (
     <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: 16, marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <p style={{ fontSize: 14, color: "#666666", marginBottom: 8 }}>
-          Need to leave your current company or request a new one? Submit a request here and the admin team will review it.
-        </p>
+        {currentCompanyId ? (
+          <p style={{ fontSize: 14, color: "#666666", marginBottom: 8 }}>
+            You are currently assigned to <strong>{currentCompanyName}</strong>. Use this area to request leaving your current company.
+          </p>
+        ) : (
+          <p style={{ fontSize: 14, color: "#666666", marginBottom: 8 }}>
+            You are not assigned to a company yet. Browse existing companies, or request a new company if yours is not listed.
+          </p>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {currentCompanyId && (
+          {currentCompanyId ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => setIsLeaveOpen(true)} disabled={!!latestPending || isPending}>
               Leave current company
             </Button>
+          ) : (
+            <>
+              <Link href="/companies" style={{ textDecoration: "none" }}>
+                <Button type="button" variant="ghost" size="sm" disabled={isPending}>
+                  Browse existing companies
+                </Button>
+              </Link>
+              <Button type="button" size="sm" onClick={() => setIsNewCompanyOpen(true)} disabled={!!latestPending || isPending}>
+                Request new company
+              </Button>
+            </>
           )}
-          <Button type="button" size="sm" onClick={() => setIsNewCompanyOpen(true)} disabled={!!latestPending || isPending}>
-            Request new company
-          </Button>
         </div>
       </div>
 
@@ -91,7 +113,7 @@ export function CompanyRequestPanel({ currentCompanyId, currentCompanyName, curr
         <div style={{ padding: 12, backgroundColor: "#f5f5f5", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>
-              Pending request: {latestPending.targetType === "leave_company" ? "Leave company" : latestPending.requestedCompanyName || "New company"}
+              Pending request: {getRequestLabel(latestPending)}
             </div>
             <div style={{ fontSize: 12, color: "#666666" }}>
               {latestPending.hasDependentCoFounders ? "This request needs admin review because other co-founders depend on your founder account." : "The admin team will review this request."}
