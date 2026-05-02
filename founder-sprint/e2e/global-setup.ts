@@ -34,6 +34,7 @@ export default async function globalSetup() {
   });
 
   const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+  // Playwright storage state files contain auth cookies; keep them generated and git-ignored.
   const authDir = path.join(__dirname, ".auth");
   fs.mkdirSync(authDir, { recursive: true });
 
