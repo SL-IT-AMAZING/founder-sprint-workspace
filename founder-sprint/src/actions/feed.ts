@@ -445,7 +445,7 @@ export async function getPaginatedPosts(
               },
             },
           },
-          orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+          orderBy: { createdAt: "desc" },
           skip: (page - 1) * limit,
           take: limit,
         }),
