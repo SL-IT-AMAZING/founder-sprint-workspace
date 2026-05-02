@@ -1,5 +1,16 @@
+import {
+  MAX_PREVIEW_REDIRECTS,
+  UnsafeLinkPreviewUrlError,
+  isPreviewHtmlContentType,
+  parseHttpUrl,
+  readLimitedText,
+  resolveRedirectUrl,
+  validateFetchTarget,
+} from "@/lib/link-preview-security";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 
 interface LinkPreviewResponse {
   url: string;
@@ -7,6 +18,10 @@ interface LinkPreviewResponse {
   description: string | null;
   image: string | null;
   siteName: string | null;
+}
+
+function emptyPreview(url: string): LinkPreviewResponse {
+  return { url, title: null, description: null, image: null, siteName: null };
 }
 
 /**
@@ -60,15 +75,48 @@ function extractOpenGraphMetadata(html: string, baseUrl: string): Partial<LinkPr
   return result;
 }
 
-/**
- * Validates if a URL string is a valid HTTP(S) URL
- */
-function isValidUrl(urlString: string): boolean {
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+async function fetchPreviewHtml(initialUrl: URL): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
-    const url = new URL(urlString);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
+    let currentUrl = initialUrl;
+
+    for (let redirectCount = 0; redirectCount <= MAX_PREVIEW_REDIRECTS; redirectCount++) {
+      await validateFetchTarget(currentUrl);
+
+      const response = await fetch(currentUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; FounderSprint/1.0)",
+        },
+        redirect: "manual",
+        signal: controller.signal,
+      });
+
+      if (isRedirectStatus(response.status)) {
+        if (redirectCount === MAX_PREVIEW_REDIRECTS) return null;
+
+        const nextUrl = resolveRedirectUrl(currentUrl, response.headers.get("location"));
+        if (!nextUrl) return null;
+
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      if (!response.ok) return null;
+      if (!isPreviewHtmlContentType(response.headers.get("content-type"))) return null;
+
+      return readLimitedText(response);
+    }
+
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -81,10 +129,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<LinkPrevie
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { url: "", title: null, description: null, image: null, siteName: null },
-        { status: 401 }
-      );
+      return NextResponse.json(emptyPreview(""), { status: 401 });
     }
 
     // Extract URL from query parameters
@@ -92,57 +137,30 @@ export async function GET(request: NextRequest): Promise<NextResponse<LinkPrevie
     const urlParam = searchParams.get("url");
 
     if (!urlParam) {
-      return NextResponse.json(
-        { url: "", title: null, description: null, image: null, siteName: null },
-        { status: 400 }
-      );
+      return NextResponse.json(emptyPreview(""), { status: 400 });
     }
 
-    // Validate URL format
-    if (!isValidUrl(urlParam)) {
-      return NextResponse.json(
-        { url: urlParam, title: null, description: null, image: null, siteName: null },
-        { status: 400 }
-      );
+    const previewUrl = parseHttpUrl(urlParam);
+    if (!previewUrl) {
+      return NextResponse.json(emptyPreview(urlParam), { status: 400 });
     }
 
-    // Fetch the URL with 5s timeout
-    let html: string;
+    let html: string | null;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await fetch(urlParam, {
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; FounderSprint/1.0)",
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        return NextResponse.json({
-          url: urlParam,
-          title: null,
-          description: null,
-          image: null,
-          siteName: null,
-        });
+      html = await fetchPreviewHtml(previewUrl);
+    } catch (error) {
+      if (error instanceof UnsafeLinkPreviewUrlError) {
+        return NextResponse.json(emptyPreview(urlParam), { status: 400 });
       }
 
-      html = await response.text();
-    } catch (error) {
-      // Timeout, network error, or other fetch issues
-      console.error("[LinkPreview] Fetch error:", error);
-      return NextResponse.json({
-        url: urlParam,
-        title: null,
-        description: null,
-        image: null,
-        siteName: null,
+      console.error("[LinkPreview] Fetch failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
       });
+      return NextResponse.json(emptyPreview(urlParam));
+    }
+
+    if (!html) {
+      return NextResponse.json(emptyPreview(urlParam));
     }
 
     // Extract metadata
@@ -156,11 +174,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<LinkPrevie
       siteName: metadata.siteName || null,
     });
   } catch (error) {
-    console.error("[LinkPreview] Unexpected error:", error);
-    return NextResponse.json(
-      { url: "", title: null, description: null, image: null, siteName: null },
-      { status: 500 }
-    );
+    console.error("[LinkPreview] Unexpected error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    return NextResponse.json(emptyPreview(""), { status: 500 });
   }
 }
 
