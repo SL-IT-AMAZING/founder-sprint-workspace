@@ -11,6 +11,13 @@ export async function signInWithLinkedIn() {
     provider: "linkedin_oidc",
     options: {
       redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      queryParams: {
+        // Force LinkedIn to render social login (Google/Apple/passkey) options
+        // even on platforms where they're hidden by default (iOS, in-app browsers).
+        // Officially documented by LinkedIn:
+        // https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow
+        enable_extended_login: "true",
+      },
     },
   });
 

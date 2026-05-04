@@ -9,6 +9,13 @@ export async function GET(request: Request) {
     provider: "linkedin_oidc",
     options: {
       redirectTo: `${origin}/auth/callback`,
+      queryParams: {
+        // Force LinkedIn to render social login (Google/Apple/passkey) options
+        // even on platforms where they're hidden by default (iOS, in-app browsers).
+        // Officially documented by LinkedIn:
+        // https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow
+        enable_extended_login: "true",
+      },
     },
   });
 
