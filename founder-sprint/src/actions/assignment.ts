@@ -7,6 +7,7 @@ import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } fr
 import { z } from "zod";
 import type { ActionResult } from "@/types";
 import { sendAssignmentPublishedEmail, sendAssignmentFeedbackEmail, sendAssignmentDeadlineReminderEmail, sendSubmissionCompletedEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 import { getUserCompanyIds } from "@/actions/company";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
@@ -88,7 +89,7 @@ async function getAssignmentRecipientUsers(assignment: {
           some: { companyId: { in: assignment.targetCompanyIds }, isCurrent: true },
         },
       },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, notificationEmail: true, name: true },
     });
   }
 
@@ -103,7 +104,7 @@ async function getAssignmentRecipientUsers(assignment: {
         },
       },
     },
-    select: { id: true, email: true, name: true },
+    select: { id: true, email: true, notificationEmail: true, name: true },
   });
 }
 
@@ -301,7 +302,7 @@ export async function createAssignment(formData: FormData): Promise<ActionResult
     await Promise.all(
       recipients.map((recipient) =>
         sendAssignmentPublishedEmail({
-          to: recipient.email,
+          to: getRecipientEmail(recipient),
           recipientName: recipient.name,
           assignmentTitle: assignment.title,
           dueDate: assignment.dueDate,
@@ -539,6 +540,7 @@ export async function getAssignmentNonSubmitters(assignmentId: string) {
                   id: true,
                   name: true,
                   email: true,
+                  notificationEmail: true,
                   profileImage: true,
                   companyMemberships: {
                     where: { isCurrent: true },
@@ -608,7 +610,7 @@ export async function sendAssignmentDeadlineReminders(assignmentId: string): Pro
   await Promise.all(
     recipients.map((recipient) =>
       sendAssignmentDeadlineReminderEmail({
-        to: recipient.email,
+        to: getRecipientEmail(recipient),
         recipientName: recipient.name,
         assignmentTitle: assignment.title,
         dueDate: assignment.dueDate,
@@ -780,7 +782,7 @@ export async function submitAssignment(
     },
     select: {
       userId: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, notificationEmail: true, name: true } },
     },
   });
 
@@ -800,7 +802,7 @@ export async function submitAssignment(
     await Promise.all(
       adminRecipients.map((recipient) =>
         sendSubmissionCompletedEmail({
-          to: recipient.user.email,
+          to: getRecipientEmail(recipient.user),
           founderName: user.name || user.email,
           assignmentTitle: assignment.title,
           submissionUrl,
@@ -1028,6 +1030,7 @@ export async function addFeedback(
       author: {
         select: {
           email: true,
+          notificationEmail: true,
           name: true,
         },
       },
@@ -1051,7 +1054,7 @@ export async function addFeedback(
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const submissionUrl = `${appUrl}/submissions/${submissionId}`;
       await sendAssignmentFeedbackEmail({
-        to: submission.author.email,
+        to: getRecipientEmail(submission.author),
         recipientName: submission.author.name,
         assignmentTitle: submission.assignment.title,
         feedbackContent: content.trim(),

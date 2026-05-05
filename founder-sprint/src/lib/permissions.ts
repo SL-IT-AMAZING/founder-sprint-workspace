@@ -159,6 +159,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
       return {
         id: user.id,
         email: user.email,
+        notificationEmail: (user as { notificationEmail?: string | null }).notificationEmail ?? null,
         name: user.name,
         profileImage: user.profileImage,
         timezone: userTimezone,
@@ -184,6 +185,7 @@ export const getCurrentUser = cache(async (batchId?: string): Promise<UserWithBa
   return {
     id: user.id,
     email: user.email,
+    notificationEmail: (user as { notificationEmail?: string | null }).notificationEmail ?? null,
     name: user.name,
     profileImage: user.profileImage,
     timezone: userTimezone,

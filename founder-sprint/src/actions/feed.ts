@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { getCurrentUser, isAdmin } from "@/lib/permissions";
 import { sendFeedMentionEmail, sendFeedReplyNotificationEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/types";
@@ -284,7 +285,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
     if (uniqueMentionedUserIds.length > 0) {
       const mentionedUsers = await prisma.user.findMany({
         where: { id: { in: uniqueMentionedUserIds } },
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true, notificationEmail: true, name: true },
       });
 
       if (mentionedUsers.length > 0) {
@@ -308,7 +309,7 @@ export async function createPost(formData: FormData): Promise<ActionResult<{ id:
         await Promise.all(
           mentionedUsers.map((mentionedUser) =>
             sendFeedMentionEmail({
-              to: mentionedUser.email,
+              to: getRecipientEmail(mentionedUser),
               recipientName: mentionedUser.name,
               authorName: user.name || user.email,
               postExcerpt,
@@ -600,6 +601,7 @@ export async function createComment(
           select: {
             id: true,
             email: true,
+            notificationEmail: true,
             name: true,
           },
         },
@@ -633,7 +635,7 @@ export async function createComment(
 
     const postUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/feed/${postId}`;
     const emailResult = await sendFeedReplyNotificationEmail({
-      to: parentCommentData.author.email,
+      to: getRecipientEmail(parentCommentData.author),
       recipientName: parentCommentData.author.name,
       replierName: user.name || user.email,
       replyContent: content.trim().slice(0, 220),

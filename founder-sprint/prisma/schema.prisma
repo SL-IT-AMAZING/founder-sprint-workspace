@@ -75,9 +75,10 @@ enum EventType {
 
 // 1. User - Core user model
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  name          String?
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  notificationEmail String?   @map("notification_email")
+  name              String?
   role          UserRole? @default(founder) @map("global_role")
   linkedinId    String?   @unique @map("linkedin_id")
   profileImage  String?   @map("profile_image")

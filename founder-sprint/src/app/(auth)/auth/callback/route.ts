@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { classifyAvatarSource } from "@/lib/avatar-source";
 import { ingestLinkedInAvatar } from "@/lib/linkedin-avatar-ingest";
 import { sendBatchOnboardingDigestEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { revalidateTag as revalidateTagBase } from "next/cache";
@@ -286,7 +287,7 @@ export async function GET(request: Request) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
           const linkBase = `${appUrl}/api/batch/select?batchId=${batchForDigest.id}&next=`;
           const emailResult = await sendBatchOnboardingDigestEmail({
-            to: user.email,
+            to: getRecipientEmail(user),
             recipientName: user.name,
             batchName: batchForDigest.name,
             assignmentsUrl: `${linkBase}${encodeURIComponent("/assignments")}`,

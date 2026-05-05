@@ -63,6 +63,7 @@ const USER_ADMIN_AUDIT_ACTIONS = [
   "user_batch_dropped_out",
   "user_batch_restored",
   "invite_resent",
+  "user_notification_email_changed",
 ] as const;
 
 async function createAuditLogEntry(params: {
@@ -747,6 +748,68 @@ export async function updateAdditionalRoles(
 
   revalidatePath("/admin/users");
   revalidateTag(`batch-users-${batchId}`);
+  revalidateTag("current-user");
+  return { success: true, data: undefined };
+}
+
+const NotificationEmailInputSchema = z
+  .string()
+  .email("Notification email must be a valid email address")
+  .max(254, "Notification email is too long")
+  .optional()
+  .nullable()
+  .transform((value) => {
+    if (value === null || value === undefined) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+  });
+
+export async function updateUserNotificationEmail(
+  userId: string,
+  notificationEmailInput: string | null
+): Promise<ActionResult> {
+  const actor = await getCurrentUser();
+  if (!actor) return { success: false, error: "Not authenticated" };
+
+  try {
+    requireRole(actor.role, ["super_admin", "admin"]);
+  } catch {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const parsed = NotificationEmailInputSchema.safeParse(notificationEmailInput);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message || "Invalid email" };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, notificationEmail: true },
+  });
+  if (!target) return { success: false, error: "User not found" };
+
+  const nextValue = parsed.data;
+  if (nextValue === target.notificationEmail) {
+    return { success: true, data: undefined };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { notificationEmail: nextValue },
+  });
+
+  await createAuditLogEntry({
+    actor,
+    action: "user_notification_email_changed",
+    targetId: userId,
+    details: {
+      userEmail: target.email,
+      previousNotificationEmail: target.notificationEmail,
+      newNotificationEmail: nextValue,
+    },
+  });
+
+  revalidatePath("/admin/users");
   revalidateTag("current-user");
   return { success: true, data: undefined };
 }
