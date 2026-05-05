@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -50,23 +49,17 @@ function hasAnyRole(subject: PermissionSubject, allowedRoles: UserRole[]): boole
 }
 
 const getCachedUserByEmail = (email: string, batchId?: string) =>
-  unstable_cache(
-    async () => {
-      return prisma.user.findUnique({
-        where: { email },
-        include: {
-          userBatches: {
-            where: batchId ? { batchId, status: "active" } : { status: "active" },
-            include: { batch: true },
-            take: 1,
-            orderBy: { batch: { createdAt: "desc" } },
-          },
-        },
-      });
+  prisma.user.findUnique({
+    where: { email },
+    include: {
+      userBatches: {
+        where: batchId ? { batchId, status: "active" } : { status: "active" },
+        include: { batch: true },
+        take: 1,
+        orderBy: { batch: { createdAt: "desc" } },
+      },
     },
-    [`current-user-${email}-${batchId || "default"}`],
-    { revalidate: 30, tags: ["current-user"] }
-  )();
+  });
 
 /**
  * Returns the authenticated user with their active batch context.
