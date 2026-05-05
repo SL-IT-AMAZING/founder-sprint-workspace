@@ -5,7 +5,7 @@ import { getCurrentUser, isCurrentUserSuperAdmin, requireRole, isAdmin } from "@
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
 import { ASSIGNABLE_ROLES, isRoleBelow } from "@/lib/role-hierarchy";
-import { revalidatePath, revalidateTag as revalidateTagBase, unstable_cache } from "next/cache";
+import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { ActionResult, UserRole } from "@/types";
@@ -1208,16 +1208,11 @@ export async function getBatchUsers(batchId: string) {
   if (!user) return [];
   if (!isAdmin(user) && user.batchId !== batchId) return [];
 
-  const batchUsers = await unstable_cache(
-    () =>
-      prisma.userBatch.findMany({
-        where: { batchId },
-        include: { user: true, batch: true },
-        orderBy: { invitedAt: "desc" },
-      }),
-    [`batch-users-${batchId}`],
-    { revalidate: 60, tags: [`batch-users-${batchId}`] }
-  )();
+  const batchUsers = await prisma.userBatch.findMany({
+    where: { batchId },
+    include: { user: true, batch: true },
+    orderBy: { invitedAt: "desc" },
+  });
 
   return batchUsers.map((membership) => ({
     ...membership,
