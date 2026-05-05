@@ -41,6 +41,7 @@ interface Batch {
 interface Profile {
   id: string;
   email: string;
+  notificationEmail: string | null;
   name: string | null;
   profileImage: string | null;
   jobTitle: string | null;
@@ -851,7 +852,7 @@ export function ProfileClient({
                   Contact
                 </h3>
                 <a
-                  href={`mailto:${profile.email}`}
+                  href={`mailto:${profile.notificationEmail || profile.email}`}
                   style={{
                     fontSize: "14px",
                     color: "#1A1A1A",
@@ -859,7 +860,7 @@ export function ProfileClient({
                     wordBreak: "break-all",
                   }}
                 >
-                  {profile.email}
+                  {profile.notificationEmail || profile.email}
                 </a>
               </div>
             </div>
