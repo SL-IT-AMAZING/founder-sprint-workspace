@@ -173,18 +173,26 @@ async function inviteUserCore(
     }
   }
 
+  const existingGlobalRole = existingUser?.role as UserRole | null | undefined;
+  const elevatedGlobalRole: import("@prisma/client").$Enums.UserRole | null =
+    role === "super_admin"
+      ? "super_admin"
+      : role === "admin" && existingGlobalRole !== "super_admin"
+        ? "admin"
+        : null;
+
   const invitedUser = await prisma.user.upsert({
     where: { email },
     create: {
       email,
       name: name || email.split("@")[0],
       status: "active",
-      ...(role === "super_admin" ? { role: "super_admin" as import("@prisma/client").$Enums.UserRole } : {}),
+      ...(elevatedGlobalRole ? { role: elevatedGlobalRole } : {}),
     },
     update: {
       ...(name ? { name } : {}),
       status: "active",
-      ...(role === "super_admin" ? { role: "super_admin" as import("@prisma/client").$Enums.UserRole } : {}),
+      ...(elevatedGlobalRole ? { role: elevatedGlobalRole } : {}),
     },
   });
 
@@ -608,7 +616,24 @@ export async function updateUserRole(
     ? "super_admin"
     : existingMembership.role) as UserRole;
 
-  if (previousRole !== newRole) {
+  const previousGlobalRole = existingMembership.user.role as UserRole | null;
+  const isPromotingToElevated = newRole === "super_admin" || newRole === "admin";
+  const isDemotingFromElevated =
+    !isPromotingToElevated &&
+    (previousGlobalRole === "super_admin" || previousGlobalRole === "admin");
+
+  const expectedGlobalRole: import("@prisma/client").$Enums.UserRole | undefined =
+    isPromotingToElevated
+      ? (newRole as import("@prisma/client").$Enums.UserRole)
+      : isDemotingFromElevated
+        ? "founder"
+        : undefined;
+
+  const batchRoleChanged = previousRole !== newRole;
+  const globalRoleNeedsSync =
+    expectedGlobalRole !== undefined && expectedGlobalRole !== previousGlobalRole;
+
+  if (batchRoleChanged || globalRoleNeedsSync) {
     const nextPrimaryBatchRole = newRole === "super_admin" ? "admin" : newRole;
     const previousAdditionalRoles = (existingMembership.additionalRoles ?? []).filter(
       (role): role is UserRole => ASSIGNABLE_ROLES.includes(role as UserRole)
@@ -617,16 +642,12 @@ export async function updateUserRole(
     const removedAdditionalRoles = previousAdditionalRoles.filter((role) => !nextAdditionalRoles.includes(role));
 
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          role: newRole === "super_admin"
-            ? "super_admin"
-            : existingMembership.user.role === "super_admin"
-              ? newRole as import("@prisma/client").$Enums.UserRole
-              : undefined,
-        },
-      });
+      if (expectedGlobalRole !== undefined) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { role: expectedGlobalRole },
+        });
+      }
 
       await tx.userBatch.update({
         where: { userId_batchId: { userId, batchId } },
@@ -637,18 +658,20 @@ export async function updateUserRole(
       });
     });
 
-    await createAuditLogEntry({
-      actor: user,
-      action: "user_role_changed",
-      targetId: userId,
-      details: {
-        batchId,
-        userEmail: existingMembership.user.email,
-        previousRole,
-        newRole,
-        removedAdditionalRoles,
-      },
-    });
+    if (batchRoleChanged) {
+      await createAuditLogEntry({
+        actor: user,
+        action: "user_role_changed",
+        targetId: userId,
+        details: {
+          batchId,
+          userEmail: existingMembership.user.email,
+          previousRole,
+          newRole,
+          removedAdditionalRoles,
+        },
+      });
+    }
   }
 
   revalidatePath("/admin/users");
