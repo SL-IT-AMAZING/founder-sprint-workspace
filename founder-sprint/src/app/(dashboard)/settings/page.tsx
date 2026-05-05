@@ -73,6 +73,7 @@ export default async function SettingsPage({
               initialData={{
                 name: user.name || "",
                 email: user.email,
+                notificationEmail: user.notificationEmail || "",
                 jobTitle: user.jobTitle || "",
                 company: profile?.companyMemberships?.find(m => m.isCurrent)?.company.name || user.company || "",
                 bio: user.bio || "",

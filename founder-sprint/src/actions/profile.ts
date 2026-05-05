@@ -17,6 +17,17 @@ const UpdateProfileSchema = z.object({
   jobTitle: z.string().max(100, "Job title must be 100 characters or less").optional(),
   company: z.string().max(100, "Company must be 100 characters or less").optional(),
   bio: z.string().max(500, "Bio must be 500 characters or less").optional(),
+  notificationEmail: z
+    .string()
+    .email("Notification email must be a valid email address")
+    .max(254, "Notification email is too long")
+    .optional()
+    .nullable()
+    .transform((value) => {
+      if (value === null || value === undefined) return null;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+    }),
   profileImage: z.string().optional().nullable(),
   headline: z.string().max(200, "Headline must be 200 characters or less").optional(),
   location: z.string().max(200, "Location must be 200 characters or less").optional(),
@@ -449,6 +460,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
+  const rawNotificationEmail = optionalString(formData.get("notificationEmail"));
   const raw = {
     name: formData.get("name") as string,
     jobTitle: optionalString(formData.get("jobTitle")),
@@ -461,6 +473,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
     twitterUrl: optionalString(formData.get("twitterUrl")),
     websiteUrl: optionalString(formData.get("websiteUrl")),
     timezone: optionalString(formData.get("timezone")),
+    notificationEmail: rawNotificationEmail && rawNotificationEmail.length > 0 ? rawNotificationEmail : null,
   };
 
   const parsed = UpdateProfileSchema.safeParse(raw);
@@ -485,6 +498,7 @@ export async function updateExtendedProfile(formData: FormData): Promise<ActionR
       twitterUrl: parsed.data.twitterUrl || null,
       websiteUrl: parsed.data.websiteUrl || null,
       timezone: parsed.data.timezone ? toIanaTimezone(parsed.data.timezone) : null,
+      notificationEmail: parsed.data.notificationEmail ?? null,
     },
   });
 

@@ -11,6 +11,7 @@ import {
   inviteBatchMembersFromSource,
   updateUserRole,
   updateAdditionalRoles,
+  updateUserNotificationEmail,
   removeUserFromBatch,
   cancelInvite,
   resendInvite,
@@ -64,6 +65,7 @@ interface BatchUser {
   user: {
     id: string;
     email: string;
+    notificationEmail: string | null;
     name: string | null;
     profileImage: string | null;
     status: "active" | "inactive" | string;
@@ -165,6 +167,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{ userId: string; userName: string; batchId: string; batchName: string } | null>(null);
+  const [editNotifEmail, setEditNotifEmail] = useState<{ userId: string; userName: string; loginEmail: string; currentValue: string } | null>(null);
+  const [notifEmailDraft, setNotifEmailDraft] = useState("");
+  const [notifEmailError, setNotifEmailError] = useState("");
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; _count: { members: number } }>>([]);
   const [selectedRole, setSelectedRole] = useState("founder");
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
@@ -604,6 +609,44 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     });
   };
 
+  const openEditNotifEmail = (userBatch: BatchUser) => {
+    const current = userBatch.user.notificationEmail || "";
+    setEditNotifEmail({
+      userId: userBatch.user.id,
+      userName: getDisplayName(userBatch.user),
+      loginEmail: userBatch.user.email,
+      currentValue: current,
+    });
+    setNotifEmailDraft(current);
+    setNotifEmailError("");
+  };
+
+  const handleSaveNotifEmail = () => {
+    if (!editNotifEmail) return;
+    const trimmed = notifEmailDraft.trim();
+    if (trimmed.length > 0) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(trimmed)) {
+        setNotifEmailError("Enter a valid email address");
+        return;
+      }
+    }
+    setNotifEmailError("");
+    startTransition(async () => {
+      const result = await updateUserNotificationEmail(
+        editNotifEmail.userId,
+        trimmed.length > 0 ? trimmed : null
+      );
+      if (result.success) {
+        toast.success(trimmed.length > 0 ? "Notification email updated" : "Notification email cleared");
+        setEditNotifEmail(null);
+        refreshCurrentScope();
+      } else {
+        setNotifEmailError(result.error);
+      }
+    });
+  };
+
   const getAuditDescription = (entry: AuditEntry) => {
     let details: Record<string, unknown> = {};
     try {
@@ -642,6 +685,12 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
     if (entry.action === "invite_resent") {
       return `${entry.userName} resent an invite to ${userEmail}`;
+    }
+
+    if (entry.action === "user_notification_email_changed") {
+      const next = typeof details.newNotificationEmail === "string" ? details.newNotificationEmail : null;
+      const verb = next ? `set notification email to ${next}` : "cleared notification email";
+      return `${entry.userName} ${verb} for ${userEmail}`;
     }
 
     return `${entry.userName} performed ${entry.action}`;
@@ -776,6 +825,14 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
               disabled={isPending}
             >
               Remove
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openEditNotifEmail(userBatch)}
+              disabled={isPending}
+            >
+              Notif Email
             </Button>
           </div>
         )}
@@ -1491,6 +1548,58 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Notification Email Modal */}
+      <Modal
+        open={!!editNotifEmail}
+        onClose={() => {
+          setEditNotifEmail(null);
+          setNotifEmailError("");
+        }}
+        title="Edit Notification Email"
+      >
+        {editNotifEmail && (
+          <div className="space-y-4">
+            <p style={{ color: "var(--color-foreground-secondary)", fontSize: 14 }}>
+              <strong>{editNotifEmail.userName}</strong> ({editNotifEmail.loginEmail})
+            </p>
+            <Input
+              label="Notification Email"
+              type="email"
+              value={notifEmailDraft}
+              onChange={(e) => setNotifEmailDraft(e.target.value)}
+              maxLength={254}
+              placeholder="leave empty to use login email"
+            />
+            <p style={{ fontSize: 12, color: "var(--color-foreground-secondary)" }}>
+              비워두면 로그인 이메일({editNotifEmail.loginEmail})로 알림이 전송됩니다.
+            </p>
+            {notifEmailError && (
+              <div className="form-error p-3 rounded-lg text-sm">
+                {notifEmailError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEditNotifEmail(null);
+                  setNotifEmailError("");
+                }}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveNotifEmail}
+                loading={isPending}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

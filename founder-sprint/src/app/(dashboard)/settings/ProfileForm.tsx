@@ -14,6 +14,7 @@ interface ProfileFormProps {
   initialData: {
     name: string | null;
     email: string;
+    notificationEmail: string;
     jobTitle: string;
     company: string;
     bio: string;
@@ -27,7 +28,7 @@ interface ProfileFormProps {
   };
 }
 
-type SectionKey = "identity" | "work" | "bio" | "location" | "profileImage";
+type SectionKey = "identity" | "work" | "bio" | "location" | "profileImage" | "notifications";
 
 function ProfileImageUpload({
   currentImage,
@@ -167,6 +168,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
     websiteUrl: initialData.websiteUrl,
     timezone: initialData.timezone,
     profileImage: initialData.profileImage,
+    notificationEmail: initialData.notificationEmail,
   });
 
   const [bioCharCount, setBioCharCount] = useState(initialData.bio.length);
@@ -212,6 +214,11 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
         websiteUrl: initialData.websiteUrl,
       }));
       setLocationCharCount(initialData.location.length);
+    } else if (section === "notifications") {
+      setFields((prev) => ({
+        ...prev,
+        notificationEmail: initialData.notificationEmail,
+      }));
     }
     setEditingSection(null);
   };
@@ -231,6 +238,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
     formData.append("twitterUrl", fields.twitterUrl);
     formData.append("websiteUrl", fields.websiteUrl);
     formData.append("timezone", fields.timezone);
+    formData.append("notificationEmail", fields.notificationEmail || "");
 
     startTransition(async () => {
       const result = await updateExtendedProfile(formData);
@@ -276,8 +284,76 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
           borderRadius: "4px",
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Email:</span>
+        <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Login Email:</span>
         <span style={{ fontSize: 14, color: "#2F2C26" }}>{initialData.email}</span>
+      </div>
+
+      <div
+        style={{
+          borderBottom: "1px solid #e0e0e0",
+          paddingBottom: 20,
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#2F2C26", margin: 0 }}>Notifications</h3>
+          {editingSection !== "notifications" ? (
+            <button
+              type="button"
+              onClick={() => handleEdit("notifications")}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#1A1A1A",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+                padding: "4px 8px",
+              }}
+            >
+              Edit
+            </button>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="ghost" size="sm" onClick={() => handleCancel("notifications")} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} loading={isPending} disabled={isPending}>
+                Save
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {editingSection === "notifications" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Input
+              label="Notification Email"
+              type="email"
+              value={fields.notificationEmail}
+              onChange={(e) => updateField("notificationEmail", e.target.value)}
+              maxLength={254}
+              placeholder="optional@example.com"
+            />
+            <p style={{ fontSize: 12, color: "#999999" }}>
+              비워두면 가입 이메일({initialData.email})로 알림이 전송됩니다.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: "#666666", minWidth: 120 }}>Notification Email:</span>
+            <span style={{ fontSize: 14, color: initialData.notificationEmail ? "#2F2C26" : "#999999" }}>
+              {initialData.notificationEmail || `Using login email (${initialData.email})`}
+            </span>
+          </div>
+        )}
       </div>
 
       <div

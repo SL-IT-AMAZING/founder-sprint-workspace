@@ -9,6 +9,7 @@ import { isCalendarConfigured, createCalendarEventWithMeet } from "@/lib/google-
 import { fromZonedTime } from "date-fns-tz";
 import { startOfWeek } from "date-fns";
 import { sendOfficeHourRequestEmail, sendOfficeHourBookingConfirmEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 import { revalidateSchedule } from "@/lib/cache-helpers";
 import type { UserWithBatch } from "@/types";
 import type { CompanyOption, FounderOption, MentorOption } from "@/types/invite";
@@ -637,7 +638,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
       return { success: false, error: "Cannot request office hours in the past" };
     }
 
-    let targetHost: { id: string; email: string; name: string | null } | null = null;
+    let targetHost: { id: string; email: string; notificationEmail: string | null; name: string | null } | null = null;
 
     if (mentorId) {
       const mentorMembership = await prisma.userBatch.findFirst({
@@ -656,6 +657,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
             select: {
               id: true,
               email: true,
+              notificationEmail: true,
               name: true,
             },
           },
@@ -675,6 +677,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
         select: {
           id: true,
           email: true,
+          notificationEmail: true,
           name: true,
         },
       });
@@ -722,7 +725,7 @@ export async function proposeOfficeHour(formData: FormData): Promise<ActionResul
         select: { name: true },
       });
       sendOfficeHourRequestEmail({
-        to: targetHost.email,
+        to: getRecipientEmail(targetHost),
         hostName: targetHost.name || targetHost.email,
         requesterName: user.name || user.email,
         companyName: company?.name,
@@ -1077,14 +1080,14 @@ export async function requestOfficeHour(slotId: string, companyId: string, messa
       const slotWithHost = await prisma.officeHourSlot.findUnique({
         where: { id: validated.slotId },
         include: {
-          host: { select: { email: true, name: true } },
+          host: { select: { email: true, notificationEmail: true, name: true } },
           company: { select: { name: true } },
           // group relation removed — office hours use company now
         },
       });
       if (slotWithHost?.host) {
         sendOfficeHourRequestEmail({
-          to: slotWithHost.host.email,
+          to: getRecipientEmail(slotWithHost.host),
           hostName: slotWithHost.host.name || slotWithHost.host.email,
           requesterName: user.name || user.email,
           companyName: slotWithHost.company?.name,

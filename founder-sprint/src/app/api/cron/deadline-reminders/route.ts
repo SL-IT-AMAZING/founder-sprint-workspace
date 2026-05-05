@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendAssignmentDeadlineReminderEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
                   id: true,
                   name: true,
                   email: true,
+                  notificationEmail: true,
                   companyMemberships: {
                     where: { isCurrent: true },
                     select: { companyId: true },
@@ -112,7 +114,7 @@ export async function GET(request: NextRequest) {
       .map((userBatch) => userBatch.user);
 
     const finalRecipients = overrideEmail
-      ? recipients.map((recipient) => ({ ...recipient, email: overrideEmail }))
+      ? recipients.map((recipient) => ({ ...recipient, email: overrideEmail, notificationEmail: null }))
       : recipients;
 
     const existingNotifications = finalRecipients.length > 0 && !overrideEmail
@@ -135,7 +137,7 @@ export async function GET(request: NextRequest) {
       const sendResults = await Promise.all(
         unsentRecipients.map((recipient) =>
           sendAssignmentDeadlineReminderEmail({
-            to: recipient.email,
+            to: getRecipientEmail(recipient),
             recipientName: recipient.name,
             assignmentTitle: assignment.title,
             dueDate: assignment.dueDate,

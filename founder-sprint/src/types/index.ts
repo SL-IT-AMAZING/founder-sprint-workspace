@@ -18,6 +18,7 @@ export type StaffRole = Extract<UserRole, "super_admin" | "admin" | "mentor">;
 export interface UserWithBatch {
   id: string;
   email: string;
+  notificationEmail: string | null;
   name: string | null;
   profileImage: string | null;
   timezone: string | null;
