@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { createGroup } from "@/actions/group";
 
 interface Group {
@@ -50,7 +51,10 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Companies</h1>
+        <div>
+          <PageCategoryLabel label="Batch" />
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Groups</h1>
+        </div>
         {isAdmin && (
           <Button onClick={() => setIsModalOpen(true)}>Create Company</Button>
         )}

@@ -15,6 +15,7 @@ import { TIMEZONE_OPTIONS } from "@/lib/timezone";
 import { useToast } from "@/hooks/useToast";
 import { BatchSelect, type BatchOption } from "@/components/ui/BatchSelect";
 import { CompanySelect, type CompanyOption } from "@/components/ui/CompanySelect";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { addMinutesToTimeValue, getTimeRangeDurationMinutes } from "@/lib/schedule-form";
 
 interface Session {
@@ -251,7 +252,10 @@ export function SessionsList({ sessions, isAdmin, batchOptions, companyOptions, 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Sessions</h1>
+        <div>
+          <PageCategoryLabel label="Batch" />
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Sessions</h1>
+        </div>
         {isAdmin && (
           <Button onClick={() => setIsModalOpen(true)}>Create Session</Button>
         )}

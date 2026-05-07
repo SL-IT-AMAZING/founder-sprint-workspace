@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { formatDate, getDisplayName } from "@/lib/utils";
 import { getAssignmentNonSubmitters, sendAssignmentDeadlineReminders } from "@/actions/assignment";
 import { useToast } from "@/hooks/useToast";
@@ -156,7 +157,10 @@ export function SubmissionsDashboard({ submissions, assignments }: SubmissionsDa
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Submissions Dashboard</h1>
+        <div>
+          <PageCategoryLabel label="Batch" />
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Submissions Dashboard</h1>
+        </div>
       </div>
 
       <div className="card">

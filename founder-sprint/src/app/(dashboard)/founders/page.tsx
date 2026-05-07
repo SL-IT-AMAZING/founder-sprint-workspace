@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getAllMembers, getAllMemberStats } from "@/actions/directory";
 import { getFollowingIdsForUser } from "@/actions/follow";
 import { FollowButton } from "@/components/feed/FollowButton";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { SearchBar } from "./SearchBar";
 import type { UserRole } from "@/types";
 
@@ -86,6 +87,7 @@ export default async function FoundersPage({
   return (
     <div>
       <div style={{ marginBottom: "32px" }}>
+        <PageCategoryLabel label="Community" />
         <h1
           style={{
             fontSize: "32px",
