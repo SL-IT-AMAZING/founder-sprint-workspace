@@ -353,62 +353,43 @@ export default async function CompaniesPage({
                   flexWrap: "wrap",
                 }}
               >
-                {company.hqLocation && (
-                  <span style={{ fontSize: "13px", color: "#999999" }}>
-                    {company.hqLocation}
-                  </span>
-                )}
-
-                {company.memberCount > 0 && (
-                    <div
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {company.hqLocation && (
+                    <span style={{ fontSize: "13px", color: "#999999" }}>
+                      {company.hqLocation}
+                    </span>
+                  )}
+                  {company.website && (
+                    <a
+                      href={company.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        flexWrap: "wrap",
+                        fontSize: "13px",
+                        color: "#666666",
+                        textDecoration: "underline",
+                        textDecorationColor: "#cccccc",
+                        textUnderlineOffset: "2px",
                       }}
                     >
-                    <div style={{ display: "flex", marginLeft: "auto" }}>
-                      {company.memberAvatars.slice(0, 3).map((avatar, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            width: "24px",
-                            height: "24px",
-                            borderRadius: "50%",
-                            border: "2px solid #FFFFFF",
-                            marginLeft: idx > 0 ? "-8px" : "0",
-                            backgroundColor: "#e0e0e0",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {avatar ? (
-                            <img
-                              src={avatar}
-                              alt=""
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                              }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                backgroundColor: "#e0e0e0",
-                              }}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <span style={{ fontSize: "13px", color: "#666666" }}>
-                      {company.memberCount}{" "}
-                      {company.memberCount === 1 ? "member" : "members"}
-                    </span>
-                  </div>
+                      Visit website ↗
+                    </a>
+                  )}
+                </div>
+
+                {company.memberCount > 0 && (
+                  <span style={{ fontSize: "13px", color: "#666666" }}>
+                    {company.memberCount}{" "}
+                    {company.memberCount === 1 ? "member" : "members"}
+                  </span>
                 )}
               </div>
             </Link>
