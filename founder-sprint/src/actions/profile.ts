@@ -245,6 +245,7 @@ export async function getUserProfile(userId: string): Promise<ActionResult<{
 export async function getEnhancedUserProfile(userId: string): Promise<ActionResult<{
   id: string;
   email: string;
+  notificationEmail: string | null;
   name: string | null;
   profileImage: string | null;
   jobTitle: string | null;
@@ -316,6 +317,7 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
     select: {
       id: true,
       email: true,
+      notificationEmail: true,
       name: true,
       profileImage: true,
       jobTitle: true,
@@ -394,6 +396,7 @@ export async function getEnhancedUserProfile(userId: string): Promise<ActionResu
     data: {
       id: profile.id,
       email: profile.email,
+      notificationEmail: profile.notificationEmail,
       name: profile.name,
       profileImage: profile.profileImage,
       jobTitle: profile.jobTitle,
