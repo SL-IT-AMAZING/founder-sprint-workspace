@@ -56,17 +56,17 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
           <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Groups</h1>
         </div>
         {isAdmin && (
-          <Button onClick={() => setIsModalOpen(true)}>Create Company</Button>
+          <Button onClick={() => setIsModalOpen(true)}>Create Group</Button>
         )}
       </div>
 
       {groups.length === 0 ? (
         <EmptyState
-          title="No companies yet"
-          description="Companies will appear here once created"
+          title="No groups yet"
+          description="Groups will appear here once created"
           action={
             isAdmin ? (
-              <Button onClick={() => setIsModalOpen(true)}>Create First Company</Button>
+              <Button onClick={() => setIsModalOpen(true)}>Create First Group</Button>
             ) : undefined
           }
         />
@@ -107,7 +107,7 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
         </div>
       )}
 
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Company">
+      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Group">
         <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="form-error p-3 rounded-lg text-sm">
@@ -117,15 +117,15 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
 
           <Input
             name="name"
-            label="Company Name"
-            placeholder="Acme Corp"
+            label="Group Name"
+            placeholder="Founders Circle"
             required
           />
 
           <Textarea
             name="description"
             label="Description"
-            placeholder="Brief description of the company"
+            placeholder="Brief description of the group"
             rows={3}
           />
 
@@ -139,7 +139,7 @@ export function GroupsList({ groups, isAdmin }: GroupsListProps) {
               Cancel
             </Button>
             <Button type="submit" loading={isPending}>
-              Create Company
+              Create Group
             </Button>
           </div>
         </form>
