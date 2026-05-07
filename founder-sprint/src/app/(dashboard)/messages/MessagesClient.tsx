@@ -93,37 +93,48 @@ export default function MessagesClient({
     return () => clearInterval(interval);
   }, [selectedConversationId]);
 
-  // Handle conversation selection
-  const handleSelectConversation = async (conversationId: string) => {
-    setSelectedConversationId(conversationId);
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setConversationDetail(null);
+      setMessages([]);
+      return;
+    }
+
+    const idForThisRun = selectedConversationId;
+    let cancelled = false;
     setMessagesLoading(true);
+
+    Promise.all([
+      getConversation(idForThisRun),
+      getMessages(idForThisRun),
+    ])
+      .then(([detailResult, messagesResult]) => {
+        if (cancelled) return;
+        if (detailResult.success) setConversationDetail(detailResult.data);
+        if (messagesResult.success) setMessages(messagesResult.data.messages);
+        setMessagesLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setMessagesLoading(false);
+      });
+
+    markConversationRead(idForThisRun).then(() => {
+      if (cancelled) return;
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === idForThisRun ? { ...c, unreadCount: 0 } : c
+        )
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationId]);
+
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
     router.push(`/messages?conversation=${conversationId}`);
-
-    // Fetch conversation details and messages
-    const [detailResult, messagesResult] = await Promise.all([
-      getConversation(conversationId),
-      getMessages(conversationId),
-    ]);
-
-    if (detailResult.success) {
-      setConversationDetail(detailResult.data);
-    }
-
-    if (messagesResult.success) {
-      setMessages(messagesResult.data.messages);
-    }
-
-    setMessagesLoading(false);
-
-    // Mark as read
-    await markConversationRead(conversationId);
-
-    // Update the unread count in the local conversations list
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === conversationId ? { ...c, unreadCount: 0 } : c
-      )
-    );
   };
 
   const handleSendMessage = async (
