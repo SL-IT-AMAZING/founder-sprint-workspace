@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60,
+    maxAge: 7 * 24 * 60 * 60,
     path: "/",
   });
 
