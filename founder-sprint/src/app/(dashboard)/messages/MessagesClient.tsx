@@ -33,7 +33,9 @@ export default function MessagesClient({
   );
   const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState<boolean>(
+    !!searchParams.get("conversation")
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ConversationListItem[] | null>(null);
   const [browseGroupsOpen, setBrowseGroupsOpen] = useState(false);
@@ -97,6 +99,7 @@ export default function MessagesClient({
     if (!selectedConversationId) {
       setConversationDetail(null);
       setMessages([]);
+      setMessagesLoading(false);
       return;
     }
 
@@ -134,6 +137,7 @@ export default function MessagesClient({
 
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
+    setMessagesLoading(true);
     router.push(`/messages?conversation=${conversationId}`);
   };
 
