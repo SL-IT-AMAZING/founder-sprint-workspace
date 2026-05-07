@@ -6,6 +6,7 @@ import { format, isThisYear } from "date-fns";
 import type { ConversationListItem } from "@/actions/messaging";
 import { Avatar } from "@/components/ui/Avatar";
 import { GroupAvatar } from "@/components/ui/GroupAvatar";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 
 interface ConversationListProps {
   conversations: ConversationListItem[];
@@ -124,9 +125,12 @@ export default function ConversationList({
       {/* Header */}
       <div style={{ padding: "16px", borderBottom: "1px solid #e0e0e0" }}>
         <div className="flex" style={{ alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", margin: 0 }}>
-            Messages
-          </h1>
+          <div>
+            <PageCategoryLabel label="Community" />
+            <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", margin: 0 }}>
+              Messages
+            </h1>
+          </div>
           <div className="flex" style={{ gap: "8px" }}>
             <button
               onClick={onComposeClick}

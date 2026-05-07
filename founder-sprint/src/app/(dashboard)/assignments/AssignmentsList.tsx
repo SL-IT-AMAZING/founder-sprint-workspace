@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { CompanySelect, type CompanyOption } from "@/components/ui/CompanySelect";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/useToast";
 
@@ -143,9 +144,12 @@ export function AssignmentsList({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>
-          Assignments
-        </h1>
+        <div>
+          <PageCategoryLabel label="Batch" />
+          <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>
+            Assignments
+          </h1>
+        </div>
         {canCreate && <Button onClick={() => setCreateOpen(true)}>Create Assignment</Button>}
       </div>
 

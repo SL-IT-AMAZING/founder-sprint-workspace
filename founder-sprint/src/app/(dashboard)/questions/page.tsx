@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/permissions";
 import { getQuestions } from "@/actions/question";
 import { redirect } from "next/navigation";
 import { QuestionsList } from "./QuestionsList";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 
@@ -21,6 +22,7 @@ export default async function QuestionsPage() {
     <div className="container" style={{ maxWidth: 900 }}>
       <div className="flex items-center justify-between mb-8">
         <div>
+          <PageCategoryLabel label="Batch" />
           <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26", marginBottom: "8px" }}>Questions</h1>
           <p style={{ color: "var(--color-foreground-secondary)" }}>
             Ask questions and get answers from mentors and admins

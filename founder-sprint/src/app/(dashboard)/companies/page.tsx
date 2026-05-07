@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser, isAdmin, isFounder } from "@/lib/permissions";
 import { getCompaniesDirectory } from "@/actions/directory";
 import { getMyCompanyRequestContext } from "@/actions/company";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { NewCompanyRequestButton } from "./NewCompanyRequestButton";
 import { SearchBar } from "./SearchBar";
 
@@ -95,6 +96,7 @@ export default async function CompaniesPage({
     <div>
       <div style={{ marginBottom: "32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
         <div>
+          <PageCategoryLabel label="Community" />
           <h1
             style={{
               fontSize: "32px",

@@ -3,6 +3,7 @@ import { getScheduleItems } from "@/actions/schedule";
 import { getOfficeHourBatchContext } from "@/actions/office-hour";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { PageCategoryLabel } from "@/components/layout/PageCategoryLabel";
 import { ScheduleView } from "./ScheduleView";
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, parse, isValid } from "date-fns";
 import type { VisibleScheduleFilter } from "@/types/schedule";
@@ -72,7 +73,10 @@ export default async function SchedulePage({
 
   return (
     <div className="space-y-6">
-      <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Schedule</h1>
+      <div>
+        <PageCategoryLabel label="Batch" />
+        <h1 style={{ fontSize: "32px", fontWeight: 600, fontFamily: '"Libre Caslon Condensed", Georgia, serif', color: "#2F2C26" }}>Schedule</h1>
+      </div>
       <ScheduleView
         items={items}
         month={monthDate.toISOString()}
