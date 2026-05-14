@@ -116,9 +116,10 @@ export function useRealtimeMessages({
             const updatedMessage = mapRowToMessageItem(row, prevMessages[index].attachments);
             const next = prevMessages.slice();
             next[index] = updatedMessage;
-            setLastEventTimestamp(updatedMessage.createdAt.toISOString());
             return next;
           });
+
+          setLastEventTimestamp(new Date(row.created_at).toISOString());
         }
       );
 
