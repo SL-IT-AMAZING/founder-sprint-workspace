@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outsome Bookface — Waitlist</title>
+<meta name="description" content="파운더는 답을 검색하지 않는다. 사람에게 묻는다.">
+<meta property="og:title" content="Outsome Bookface">
+<meta property="og:description" content="검색해서 나오지 않는 답은 커뮤니티 안에 있다.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14100E; --ink-soft:#2A231E;
+    --paper:#F5F0E6; --paper-dim:#E8E1D3;
+    --orange:#FF5C1B; --muted:#8A7F72;
+    --line:rgba(20,16,14,.14); --line-dark:rgba(245,240,230,.16);
+    --sans:'Pretendard',-apple-system,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 28px}
+  .lab{font-family:var(--mono);font-size:11px;font-weight:500;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+
+  nav{display:flex;justify-content:space-between;align-items:center;
+    padding:26px 0;border-bottom:1px solid var(--line)}
+  .mark{font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:-.01em}
+  .mark span{color:var(--orange)}
+
+  header{padding:88px 0 64px}
+  h1{font-size:clamp(38px,6.4vw,76px);line-height:1.02;font-weight:800;
+    letter-spacing:-.035em;max-width:15ch}
+  h1 em{font-style:normal;color:var(--orange)}
+  .sub{margin-top:28px;max-width:46ch;font-size:17px;color:var(--ink-soft);line-height:1.72}
+  .sub b{font-weight:600;color:var(--ink)}
+
+  .counter{margin-top:40px;display:flex;align-items:baseline;gap:12px;font-family:var(--mono)}
+  .counter .n{font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1}
+  .counter .of{font-size:13px;color:var(--muted)}
+  .bar{margin-top:14px;height:2px;width:240px;max-width:60vw;background:var(--paper-dim);
+    position:relative;overflow:hidden}
+  .bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--orange);
+    transition:width 1.6s cubic-bezier(.22,1,.36,1)}
+
+  .board{margin-top:76px;padding:34px 0 0;border-top:1px solid var(--line)}
+  .board-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+  .grid{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+    gap:1px;background:var(--line);border:1px solid var(--line)}
+  .cell{background:var(--paper);padding:20px 18px 18px;min-height:172px;
+    display:flex;flex-direction:column;justify-content:space-between;position:relative}
+  .cell.locked .nm,.cell.locked .co,.cell.locked .bio{filter:blur(5.5px);opacity:.42;user-select:none}
+  .av{width:38px;height:38px;border-radius:50%;background:var(--paper-dim);
+    display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted)}
+  .cell.locked .av{filter:blur(4px)}
+  .nm{margin-top:auto;padding-top:14px;font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .co{font-size:13px;color:var(--muted);margin-top:1px}
+  .bio{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .batch{position:absolute;top:18px;right:16px;font-family:var(--mono);
+    font-size:10px;letter-spacing:.08em;color:var(--muted)}
+  .cell.locked .batch{filter:blur(3px)}
+
+  .cell.you{background:var(--ink);color:var(--paper);
+    outline:2px solid var(--orange);outline-offset:-2px;z-index:2}
+  .cell.you .av{background:var(--orange);color:var(--ink)}
+  .cell.you .co,.cell.you .bio,.cell.you .batch{color:rgba(245,240,230,.56)}
+  .cell.you .nm{color:var(--paper)}
+  .cell.you .ph{color:rgba(245,240,230,.34)}
+  .youtag{position:absolute;top:0;left:0;background:var(--orange);color:var(--ink);
+    font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;padding:3px 7px}
+  .caret{display:inline-block;width:2px;height:1em;background:var(--orange);
+    vertical-align:-2px;margin-left:2px;animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  .form-sec{margin-top:104px;background:var(--ink);color:var(--paper);padding:80px 0 88px}
+  .form-sec .lab{color:rgba(245,240,230,.44)}
+  .form-sec h2{font-size:clamp(28px,3.6vw,40px);font-weight:800;letter-spacing:-.03em;
+    margin-top:14px;line-height:1.14;max-width:20ch}
+  .form-sec .note{margin-top:16px;color:rgba(245,240,230,.6);max-width:48ch;font-size:15px}
+
+  form{margin-top:52px;display:grid;grid-template-columns:1fr 1fr;gap:30px 34px}
+  .f{display:flex;flex-direction:column;gap:9px}
+  .f.full{grid-column:1/-1}
+  label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(245,240,230,.52)}
+  label .req{color:var(--orange)}
+  input,textarea,select{font-family:var(--sans);font-size:16px;color:var(--paper);
+    background:transparent;border:0;border-bottom:1px solid var(--line-dark);
+    padding:10px 0;outline:none;border-radius:0;transition:border-color .2s}
+  textarea{resize:vertical;min-height:56px;line-height:1.6}
+  select{appearance:none;cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 50%,rgba(245,240,230,.5) 50%),
+                     linear-gradient(135deg,rgba(245,240,230,.5) 50%,transparent 50%);
+    background-position:calc(100% - 12px) calc(50% + 1px),calc(100% - 7px) calc(50% + 1px);
+    background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  select option{background:var(--ink);color:var(--paper)}
+  input::placeholder,textarea::placeholder{color:rgba(245,240,230,.26)}
+  input:focus,textarea:focus,select:focus{border-color:var(--orange)}
+  input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible{
+    outline:2px solid var(--orange);outline-offset:3px}
+  .hint{font-family:var(--mono);font-size:10.5px;color:rgba(245,240,230,.32)}
+  .err{font-family:var(--mono);font-size:10.5px;color:var(--orange);display:none}
+  .f.bad .err{display:block}
+  .f.bad input,.f.bad textarea,.f.bad select{border-color:var(--orange)}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+
+  .submit-row{grid-column:1/-1;display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:10px}
+  button{font-family:var(--sans);font-weight:700;font-size:16px;letter-spacing:-.01em;
+    background:var(--orange);color:var(--ink);border:0;cursor:pointer;
+    padding:17px 34px;transition:transform .14s ease,background .14s}
+  button:hover{background:#FF6F35}
+  button:active{transform:translateY(1px)}
+  button[disabled]{opacity:.45;cursor:not-allowed}
+  .submit-row p{font-family:var(--mono);font-size:11px;color:rgba(245,240,230,.4);
+    letter-spacing:.04em;max-width:32ch;line-height:1.7}
+
+  .done{display:none;margin-top:52px;border-top:1px solid var(--line-dark);padding-top:44px}
+  .done.on{display:block;animation:rise .55s cubic-bezier(.22,1,.36,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .done h3{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .done p{margin-top:12px;color:rgba(245,240,230,.62);max-width:42ch;font-size:15px}
+  .done .again{margin-top:24px;font-family:var(--mono);font-size:11px;color:rgba(245,240,230,.4)}
+  .done .again a{color:var(--orange)}
+
+  footer{padding:44px 0 60px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  footer .lab a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
+  footer .lab a:hover{color:var(--orange);border-color:var(--orange)}
+
+  @media (max-width:720px){
+    header{padding:56px 0 40px}
+    form{grid-template-columns:1fr;gap:26px}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+    .board{margin-top:52px}
+    .form-sec{margin-top:72px;padding:60px 0 68px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="mark">OUTSOME <span>/</span> BOOKFACE</div>
+    <div class="lab">Private Beta · 2026</div>
+  </nav>
+
+  <header>
+    <div class="lab">Waitlist</div>
+    <h1>파운더는 답을 검색하지 않는다. <em>사람에게 묻는다.</em></h1>
+    <p class="sub">
+      Outsome Bookface는 Outsome을 거쳐간 파운더들만 들어오는 비공개 커뮤니티다.
+      미국 법인 설립부터 첫 엔터프라이즈 딜, 브릿지 라운드까지 —
+      <b>이미 그 문을 통과한 사람이 안에 있다.</b>
+      검색해서 나오지 않는 답은 원래 커뮤니티 안에 있었다.
+    </p>
+    <div class="counter">
+      <div class="n" id="cnt">0</div>
+      <div class="of">/ 초기 정원 120명</div>
+    </div>
+    <div class="bar"><i id="barfill"></i></div>
+  </header>
+
+  <section class="board">
+    <div class="board-head">
+      <div>
+        <div class="lab">Member Directory</div>
+        <p style="margin-top:8px;font-size:15px;color:var(--ink-soft)">
+          승인 후 전체 프로필이 열린다. 지금 보이는 건 실루엣뿐이다.
+        </p>
+      </div>
+      <div class="lab" style="white-space:nowrap">01 slot open →</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+</div>
+
+<section class="form-sec" id="apply">
+  <div class="wrap">
+    <div class="lab">Request an invite</div>
+    <h2>자리를 하나 비워뒀다.</h2>
+    <p class="note">
+      3분이면 끝난다. 승인은 사람이 직접 읽고 결정한다.
+      Outsome 프로그램 참여자는 대기 없이 바로 열린다.
+    </p>
+
+    <form id="form" novalidate>
+      <div class="f">
+        <label for="name">이름 <span class="req">*</span></label>
+        <input id="name" placeholder="박신우" autocomplete="name">
+        <div class="err">이름을 입력해라.</div>
+      </div>
+
+      <div class="f">
+        <label for="email">이메일 <span class="req">*</span></label>
+        <input id="email" type="email" placeholder="you@company.com" autocomplete="email">
+        <div class="err">회사 이메일이 승인이 빠르다.</div>
+      </div>
+
+      <div class="f">
+        <label for="company">회사 <span class="req">*</span></label>
+        <input id="company" placeholder="Outsome">
+        <div class="err">회사명을 입력해라.</div>
+      </div>
+
+      <div class="f">
+        <label for="site">웹사이트</label>
+        <input id="site" placeholder="outsome.co">
+      </div>
+
+      <div class="f full">
+        <label for="linkedin">링크드인 <span class="req">*</span></label>
+        <input id="linkedin" placeholder="linkedin.com/in/pkshin">
+        <div class="hint">승인 심사에서 가장 먼저 보는 곳이다</div>
+        <div class="err">링크드인 주소를 입력해라.</div>
+      </div>
+
+      <div class="f">
+        <label for="stage">현재 단계 <span class="req">*</span></label>
+        <select id="stage">
+          <option value="" selected disabled>선택</option>
+          <option>아이디어 / 프리 프로덕트</option>
+          <option>MVP · 첫 고객 확보 중</option>
+          <option>매출 발생 (~$10K MRR)</option>
+          <option>$10K+ MRR · 스케일업</option>
+          <option>투자자 / 오퍼레이터</option>
+        </select>
+        <div class="err">단계를 선택해라.</div>
+      </div>
+
+      <div class="f">
+        <label for="link">Outsome과의 접점 <span class="req">*</span></label>
+        <select id="link">
+          <option value="" selected disabled>선택</option>
+          <option>Founder Sprint 수료</option>
+          <option>US Track 참여</option>
+          <option>포트폴리오사</option>
+          <option>파트너 / 멘토</option>
+          <option>아직 없음 — 처음이다</option>
+        </select>
+        <div class="err">하나를 선택해라.</div>
+      </div>
+
+      <div class="f full">
+        <label for="bio">한 줄 소개 <span class="req">*</span></label>
+        <input id="bio" maxlength="70" placeholder="병원 EMR을 대체하는 AI 차팅 툴을 만든다">
+        <div class="hint"><span id="bioct">0</span>/70 · 디렉토리 카드에 그대로 들어간다</div>
+        <div class="err">한 줄을 채워라.</div>
+      </div>
+
+      <div class="f full">
+        <label for="ask">지금 커뮤니티에 묻고 싶은 질문 하나</label>
+        <textarea id="ask" rows="2" maxlength="240"
+          placeholder="미국 법인 없이 US 고객에게 인보이스를 끊는 방법이 있나?"></textarea>
+        <div class="hint">선택 사항. 그러나 이 칸을 채운 사람이 먼저 승인된다.</div>
+      </div>
+
+      <!-- 봇 잡는 미끼. 사람 눈엔 안 보인다. -->
+      <input class="hp" id="website_url" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <div class="submit-row">
+        <button type="submit" id="btn">Waitlist 신청하기</button>
+        <p>승인 결과는 영업일 3일 내 이메일로. 스팸 없음, 뉴스레터 없음.</p>
+      </div>
+    </form>
+
+    <div class="done" id="done">
+      <h3>자리를 잡아뒀다.</h3>
+      <p>승인 메일이 가면 프로필부터 채워라. 비어 있는 카드는 아무도 클릭하지 않는다.</p>
+      <div class="again">잘못 적었다면 <a href="#" onclick="location.reload();return false">다시 신청</a></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <div class="lab">Outsome · Seoul → San Francisco</div>
+    <div class="lab"><a href="https://outsome.co">outsome.co</a></div>
+  </footer>
+</div>
+
+<!-- 구글 폼 응답을 삼키는 숨은 iframe -->
+<iframe name="gf_sink" id="gf_sink" style="display:none" title="hidden"></iframe>
+
+<script>
+(function(){
+
+  /* ══════════════ 설정: 여기만 고치면 된다 ══════════════ */
+
+  var GOOGLE_FORM_URL =
+    'https://docs.google.com/forms/d/e/1FAIpQLSfp4GAduoWXCKhhaMNo8pEArvcq_KwBDAxy7wjHDFb4ZozY8w/formResponse';
+
+  var ENTRY = {
+    email:   'entry.1254170307',
+    name:    'entry.1969734747',
+    company: 'entry.426074730',
+    site:     'entry.454889609',
+    linkedin: 'entry.289372321',
+    stage:   'entry.26914042',
+    link:    'entry.720620879',
+    bio:     'entry.1790553161',
+    ask:     'entry.2138964185'
+  };
+
+  // 대기자 수. 응답 시트 보고 가끔 손으로 올려라.
+  var WAITING  = 87;
+  var CAPACITY = 120;
+
+  /* ═══════════════════════════════════════════════════ */
+
+  var MEMBERS = [
+    ['김도현','Querypie','B2B 데이터 접근 제어 플랫폼을 만든다','S23'],
+    ['이서준','Fitculator','운동 데이터로 리텐션을 설계한다','W24'],
+    ['최민아','Petrarch','데이터 마켓플레이스를 만든다','S26'],
+    ['정하늘','Altician','제조 공정 이상탐지 AI를 판다','W25'],
+    ['오지훈','Egoai','세일즈 콜을 자동으로 요약한다','W24'],
+    ['한수빈','Withfriends','크리에이터 멤버십 인프라','W19'],
+    ['배준영','Loopin','물류 견적을 실시간으로 붙인다','S25'],
+    ['서예린','Nadle','병원 EMR 위에 AI 차팅을 올린다','W26'],
+    ['문재원','Slit','B2B 온보딩 자동화','S24'],
+    ['강태오','Miilk','한국 스타트업 영문 미디어','—'],
+    ['윤가은','Rowlin','로우코드 데이터 파이프라인','W25']
+  ];
+  var YOU_AT = 4;
+  var TAG = {
+    'Founder Sprint 수료':'FS','US Track 참여':'US','포트폴리오사':'PF',
+    '파트너 / 멘토':'PT','아직 없음 — 처음이다':'NEW'
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+  var initials = function(n){ return n.slice(1,3) || n.slice(0,2); };
+
+  /* ── 카드 그리드 ── */
+  var grid = $('grid');
+  MEMBERS.forEach(function(m,i){
+    if(i === YOU_AT){
+      var y = document.createElement('div');
+      y.className = 'cell you';
+      y.innerHTML =
+        '<div class="youtag">YOU</div>' +
+        '<div class="av" id="y-av">?</div>' +
+        '<div class="batch" id="y-batch">—</div>' +
+        '<div>' +
+          '<div class="nm" id="y-nm"><span class="ph">이름</span><span class="caret"></span></div>' +
+          '<div class="co" id="y-co"><span class="ph">회사</span></div>' +
+          '<div class="bio" id="y-bio"><span class="ph">한 줄 소개가 여기에 들어간다</span></div>' +
+        '</div>';
+      grid.appendChild(y);
+    }
+    var c = document.createElement('div');
+    c.className = 'cell locked';
+    c.innerHTML =
+      '<div class="av">' + initials(m[0]) + '</div>' +
+      '<div class="batch">' + m[3] + '</div>' +
+      '<div><div class="nm">' + m[0] + '</div>' +
+      '<div class="co">' + m[1] + '</div>' +
+      '<div class="bio">' + m[2] + '</div></div>';
+    grid.appendChild(c);
+  });
+
+  /* ── 실시간 카드 채우기 ── */
+  function live(inputId, targetId, placeholder){
+    var el = $(inputId), t = $(targetId);
+    el.addEventListener('input', function(){
+      var v = el.value.trim();
+      if(!v){ t.innerHTML = '<span class="ph">' + placeholder + '</span>'; }
+      else { t.textContent = v; }
+      if(inputId === 'name'){
+        $('y-av').textContent = v ? initials(v) : '?';
+        if(v) t.innerHTML = v.replace(/</g,'&lt;') + '<span class="caret"></span>';
+      }
+    });
+  }
+  live('name','y-nm','이름');
+  live('company','y-co','회사');
+  live('bio','y-bio','한 줄 소개가 여기에 들어간다');
+
+  $('bio').addEventListener('input', function(){ $('bioct').textContent = this.value.length; });
+  $('link').addEventListener('change', function(){ $('y-batch').textContent = TAG[this.value] || '—'; });
+
+  /* ── 카운터 ── */
+  var cnt = $('cnt'), t0 = performance.now();
+  (function tick(now){
+    var p = Math.min((now - t0) / 1400, 1);
+    cnt.textContent = Math.round(WAITING * (1 - Math.pow(1 - p, 3)));
+    if(p < 1) requestAnimationFrame(tick);
+  })(t0);
+  requestAnimationFrame(function(){
+    $('barfill').style.width = Math.min(WAITING / CAPACITY * 100, 100).toFixed(1) + '%';
+  });
+
+  /* ── 검증 ── */
+  var REQ = ['name','email','company','linkedin','stage','link','bio'];
+  function ok(id){
+    var v = $(id).value.trim();
+    if(!v) return false;
+    if(id === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    if(id === 'linkedin') return /linkedin\.com\/(in|company)\/[^\/\s]+/i.test(v);
+    return true;
+  }
+  REQ.forEach(function(id){
+    var el = $(id);
+    var ev = el.tagName === 'SELECT' ? 'change' : 'blur';
+    el.addEventListener(ev, function(){ el.closest('.f').classList.toggle('bad', !ok(id)); });
+    el.addEventListener('input', function(){ el.closest('.f').classList.remove('bad'); });
+  });
+
+  /* ── 제출: 숨은 iframe으로 구글 폼에 POST ── */
+  var form = $('form'), btn = $('btn'), sent = false;
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(sent) return;
+
+    var good = true;
+    REQ.forEach(function(id){
+      var v = ok(id);
+      $(id).closest('.f').classList.toggle('bad', !v);
+      if(!v && good){ $(id).focus(); good = false; }
+    });
+    if(!good) return;
+
+    // 봇이 미끼를 물었다: 성공한 척하고 버린다
+    if($('website_url').value){ finish(); return; }
+
+    sent = true;
+    btn.disabled = true;
+    btn.textContent = '보내는 중…';
+
+    var ghost = document.createElement('form');
+    ghost.action = GOOGLE_FORM_URL;
+    ghost.method = 'POST';
+    ghost.target = 'gf_sink';
+    ghost.style.display = 'none';
+
+    Object.keys(ENTRY).forEach(function(k){
+      var i = document.createElement('input');
+      i.type = 'hidden';
+      i.name = ENTRY[k];
+      i.value = $(k).value.trim();
+      ghost.appendChild(i);
+    });
+
+    document.body.appendChild(ghost);
+
+    // 구글은 CORS로 응답을 안 준다. iframe이 로드되면 도착한 것으로 본다.
+    var done = false;
+    $('gf_sink').addEventListener('load', function(){
+      if(!done){ done = true; finish(); }
+    });
+    // iframe load가 안 잡히는 브라우저 대비
+    setTimeout(function(){ if(!done){ done = true; finish(); } }, 2500);
+
+    ghost.submit();
+  });
+
+  function finish(){
+    form.style.display = 'none';
+    var d = $('done');
+    d.classList.add('on');
+    d.scrollIntoView({ block:'center' });
+  }
+
+})();
+</script>
+</body>
+</html>
