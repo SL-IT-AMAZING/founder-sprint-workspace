@@ -139,3 +139,5 @@ See `.env.example` for the full list. Key services required:
 Deployed on [Vercel](https://vercel.com). Set all environment variables from `.env.example` in the Vercel dashboard.
 
 Build command: `prisma generate && next build`
+
+.
