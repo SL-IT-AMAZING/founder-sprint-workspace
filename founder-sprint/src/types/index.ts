@@ -40,6 +40,23 @@ export type ActionResult<T = void> =
   | { success: true; data: T; warning?: string }
   | { success: false; error: string };
 
+/**
+ * One row of a bulk invite report.
+ *
+ * `success` only means the membership was created — it says nothing about mail
+ * delivery. Read `emailSent` for that, and show `note` to explain a row that
+ * succeeded without an email going out.
+ */
+export type BulkInviteRow = {
+  email: string;
+  success: boolean;
+  error?: string;
+  inviteLink?: string;
+  membershipStatus?: "active" | "invited";
+  emailSent?: boolean;
+  note?: string;
+};
+
 // Pagination
 export interface PaginationParams {
   page: number;

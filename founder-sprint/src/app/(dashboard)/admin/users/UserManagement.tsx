@@ -39,7 +39,7 @@ function getRoleDisplayName(role: string): string {
 }
 import { getBatchStatusLabel } from "@/lib/batch-utils";
 import { useToast } from "@/hooks/useToast";
-import type { UserRole, BatchStatus } from "@/types";
+import type { UserRole, BatchStatus, BulkInviteRow } from "@/types";
 
 interface Batch {
   id: string;
@@ -174,7 +174,7 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
   const [selectedRole, setSelectedRole] = useState("founder");
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
   const [bulkEmails, setBulkEmails] = useState<string[]>([]);
-  const [bulkResults, setBulkResults] = useState<Array<{ email: string; success: boolean; error?: string; inviteLink?: string }> | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkInviteRow[] | null>(null);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [activityEntries, setActivityEntries] = useState<FounderActivityEntry[]>([]);
@@ -193,6 +193,28 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
     };
   }, []);
+
+  /**
+   * Server actions reject on any unhandled server-side error (Prisma, audit
+   * log write, revalidate). Without this wrapper the rejection escapes the
+   * transition and the admin sees nothing at all — no toast, no error, no
+   * state change. Every failure has to land somewhere visible.
+   */
+  const runAction = useCallback(
+    async <T,>(
+      action: () => Promise<T>,
+      onError: (message: string) => void
+    ): Promise<T | null> => {
+      try {
+        return await action();
+      } catch (err) {
+        console.error("User management action failed:", err);
+        onError("Something went wrong. Please try again.");
+        return null;
+      }
+    },
+    []
+  );
 
   // Load users function
   const loadUsers = useCallback((batchId: string) => {
@@ -324,7 +346,8 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const result = await inviteUser(formData);
+      const result = await runAction(() => inviteUser(formData), setFormError);
+      if (!result) return;
 
       if (result.success) {
         setIsInviteModalOpen(false);
@@ -356,12 +379,16 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     formData.set("emails", bulkEmails.join("\n"));
 
     startTransition(async () => {
-      const result = await bulkInviteUsers(formData);
+      const result = await runAction(() => bulkInviteUsers(formData), setFormError);
+      if (!result) return;
 
       if (result.success) {
         setBulkResults(result.data.results);
         setBulkEmails([]);
         loadUsers(selectedBatchId);
+        if (result.warning) {
+          toast.warning(result.warning);
+        }
       } else {
         setFormError(result.error);
       }
@@ -385,11 +412,16 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     setFormError("");
 
     startTransition(async () => {
-      const result = await inviteBatchMembersFromSource({
-        sourceBatchId: sourceInviteBatchId,
-        targetBatchId: selectedBatchId,
-        userIds: selectedSourceUserIds,
-      });
+      const result = await runAction(
+        () =>
+          inviteBatchMembersFromSource({
+            sourceBatchId: sourceInviteBatchId,
+            targetBatchId: selectedBatchId,
+            userIds: selectedSourceUserIds,
+          }),
+        setFormError
+      );
+      if (!result) return;
 
       if (result.success) {
         setBulkResults(result.data.results);
@@ -412,7 +444,11 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const handleRoleChange = async (userBatch: BatchUser, newRole: string) => {
     startTransition(async () => {
-      const result = await updateUserRole(userBatch.userId, userBatch.batchId, newRole as UserRole);
+      const result = await runAction(
+        () => updateUserRole(userBatch.userId, userBatch.batchId, newRole as UserRole),
+        toast.error
+      );
+      if (!result) return;
 
       if (result.success) {
         refreshCurrentScope();
@@ -429,7 +465,12 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
       : (userBatch.additionalRoles || []).filter((additionalRole) => additionalRole !== role);
 
     startTransition(async () => {
-      const result = await updateAdditionalRoles(userBatch.userId, userBatch.batchId, nextRoles);
+      const result = await runAction(
+        () => updateAdditionalRoles(userBatch.userId, userBatch.batchId, nextRoles),
+        toast.error
+      );
+      if (!result) return;
+
       if (result.success) {
         refreshCurrentScope();
         refreshBatchPanelsIfVisible(userBatch.batchId);
@@ -509,7 +550,8 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const handleRemoveUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await removeUserFromBatch(userId, batchId);
+      const result = await runAction(() => removeUserFromBatch(userId, batchId), toast.error);
+      if (!result) return;
 
       if (result.success) {
         refreshCurrentScope();
@@ -525,7 +567,8 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     if (!confirm(`Cancel invite for ${userName} in ${batchName}? They will need to be re-invited.`)) return;
 
     startTransition(async () => {
-      const result = await cancelInvite(userId, batchId);
+      const result = await runAction(() => cancelInvite(userId, batchId), toast.error);
+      if (!result) return;
 
       if (result.success) {
         refreshCurrentScope();
@@ -538,7 +581,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const handleResendInvite = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await resendInvite(userId, batchId);
+      const result = await runAction(() => resendInvite(userId, batchId), toast.error);
+      if (!result) return;
+
       if (result.success) {
         if (result.warning) {
           toast.warning(result.warning);
@@ -557,7 +602,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     if (!confirm(`Deactivate ${userName}? They will no longer be able to sign in.`)) return;
 
     startTransition(async () => {
-      const result = await deactivateUser(userId, batchId);
+      const result = await runAction(() => deactivateUser(userId, batchId), toast.error);
+      if (!result) return;
+
       if (result.success) {
         toast.success("User deactivated");
         refreshCurrentScope();
@@ -570,7 +617,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const handleReactivateUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await reactivateUser(userId, batchId);
+      const result = await runAction(() => reactivateUser(userId, batchId), toast.error);
+      if (!result) return;
+
       if (result.success) {
         toast.success("User reactivated");
         refreshCurrentScope();
@@ -585,7 +634,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     if (!confirm(`Mark ${userName} as dropped out from ${batchName}? They will lose access to this batch but remain active in other batches.`)) return;
 
     startTransition(async () => {
-      const result = await dropoutUserFromBatch(userId, batchId);
+      const result = await runAction(() => dropoutUserFromBatch(userId, batchId), toast.error);
+      if (!result) return;
+
       if (result.success) {
         toast.success("User dropped out from batch");
         refreshCurrentScope();
@@ -598,7 +649,9 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
 
   const handleRestoreBatchUser = async (userId: string, batchId: string) => {
     startTransition(async () => {
-      const result = await restoreUserBatch(userId, batchId);
+      const result = await runAction(() => restoreUserBatch(userId, batchId), toast.error);
+      if (!result) return;
+
       if (result.success) {
         toast.success("Batch membership restored");
         refreshCurrentScope();
@@ -633,10 +686,16 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
     }
     setNotifEmailError("");
     startTransition(async () => {
-      const result = await updateUserNotificationEmail(
-        editNotifEmail.userId,
-        trimmed.length > 0 ? trimmed : null
+      const result = await runAction(
+        () =>
+          updateUserNotificationEmail(
+            editNotifEmail.userId,
+            trimmed.length > 0 ? trimmed : null
+          ),
+        setNotifEmailError
       );
+      if (!result) return;
+
       if (result.success) {
         toast.success(trimmed.length > 0 ? "Notification email updated" : "Notification email cleared");
         setEditNotifEmail(null);
@@ -1253,6 +1312,8 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
         {bulkResults ? (() => {
           const successCount = bulkResults.filter((r) => r.success).length;
           const failCount = bulkResults.filter((r) => !r.success).length;
+          const mailedCount = bulkResults.filter((r) => r.success && r.emailSent).length;
+          const notMailedCount = successCount - mailedCount;
           return (
             <div className="space-y-4">
               {/* Summary cards */}
@@ -1266,8 +1327,20 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                     border: "1px solid rgba(34, 197, 94, 0.2)",
                   }}
                 >
-                  <div style={{ fontSize: "24px", fontWeight: 600, color: "#16a34a" }}>{successCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Invited</div>
+                  <div style={{ fontSize: "24px", fontWeight: 600, color: "#16a34a" }}>{mailedCount}</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Email sent</div>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    backgroundColor: notMailedCount > 0 ? "rgba(245, 158, 11, 0.10)" : "rgba(0,0,0,0.02)",
+                    border: notMailedCount > 0 ? "1px solid rgba(245, 158, 11, 0.25)" : "1px solid var(--color-card-border)",
+                  }}
+                >
+                  <div style={{ fontSize: "24px", fontWeight: 600, color: notMailedCount > 0 ? "#b45309" : "var(--color-foreground-secondary)" }}>{notMailedCount}</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>No email</div>
                 </div>
                 <div
                   style={{
@@ -1279,9 +1352,24 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   }}
                 >
                   <div style={{ fontSize: "24px", fontWeight: 600, color: failCount > 0 ? "#dc2626" : "var(--color-foreground-secondary)" }}>{failCount}</div>
-                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Skipped</div>
+                  <div style={{ fontSize: "13px", color: "var(--color-foreground-secondary)" }}>Failed</div>
                 </div>
               </div>
+
+              {notMailedCount > 0 && (
+                <div
+                  className="p-3 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: "rgba(245, 158, 11, 0.10)",
+                    border: "1px solid rgba(245, 158, 11, 0.25)",
+                    color: "#92400e",
+                  }}
+                >
+                  {notMailedCount} {notMailedCount === 1 ? "person was" : "people were"} added to the
+                  batch but received no invitation email. See the reason on each row — where an
+                  invite link is shown, send it to them manually.
+                </div>
+              )}
 
               {/* Per-email results */}
               <div
@@ -1292,31 +1380,61 @@ export function UserManagement({ batches, canAssignSuperAdmin }: UserManagementP
                   border: "1px solid var(--color-card-border)",
                 }}
               >
-                {bulkResults.map((r, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "10px 12px",
-                      fontSize: "14px",
-                      borderBottom: i < bulkResults.length - 1 ? "1px solid var(--color-card-border)" : "none",
-                    }}
-                  >
-                    <span style={{ color: r.success ? "#16a34a" : "#dc2626", flexShrink: 0 }}>
-                      {r.success ? "\u2713" : "\u2717"}
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.email}
-                    </span>
-                    {r.error && (
-                      <span style={{ fontSize: "12px", color: "#dc2626", flexShrink: 0 }}>
-                        {r.error}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {bulkResults.map((r, i) => {
+                  const mailed = r.success && r.emailSent;
+                  const statusColor = !r.success ? "#dc2626" : mailed ? "#16a34a" : "#b45309";
+                  const statusMark = !r.success ? "\u2717" : mailed ? "\u2713" : "!";
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        padding: "10px 12px",
+                        fontSize: "14px",
+                        borderBottom: i < bulkResults.length - 1 ? "1px solid var(--color-card-border)" : "none",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ color: statusColor, flexShrink: 0, fontWeight: 600 }}>
+                          {statusMark}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.email}
+                        </span>
+                        {r.error && (
+                          <span style={{ fontSize: "12px", color: "#dc2626", flexShrink: 0 }}>
+                            {r.error}
+                          </span>
+                        )}
+                        {r.success && !mailed && r.inviteLink && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(r.inviteLink || "");
+                              toast.success("Invite link copied");
+                            }}
+                            style={{
+                              flexShrink: 0,
+                              fontSize: "12px",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              border: "1px solid var(--color-card-border)",
+                              background: "none",
+                              cursor: "pointer",
+                              color: "var(--color-foreground-secondary)",
+                            }}
+                          >
+                            Copy link
+                          </button>
+                        )}
+                      </div>
+                      {r.success && !mailed && r.note && (
+                        <div style={{ fontSize: "12px", color: "#b45309", marginLeft: "20px", marginTop: "2px" }}>
+                          {r.note}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Action buttons */}
