@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isCurrentUserSuperAdmin, requireRole, isAdmin } from "@/lib/permissions";
 import { requireActiveBatch } from "@/lib/batch-gate";
 import { sendInvitationEmail } from "@/lib/email";
+import { getRecipientEmail } from "@/lib/email-routing";
 import { ASSIGNABLE_ROLES, isRoleBelow } from "@/lib/role-hierarchy";
 import { revalidatePath, revalidateTag as revalidateTagBase } from "next/cache";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import type { ActionResult, UserRole } from "@/types";
+import type { ActionResult, BulkInviteRow, UserRole } from "@/types";
 
 const revalidateTag = (tag: string) => revalidateTagBase(tag, "default");
 
@@ -83,9 +84,24 @@ async function createAuditLogEntry(params: {
   });
 }
 
+/**
+ * Outcome of a single invite attempt.
+ *
+ * `emailSent` is the source of truth for "did the invitee actually get mailed".
+ * It is false when the membership was activated directly (no invite email is
+ * sent in that flow), when SMTP is unconfigured or errored, and when the
+ * recipient was filtered out as undeliverable.
+ */
+type InviteOutcome = {
+  id: string;
+  inviteLink?: string;
+  membershipStatus: "active" | "invited";
+  emailSent: boolean;
+};
+
 async function inviteUserCore(
   params: InviteUserParams
-): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
+): Promise<ActionResult<InviteOutcome>> {
   const { email, name, role, batchId, founderId, companyId } = params;
   const batchRole = getBatchRoleForAssignment(role);
 
@@ -246,8 +262,8 @@ async function inviteUserCore(
 
       return {
         success: true,
-        data: { id: activatedMembership.id, membershipStatus: "active" },
-        warning: "Existing user was added directly to this batch.",
+        data: { id: activatedMembership.id, membershipStatus: "active", emailSent: false },
+        warning: "Existing user was added directly to this batch. No invitation email was sent.",
       };
     }
 
@@ -291,8 +307,8 @@ async function inviteUserCore(
   if (membershipStatus === "active") {
     return {
       success: true,
-      data: { id: userBatch.id, membershipStatus },
-      warning: "Existing user was added directly to this batch.",
+      data: { id: userBatch.id, membershipStatus, emailSent: false },
+      warning: "Existing user was added directly to this batch. No invitation email was sent.",
     };
   }
 
@@ -313,8 +329,10 @@ async function inviteUserCore(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${appUrl}/invite/${token}`;
 
+  const recipientEmail = getRecipientEmail(invitedUser);
+
   const emailResult = await sendInvitationEmail({
-    to: email,
+    to: recipientEmail,
     inviteeName: name || undefined,
     batchName: batch.name,
     role,
@@ -322,18 +340,27 @@ async function inviteUserCore(
   });
 
   if (!emailResult.success) {
-    console.warn(`Failed to send invitation email to ${email}:`, emailResult.error);
+    console.warn(`Failed to send invitation email to ${recipientEmail}:`, emailResult.error);
     return {
       success: true,
-      data: { id: userBatch.id, inviteLink, membershipStatus },
+      data: { id: userBatch.id, inviteLink, membershipStatus, emailSent: false },
       warning: "User was invited but the email could not be sent. Please share the invite link directly.",
     };
   }
 
-  return { success: true, data: { id: userBatch.id, inviteLink, membershipStatus } };
+  if (emailResult.skipped) {
+    console.warn(`Invitation email skipped for undeliverable test address: ${recipientEmail}`);
+    return {
+      success: true,
+      data: { id: userBatch.id, inviteLink, membershipStatus, emailSent: false },
+      warning: `No email was sent — ${recipientEmail} is a test address. Share the invite link directly.`,
+    };
+  }
+
+  return { success: true, data: { id: userBatch.id, inviteLink, membershipStatus, emailSent: true } };
 }
 
-export async function inviteUser(formData: FormData): Promise<ActionResult<{ id: string; inviteLink?: string; membershipStatus: "active" | "invited" }>> {
+export async function inviteUser(formData: FormData): Promise<ActionResult<InviteOutcome>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
   const canAssignSuperAdmin = await isCurrentUserSuperAdmin();
@@ -374,7 +401,7 @@ export async function inviteUser(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<{
-  results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }>;
+  results: BulkInviteRow[];
 }>> {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Not authenticated" };
@@ -437,7 +464,7 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
     }
   }
 
-  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }> = [];
+  const results: BulkInviteRow[] = [];
 
   for (const email of uniqueEmails) {
         const result = await inviteUserCore({
@@ -448,7 +475,14 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
         });
 
     if (result.success) {
-      results.push({ email, success: true, inviteLink: result.data.inviteLink, membershipStatus: result.data.membershipStatus });
+      results.push({
+        email,
+        success: true,
+        inviteLink: result.data.inviteLink,
+        membershipStatus: result.data.membershipStatus,
+        emailSent: result.data.emailSent,
+        note: result.warning,
+      });
     } else {
       results.push({ email, success: false, error: result.error });
     }
@@ -461,6 +495,7 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
+  const notMailedCount = results.filter((r) => r.success && !r.emailSent).length;
 
   if (successCount === 0) {
     return {
@@ -469,10 +504,16 @@ export async function bulkInviteUsers(formData: FormData): Promise<ActionResult<
     };
   }
 
+  const warningParts: string[] = [];
+  if (failCount > 0) warningParts.push(`${failCount} failed`);
+  if (notMailedCount > 0) warningParts.push(`${notMailedCount} without an email`);
+
   return {
     success: true,
     data: { results },
-    ...(failCount > 0 ? { warning: `${successCount} invited, ${failCount} failed` } : {}),
+    ...(warningParts.length > 0
+      ? { warning: `${successCount} invited, ${warningParts.join(", ")}` }
+      : {}),
   };
 }
 
@@ -531,7 +572,7 @@ export async function inviteBatchMembersFromSource(input: {
     return roleOrder[aRole] - roleOrder[bRole];
   });
 
-  const results: Array<{ email: string; success: boolean; error?: string; inviteLink?: string; membershipStatus?: "active" | "invited" }> = [];
+  const results: BulkInviteRow[] = [];
 
   for (const member of sourceMembers) {
     const role = (member.user.role === "super_admin" ? "super_admin" : member.role) as InviteUserParams["role"];
@@ -552,6 +593,8 @@ export async function inviteBatchMembersFromSource(input: {
         success: true,
         inviteLink: result.data.inviteLink,
         membershipStatus: result.data.membershipStatus,
+        emailSent: result.data.emailSent,
+        note: result.warning,
       });
     } else {
       results.push({ email: member.user.email, success: false, error: result.error });
@@ -565,6 +608,7 @@ export async function inviteBatchMembersFromSource(input: {
 
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.length - successCount;
+  const notMailedCount = results.filter((r) => r.success && !r.emailSent).length;
 
   if (successCount === 0) {
     return {
@@ -573,10 +617,16 @@ export async function inviteBatchMembersFromSource(input: {
     };
   }
 
+  const warningParts: string[] = [];
+  if (failCount > 0) warningParts.push(`${failCount} failed`);
+  if (notMailedCount > 0) warningParts.push(`${notMailedCount} without an email`);
+
   return {
     success: true,
     data: { results },
-    ...(failCount > 0 ? { warning: `${successCount} invited, ${failCount} failed` } : {}),
+    ...(warningParts.length > 0
+      ? { warning: `${successCount} invited, ${warningParts.join(", ")}` }
+      : {}),
   };
 }
 
@@ -926,6 +976,7 @@ export async function resendInvite(
           id: true,
           email: true,
           name: true,
+          notificationEmail: true,
         },
       },
       batch: {
@@ -972,8 +1023,10 @@ export async function resendInvite(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${appUrl}/invite/${token}`;
 
+  const recipientEmail = getRecipientEmail(targetMembership.user);
+
   const emailResult = await sendInvitationEmail({
-    to: targetMembership.user.email,
+    to: recipientEmail,
     inviteeName: targetMembership.user.name || undefined,
     batchName: targetMembership.batch.name,
     role: targetMembership.role,
@@ -997,10 +1050,20 @@ export async function resendInvite(
   revalidateTag("current-user");
 
   if (!emailResult.success) {
+    console.warn(`Failed to resend invitation email to ${recipientEmail}:`, emailResult.error);
     return {
       success: true,
       data: { inviteLink },
       warning: "Invite was renewed but the email could not be sent. Share the invite link directly.",
+    };
+  }
+
+  if (emailResult.skipped) {
+    console.warn(`Invitation email skipped for undeliverable test address: ${recipientEmail}`);
+    return {
+      success: true,
+      data: { inviteLink },
+      warning: `Invite was renewed but no email was sent — ${recipientEmail} is a test address. Share the invite link directly.`,
     };
   }
 

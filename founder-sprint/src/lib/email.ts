@@ -12,6 +12,18 @@ const transporter =
       })
     : null;
 
+/**
+ * Result of an email send attempt.
+ *
+ * `skipped: true` means nothing was handed to the SMTP server — the recipient
+ * was filtered out as undeliverable. Callers must not report this as "sent".
+ */
+export type EmailResult = {
+  success: boolean;
+  error?: string;
+  skipped?: boolean;
+};
+
 function hasUndeliverableRecipient(to: string | string[]): boolean {
   const addresses = Array.isArray(to) ? to : [to];
   return addresses.some((addr) => addr.endsWith("@example.com"));
@@ -31,12 +43,12 @@ export async function sendInvitationEmail({
   batchName,
   role,
   inviteLink,
-}: InvitationEmailParams): Promise<{ success: boolean; error?: string }> {
+}: InvitationEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   const roleDisplayName = {
     admin: "Admin",
@@ -122,12 +134,12 @@ export async function sendBatchOnboardingDigestEmail({
   assignmentsUrl,
   sessionsUrl,
   eventsUrl,
-}: BatchOnboardingDigestEmailParams): Promise<{ success: boolean; error?: string }> {
+}: BatchOnboardingDigestEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -192,12 +204,12 @@ export async function sendOfficeHourRequestEmail({
   endTime,
   agenda,
   message,
-}: OfficeHourRequestEmailParams): Promise<{ success: boolean; error?: string }> {
+}: OfficeHourRequestEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   const dateTimeStr = displayRangeInUserTimezone(startTime, endTime, null, "UTC");
 
@@ -295,12 +307,12 @@ export async function sendAssignmentPublishedEmail({
   assignmentTitle,
   dueDate,
   assignmentUrl,
-}: AssignmentPublishedEmailParams): Promise<{ success: boolean; error?: string }> {
+}: AssignmentPublishedEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -349,12 +361,12 @@ export async function sendAssignmentFeedbackEmail({
   feedbackContent,
   submissionUrl,
   isReply = false,
-}: AssignmentFeedbackEmailParams): Promise<{ success: boolean; error?: string }> {
+}: AssignmentFeedbackEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -396,12 +408,12 @@ export async function sendOfficeHourApprovalEmail({
   endTime,
   meetLink,
   companyName,
-}: OfficeHourApprovalEmailParams): Promise<{ success: boolean; error?: string }> {
+}: OfficeHourApprovalEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   const dateTimeStr = displayRangeInUserTimezone(startTime, endTime, null, "UTC");
 
@@ -461,12 +473,12 @@ export async function sendAssignmentDeadlineReminderEmail({
   assignmentTitle,
   dueDate,
   assignmentUrl,
-}: AssignmentDeadlineReminderEmailParams): Promise<{ success: boolean; error?: string }> {
+}: AssignmentDeadlineReminderEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -504,12 +516,12 @@ export async function sendSubmissionCompletedEmail({
   founderName,
   assignmentTitle,
   submissionUrl,
-}: SubmissionCompletedEmailParams): Promise<{ success: boolean; error?: string }> {
+}: SubmissionCompletedEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -546,12 +558,12 @@ export async function sendFeedMentionEmail({
   authorName,
   postExcerpt,
   postUrl,
-}: FeedMentionEmailParams): Promise<{ success: boolean; error?: string }> {
+}: FeedMentionEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
@@ -592,12 +604,12 @@ export async function sendFeedReplyNotificationEmail({
   replierName,
   replyContent,
   postUrl,
-}: FeedReplyNotificationEmailParams): Promise<{ success: boolean; error?: string }> {
+}: FeedReplyNotificationEmailParams): Promise<EmailResult> {
   if (!transporter) {
     console.warn("Email not configured - GMAIL_USER or GMAIL_APP_PASSWORD missing");
     return { success: false, error: "Email service not configured" };
   }
-  if (hasUndeliverableRecipient(to)) return { success: true };
+  if (hasUndeliverableRecipient(to)) return { success: true, skipped: true };
 
   try {
     await transporter.sendMail({
